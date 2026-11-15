@@ -31,6 +31,16 @@ Three collaborators, each logged in to `gh`. Work is done as the account the iss
 - Review: a PR is approved by a different collaborator than its author (`GH_TOKEN=$(gh auth token -u <reviewer>) gh pr review <n> --approve`). Merge is done by the author, or by `Mutiur03`. Admin bypass is for emergencies only.
 - Only act as an account for issues assigned to it. Never comment, review or approve in another account's name on its own work.
 
+**This rule is strict.** A commit by the wrong person is never acceptable, and it is enforced before the commit and before the push, not after:
+
+- `.husky/pre-commit` and `.husky/pre-push` run `scripts/check-author.mjs`. It blocks when:
+  - the author email is not one of the three noreply emails above (for example the global git identity);
+  - the acting `gh` account (`GH_TOKEN`, else the active account) is not the commit author;
+  - the branch is `<type>/<issue#>-<slug>` and that issue is unassigned or assigned to someone other than the author.
+- Fix the cause (identity, `GH_TOKEN`, or assignee) and retry. Never use `--no-verify`, never rewrite the check, never commit "just this once" as someone else.
+- A commit already made with the wrong author is rewritten before any push (`git rebase -r --exec` with the correct `--author`), never pushed.
+- The check is local-only by design; there is no CI substitute, so skipping hooks means the rule is broken.
+
 ## Branches
 - One issue = one branch = one PR.
 - Always branch from latest `main`: `git switch main && git pull && git switch -c <type>/<issue#>-<slug>`.
