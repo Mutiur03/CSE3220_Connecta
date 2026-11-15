@@ -1,5 +1,6 @@
 package com.connecta.backend.config;
 
+import com.connecta.backend.auth.security.ProblemDetailAccessHandlers;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,31 +8,75 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-// Placeholder: only health is public. Replaced by JWT security in AUTH-04.
+/**
+ * Stateless API security: every request is authenticated by its bearer access token (JWT),
+ * checked by Spring's BearerTokenAuthenticationFilter using the JwtDecoder from JwtConfig.
+ */
 @Configuration
 class SecurityConfig {
 
+    /** Reachable without a token. The API docs are disabled in the prod profile, so nothing is served there. */
+    private static final String[] PUBLIC_PATHS = {
+        "/actuator/health",
+        "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
+        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
+    };
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        ProblemDetailAccessHandlers errors = new ProblemDetailAccessHandlers();
         return http
                 .cors(Customizer.withDefaults())
-                .csrf(csrf -> csrf.disable())
+                .csrf(csrf -> csrf.disable()) // no cookies or sessions here, tokens are sent in a header
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers("/actuator/health").permitAll()
-                        .requestMatchers("/api/auth/register", "/api/auth/login",
-                                "/api/auth/refresh", "/api/auth/logout").permitAll()
-                        // API docs; disabled in the prod profile, so nothing is served there.
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(PUBLIC_PATHS).permitAll()
                         .anyRequest().authenticated())
-                .httpBasic(Customizer.withDefaults())
+                .oauth2ResourceServer(o -> o
+                        .bearerTokenResolver(ignoreTokenOnPublicPaths())
+                        .jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        .authenticationEntryPoint(errors)
+                        .accessDeniedHandler(errors))
+                .exceptionHandling(e -> e.authenticationEntryPoint(errors).accessDeniedHandler(errors))
                 .build();
+    }
+
+    /**
+     * Spring rejects a request with a bad Authorization header even on a public path. A browser that still
+     * holds an expired access token must be able to call login and refresh, so public paths ignore the header.
+     */
+    private static BearerTokenResolver ignoreTokenOnPublicPaths() {
+        RequestMatcher publicPaths = new OrRequestMatcher(Arrays.stream(PUBLIC_PATHS)
+                .map(path -> (RequestMatcher) PathPatternRequestMatcher.withDefaults().matcher(path))
+                .toList());
+        DefaultBearerTokenResolver defaults = new DefaultBearerTokenResolver();
+        return request -> publicPaths.matches(request) ? null : defaults.resolve(request);
+    }
+
+    /** Maps the token's "roles" claim to ROLE_* authorities (ROLE_ADMIN, ROLE_AGENT, ...). */
+    @Bean
+    JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
+        authorities.setAuthoritiesClaimName("roles");
+        authorities.setAuthorityPrefix("ROLE_");
+        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+        converter.setJwtGrantedAuthoritiesConverter(authorities);
+        return converter;
     }
 
     @Bean

@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,7 +18,12 @@ import com.connecta.backend.auth.service.AuthService;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
+import com.connecta.backend.auth.security.JwtProperties;
 import com.connecta.backend.support.MockRepositories;
+import com.connecta.backend.support.TestTokens;
+import com.connecta.backend.support.TestUsers;
+import com.connecta.backend.user.domain.Roles;
+import com.connecta.backend.user.domain.User;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -41,6 +47,9 @@ class AuthControllerTests {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    JwtProperties jwtProperties;
 
     @MockitoBean
     AuthService authService;
@@ -160,5 +169,40 @@ class AuthControllerTests {
                 .andExpect(status().isNoContent())
                 .andExpect(content().string(""));
         verify(authService).logout("some-refresh-token");
+    }
+
+    @Test
+    void meReturnsTheUserOfTheAccessToken() throws Exception {
+        User user = TestUsers.user("jane@example.com", Roles.AGENT);
+        when(authService.currentUser(user.getId())).thenReturn(jane());
+
+        mvc.perform(get("/api/auth/me").header("Authorization", TestTokens.bearer(jwtProperties, user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("jane@example.com"));
+    }
+
+    @Test
+    void loginAndRefreshIgnoreAStaleAccessToken() throws Exception {
+        String expired = TestTokens.expiredBearer(jwtProperties, TestUsers.user("jane@example.com", Roles.AGENT));
+        when(authService.login(any(LoginRequest.class))).thenReturn(tokens());
+        when(authService.refresh("some-refresh-token")).thenReturn(tokens());
+
+        mvc.perform(json("/api/auth/login", VALID_LOGIN).header("Authorization", expired))
+                .andExpect(status().isOk());
+        mvc.perform(json("/api/auth/refresh", REFRESH_BODY).header("Authorization", expired))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void meRequiresAToken() throws Exception {
+        mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void meRejectsAnExpiredToken() throws Exception {
+        User user = TestUsers.user("jane@example.com", Roles.AGENT);
+
+        mvc.perform(get("/api/auth/me").header("Authorization", TestTokens.expiredBearer(jwtProperties, user)))
+                .andExpect(status().isUnauthorized());
     }
 }
