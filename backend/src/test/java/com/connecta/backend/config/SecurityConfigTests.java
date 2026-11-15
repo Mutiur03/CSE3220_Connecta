@@ -116,6 +116,74 @@ class SecurityConfigTests {
     }
 
     @Nested
+    class RoleAuthorization {
+
+        private String as(String... roles) {
+            return TestTokens.bearer(jwtProperties, TestUsers.user("jane@example.com", roles));
+        }
+
+        @Test
+        void adminUrlRuleAllowsAdmin() throws Exception {
+            mvc.perform(get("/api/admin/test").header("Authorization", as(Roles.ADMIN)))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void adminUrlRuleReturns403ForAgents() throws Exception {
+            mvc.perform(get("/api/admin/test").header("Authorization", as(Roles.AGENT)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.status").value(403));
+        }
+
+        @Test
+        void adminUrlRuleReturns401WithoutAToken() throws Exception {
+            mvc.perform(get("/api/admin/test")).andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void methodSecurityAllowsAdminAndRejectsAgents() throws Exception {
+            mvc.perform(get("/api/test/admin-only").header("Authorization", as(Roles.ADMIN)))
+                    .andExpect(status().isOk());
+            mvc.perform(get("/api/test/admin-only").header("Authorization", as(Roles.AGENT)))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.status").value(403));
+        }
+
+        @Test
+        void ownerInheritsAdminAndAgentPermissions() throws Exception {
+            mvc.perform(get("/api/admin/test").header("Authorization", as(Roles.OWNER)))
+                    .andExpect(status().isOk());
+            mvc.perform(get("/api/test/admin-only").header("Authorization", as(Roles.OWNER)))
+                    .andExpect(status().isOk());
+            mvc.perform(get("/api/test/agent-and-above").header("Authorization", as(Roles.OWNER)))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void adminInheritsAgentPermissions() throws Exception {
+            mvc.perform(get("/api/test/agent-and-above").header("Authorization", as(Roles.ADMIN)))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void agentCannotUseAnythingAboveItsRole() throws Exception {
+            mvc.perform(get("/api/test/agent-and-above").header("Authorization", as(Roles.AGENT)))
+                    .andExpect(status().isOk());
+            mvc.perform(get("/api/admin/test").header("Authorization", as(Roles.AGENT)))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void aTokenWithoutRolesIsAuthenticatedButAllowedNothingElse() throws Exception {
+            mvc.perform(get("/api/test/protected").header("Authorization", as()))
+                    .andExpect(status().isOk());
+            mvc.perform(get("/api/test/agent-and-above").header("Authorization", as()))
+                    .andExpect(status().isForbidden());
+        }
+    }
+
+    @Nested
     class Cors {
 
         @Test
