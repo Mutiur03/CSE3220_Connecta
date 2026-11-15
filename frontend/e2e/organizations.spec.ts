@@ -4,5 +4,5 @@ test("organization pages redirect a signed-out visitor to login", async ({
   page,
 }) => {
   await page.goto("/organizations");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?next=%2Forganizations$/);
 });

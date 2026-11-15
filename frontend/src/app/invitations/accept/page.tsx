@@ -9,8 +9,13 @@ export default async function AcceptInvitationPage({
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
-  await getCurrentUser("/invitations/accept");
   const { token } = await searchParams;
+  // Keep the token in the return target, so an expired session refreshes back to this exact link.
+  await getCurrentUser(
+    typeof token === "string"
+      ? `/invitations/accept?token=${encodeURIComponent(token)}`
+      : "/invitations/accept",
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">

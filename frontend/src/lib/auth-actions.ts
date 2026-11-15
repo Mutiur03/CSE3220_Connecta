@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { ApiError, login as apiLogin, logout as apiLogout } from "./api";
+import { safeRedirectPath } from "./redirect";
 import {
   clearSessionCookies,
   getRefreshToken,
@@ -22,6 +23,7 @@ export async function login(
 ): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const next = safeRedirectPath(String(formData.get("next") ?? ""));
 
   const errors = validateLogin(email, password);
   if (Object.keys(errors).length > 0) return { errors, email };
@@ -37,7 +39,7 @@ export async function login(
     }
     return { message: "Cannot reach the server. Please try again.", email };
   }
-  redirect("/");
+  redirect(next);
 }
 
 export async function logout() {

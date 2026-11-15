@@ -22,10 +22,11 @@ vi.mock("./session", () => session);
 import { ApiError } from "./api";
 import { login, logout } from "./auth-actions";
 
-function form(email: string, password: string) {
+function form(email: string, password: string, next?: string) {
   const data = new FormData();
   data.set("email", email);
   data.set("password", password);
+  if (next !== undefined) data.set("next", next);
   return data;
 }
 
@@ -45,6 +46,37 @@ describe("login", () => {
     );
     expect(api.login).toHaveBeenCalledWith("a@b.co", "secret");
     expect(session.setSessionCookies).toHaveBeenCalled();
+  });
+
+  it("redirects to a same-site next target with its query intact", async () => {
+    api.login.mockResolvedValue({ accessToken: "a" });
+    await expect(
+      login(
+        {},
+        form("a@b.co", "secret", "/invitations/accept?token=abc_-123&x=y"),
+      ),
+    ).rejects.toThrow("NEXT_REDIRECT /invitations/accept?token=abc_-123&x=y");
+  });
+
+  it.each([
+    "",
+    "//evil.example",
+    "https://evil.example",
+    "/\\evil.example",
+    "/\t/evil.example",
+    "inbox",
+  ])("falls back to / when next is %j", async (next) => {
+    api.login.mockResolvedValue({ accessToken: "a" });
+    await expect(login({}, form("a@b.co", "secret", next))).rejects.toThrow(
+      "NEXT_REDIRECT /",
+    );
+  });
+
+  it("does not redirect when the credentials are rejected", async () => {
+    api.login.mockRejectedValue(new ApiError(401, "no"));
+    const state = await login({}, form("a@b.co", "secret", "/inbox"));
+    expect(state.message).toBe("Invalid email or password.");
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("reports bad credentials on 401", async () => {
