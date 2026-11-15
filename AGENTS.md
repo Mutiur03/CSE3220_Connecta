@@ -51,6 +51,7 @@ Three collaborators, each logged in to `gh`. Work is done as the account the iss
 - Conventional Commits, enforced by Husky + commitlint: `type(scope): subject`.
 - Scopes: `frontend`, `backend`, `db`, `ci`, `docs`.
 - Never use `--no-verify`.
+- Clean messages only (strict): no `Co-authored-by` trailers, no "Generated with" or tool/AI attribution lines, no pasted bot summaries. Each commit has exactly one author. The commit-msg hook rejects them. Squash-merges use the PR title only (repo setting), so keep PR titles clean too.
 
 ## Pull requests
 - Open a draft PR early, mark ready only when the issue's "Done when" list is complete and CI is green.
