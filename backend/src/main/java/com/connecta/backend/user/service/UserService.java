@@ -1,5 +1,6 @@
 package com.connecta.backend.user.service;
 
+import lombok.RequiredArgsConstructor;
 import com.connecta.backend.user.domain.Role;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
@@ -12,15 +13,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** User accounts. Other features reach users and roles only through this service. */
 @Service
+@RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository users;
     private final RoleRepository roles;
-
-    public UserService(UserRepository users, RoleRepository roles) {
-        this.users = users;
-        this.roles = roles;
-    }
 
     @Transactional(readOnly = true)
     public boolean emailExists(String normalizedEmail) {

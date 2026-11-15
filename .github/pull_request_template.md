@@ -10,7 +10,8 @@ Closes #
 - [ ] Tests added/updated and passing
 - [ ] Tenant scope checked (if it touches data)
 - [ ] No unrelated files changed, no migrations run
-- [ ] Design pattern named in this description (or "none")
+- [ ] Design pattern named in this description (or "none"), and `docs/design-patterns.md` has its row
+- [ ] SOLID checked (see AGENTS.md): no new `if`/`switch` for a variant, no `new` collaborator inside a service, no fat interface
 - [ ] Every new endpoint has a role rule plus an allowed-role and a denied-role test
 - [ ] Errors go through the global handler with correct status codes
 - [ ] No hardcoded credentials; `.env.example` updated

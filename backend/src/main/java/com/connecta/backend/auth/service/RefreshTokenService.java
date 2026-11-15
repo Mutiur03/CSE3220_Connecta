@@ -1,5 +1,7 @@
 package com.connecta.backend.auth.service;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import com.connecta.backend.auth.domain.RefreshToken;
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
 import com.connecta.backend.config.JwtProperties;
@@ -12,8 +14,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,13 +22,14 @@ import org.springframework.transaction.annotation.Transactional;
  * token; presenting an already-used token means it leaked, so every session of that user is revoked.
  */
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class RefreshTokenService {
 
     /** A freshly issued raw token plus the user it belongs to. */
     public record Issued(User user, String rawToken) {
     }
 
-    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
     private static final int TOKEN_BYTES = 32;
     private static final String HASH_ALGORITHM = "SHA-256";
 
@@ -36,12 +37,6 @@ public class RefreshTokenService {
     private final JwtProperties props;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
-
-    public RefreshTokenService(RefreshTokenRepository tokens, JwtProperties props, Clock clock) {
-        this.tokens = tokens;
-        this.props = props;
-        this.clock = clock;
-    }
 
     @Transactional
     public String issue(User user) {

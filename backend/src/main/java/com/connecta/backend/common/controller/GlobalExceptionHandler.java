@@ -1,4 +1,4 @@
-package com.connecta.backend.common.web;
+package com.connecta.backend.common.controller;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

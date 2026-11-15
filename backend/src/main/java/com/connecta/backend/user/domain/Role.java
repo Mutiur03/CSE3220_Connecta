@@ -1,5 +1,8 @@
 package com.connecta.backend.user.domain;
 
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -10,6 +13,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "roles")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Role {
 
     @Id
@@ -19,19 +24,8 @@ public class Role {
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
-    protected Role() {
-    }
-
     public Role(String name) {
         this.name = name;
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
     }
 
     @Override
