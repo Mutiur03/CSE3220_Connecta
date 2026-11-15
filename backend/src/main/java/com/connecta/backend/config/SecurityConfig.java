@@ -1,6 +1,6 @@
 package com.connecta.backend.config;
 
-import com.connecta.backend.auth.web.ProblemDetailAccessHandlers;
+import com.connecta.backend.auth.controller.ProblemDetailAccessHandlers;
 import com.connecta.backend.auth.service.TokenService;
 import com.connecta.backend.user.domain.Roles;
 import java.util.Arrays;

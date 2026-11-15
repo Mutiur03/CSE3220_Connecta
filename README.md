@@ -59,7 +59,7 @@ flowchart LR
     Frontend -->|REST /api| Backend["Spring Boot backend :8080"]
     Backend -->|JPA + Flyway| DB[(PostgreSQL)]
 ```
-Backend layers per feature: `web` (controllers) -> `service` -> `repository` -> `domain`, with `dto` records at the edges. Design patterns are listed in [docs/design-patterns.md](docs/design-patterns.md).
+Backend layers per feature: `controller` (REST controllers + exception handlers) -> `service` -> `repository` -> `domain`, with `dto` records at the edges. Design patterns are listed in [docs/design-patterns.md](docs/design-patterns.md).
 
 ## Roles
 Roles are `OWNER > ADMIN > AGENT` (a higher role inherits the lower ones). They map to the course roles as `OWNER` = ADMIN, `ADMIN` = SELLER, `AGENT` = BUYER, giving three-tier role-based access. Default is deny: every path needs a valid access token unless it is on the public list in `SecurityConfig`.

@@ -1,5 +1,8 @@
 package com.connecta.backend.auth.domain;
 
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import com.connecta.backend.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -17,6 +20,8 @@ import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "refresh_tokens")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RefreshToken {
 
     @Id
@@ -42,9 +47,6 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected RefreshToken() {
-    }
-
     public RefreshToken(User user, String tokenHash, Instant expiresAt, Instant createdAt) {
         this.user = user;
         this.tokenHash = tokenHash;
@@ -64,26 +66,6 @@ public class RefreshToken {
         if (revokedAt == null) {
             revokedAt = now;
         }
-    }
-
-    public UUID getId() {
-        return id;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public String getTokenHash() {
-        return tokenHash;
-    }
-
-    public Instant getExpiresAt() {
-        return expiresAt;
-    }
-
-    public Instant getRevokedAt() {
-        return revokedAt;
     }
 
     @Override

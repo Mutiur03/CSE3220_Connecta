@@ -1,4 +1,4 @@
-package com.connecta.backend.auth.web;
+package com.connecta.backend.auth.controller;
 
 import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;

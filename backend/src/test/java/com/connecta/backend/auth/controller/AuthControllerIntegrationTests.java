@@ -1,4 +1,4 @@
-package com.connecta.backend.auth.web;
+package com.connecta.backend.auth.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
