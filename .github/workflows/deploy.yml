@@ -31,16 +31,18 @@ jobs:
         working-directory: frontend
       - run: pnpm build
         working-directory: frontend
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger Render deploy
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
-        run: |
-          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "::error::Repository secret RENDER_DEPLOY_HOOK_URL is not set"
-            exit 1
-          fi
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+  # Deploy paused until the RENDER_DEPLOY_HOOK_URL secret exists.
+  # To re-enable, uncomment the job below.
+  # deploy:
+  #   needs: test
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Trigger Render deploy
+  #       env:
+  #         RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+  #       run: |
+  #         if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+  #           echo "::error::Repository secret RENDER_DEPLOY_HOOK_URL is not set"
+  #           exit 1
+  #         fi
+  #         curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
