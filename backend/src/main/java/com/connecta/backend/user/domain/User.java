@@ -1,5 +1,8 @@
 package com.connecta.backend.user.domain;
 
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -20,6 +23,8 @@ import java.util.stream.Collectors;
 
 @Entity
 @Table(name = "users")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User {
 
     @Id
@@ -51,9 +56,6 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected User() {
-    }
-
     public User(String email, String passwordHash, String fullName) {
         this.email = normalizeEmail(email);
         this.passwordHash = passwordHash;
@@ -83,36 +85,8 @@ public class User {
         return roles.stream().map(Role::getName).collect(Collectors.toUnmodifiableSet());
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
-    }
-
     public Set<Role> getRoles() {
         return roles;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
     }
 
     @Override

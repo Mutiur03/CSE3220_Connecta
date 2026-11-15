@@ -1,4 +1,4 @@
-package com.connecta.backend.common.web;
+package com.connecta.backend.common.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;

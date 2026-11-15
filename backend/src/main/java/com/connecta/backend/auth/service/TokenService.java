@@ -1,5 +1,6 @@
 package com.connecta.backend.auth.service;
 
+import lombok.RequiredArgsConstructor;
 import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.user.domain.User;
 import java.time.Clock;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 /** Issues short-lived signed access tokens. Refresh tokens are handled by RefreshTokenService. */
 @Service
+@RequiredArgsConstructor
 public class TokenService {
 
     public static final String CLAIM_EMAIL = "email";
@@ -22,12 +24,6 @@ public class TokenService {
     private final JwtEncoder encoder;
     private final JwtProperties props;
     private final Clock clock;
-
-    public TokenService(JwtEncoder encoder, JwtProperties props, Clock clock) {
-        this.encoder = encoder;
-        this.props = props;
-        this.clock = clock;
-    }
 
     public String createAccessToken(User user) {
         Instant now = clock.instant();

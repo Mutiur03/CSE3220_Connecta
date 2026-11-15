@@ -1,5 +1,6 @@
-package com.connecta.backend.auth.web;
+package com.connecta.backend.auth.controller;
 
+import lombok.RequiredArgsConstructor;
 import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RefreshRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
@@ -24,13 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Tag(name = "Auth", description = "Registration, login, token refresh and logout")
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
-
-    public AuthController(AuthService authService) {
-        this.authService = authService;
-    }
 
     @Operation(summary = "Register a new AGENT account")
     @ApiResponse(responseCode = "201", description = "Account created")

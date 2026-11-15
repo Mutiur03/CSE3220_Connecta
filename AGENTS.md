@@ -6,7 +6,7 @@ Stack: Next.js + TypeScript + Tailwind + pnpm (`frontend/`), Spring Boot + Maven
 Put every file in its proper place from the first commit. A misplaced file is a review blocker.
 
 **Backend** (`backend/`, standard Maven layout, same as IntelliJ generates)
-- `src/main/java/com/connecta/backend/<feature>/`: package by feature (`config`, `auth`, `org`, `product`, `inbox`, `meta`, ...). Inside a feature use sub-packages by layer: `web` (controllers), `service`, `repository`, `domain` (entities), `dto`. Only `BackendApplication` lives in the root package.
+- `src/main/java/com/connecta/backend/<feature>/`: package by feature (`config`, `auth`, `org`, `product`, `inbox`, `meta`, ...). Inside a feature use sub-packages by layer: `controller` (REST controllers + exception handlers), `service`, `repository`, `domain` (entities), `dto`. Only `BackendApplication` lives in the root package.
 - `src/test/java/...`: **mirrors the production package exactly.** The test for `a.b.Foo` is `a.b.FooTests`, in package `a.b`. Context or database tests are `FooIntegrationTests`. No catch-all test classes in the root package; a cross-cutting behavior is tested in the package of the class that implements it. Group with `@Nested`, not with extra classes.
 - `src/main/resources/`: properties and `db/migration/`. Test-only resources go in `src/test/resources/`.
 
@@ -123,9 +123,9 @@ Small system design, clean architecture, security, tests, professional Git use, 
 ## Engineering standards (graded: follow exactly)
 
 ### Layering
-- `web` (controller) -> `service` -> `repository` -> `domain`. A controller never touches a repository or an entity directly; it takes a request DTO and returns a response DTO. A repository is only called from a service. Entities never leave the service layer and never appear in JSON.
+- `controller` -> `service` -> `repository` -> `domain`. A controller never touches a repository or an entity directly; it takes a request DTO and returns a response DTO. A repository is only called from a service. Entities never leave the service layer and never appear in JSON.
 - Business rules live in services (or in the entity when it is a rule about that entity alone). Controllers only validate input, call one service method, and map the result to a status code.
-- Constructor injection only (no field `@Autowired`). Services are `@Service`; transactions are declared on service methods (`@Transactional`, `readOnly = true` for reads).
+- Constructor injection only (no field `@Autowired`); Lombok `@RequiredArgsConstructor` generates it. Services are `@Service`; transactions are declared on service methods (`@Transactional`, `readOnly = true` for reads).
 - Cross-feature calls go through the other feature's service, never its repository.
 
 ### SOLID (applies to all new and changed code; reviewers check it)
@@ -135,7 +135,7 @@ Small system design, clean architecture, security, tests, professional Git use, 
 - **I, interface segregation:** keep interfaces small and role-specific (`ChannelClient` sends, it does not also parse webhooks). Do not force an implementation to carry methods it does not use.
 - **D, dependency inversion:** depend on abstractions (`PasswordEncoder`, `Clock`, `JwtEncoder`, our own strategy/adapter interfaces), injected through the constructor. Never `new` a collaborator inside a service, and never read a static singleton, when an injected one exists: two copies drift apart.
 - **Interfaces only where they pay:** introduce one when there are two or more implementations, or a boundary to an outside system (Meta API, clock). One implementation and no boundary means a plain class. Do not create an interface to tick SOLID.
-- **Constructors:** inject through the constructor and keep the fields `final`. A hand-written constructor is fine when it must run code, for example to derive a value from an injected dependency.
+- **Constructors:** `@RequiredArgsConstructor` by default. Write the constructor by hand only when it must run code (for example derive a value from an injected dependency, as `AuthService` does). Keep the fields `final`.
 - The PR description names the SOLID principle a refactor or new abstraction serves, next to the design pattern.
 
 ### Design patterns (at least one per feature, named in the PR and listed in `docs/design-patterns.md`)
@@ -166,7 +166,7 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 
 ### Exception handling
 - Services throw small domain exceptions named for the problem (`EmailAlreadyUsedException`), never bare `RuntimeException` or `Exception`, and never return `null` to signal failure.
-- Exceptions are mapped to `ProblemDetail` (RFC 9457) in one place: feature handlers in `<feature>/web/<Feature>ExceptionHandler`, the shared fallback in `common/web/GlobalExceptionHandler`. Controllers have no try/catch.
+- Exceptions are mapped to `ProblemDetail` (RFC 9457) in one place: feature handlers in `<feature>/controller/<Feature>ExceptionHandler`, the shared fallback in `common/controller/GlobalExceptionHandler`. Controllers have no try/catch.
 - Error bodies have `status`, `title`, `detail` (and `errors` per field for validation). No stack traces, SQL, class names or secrets in a response. Unknown errors are logged and answered with a generic `500`.
 - Authentication failures give the same message for an unknown user and a wrong password.
 - Each new exception gets a MockMvc test that checks the status and body.
@@ -181,13 +181,14 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 - Schema changes only through new Flyway migrations (`V<yyyyMMddHHmm>__desc.sql`); `ddl-auto=validate`.
 - Foreign keys, `NOT NULL`, unique and check constraints belong in the migration, not only in Java. Index every foreign key and every column used in a `WHERE` or join.
 - Relationships: `@ManyToOne(fetch = LAZY)` by default; map the owning side explicitly; no `CascadeType.ALL` or `EAGER` without a written reason. Use `@EntityGraph` or a fetch join to avoid N+1 queries on lists.
-- Entities: no Lombok `@Data`; keep a protected no-arg constructor and a meaningful public one; `equals`/`hashCode` on the id. No logic inside an entity that needs a repository.
+- Entities: Lombok `@Getter` and `@NoArgsConstructor(access = AccessLevel.PROTECTED)` are allowed; never `@Data`, `@Setter`, `@EqualsAndHashCode` or `@ToString` (lazy relations, id-based equality). Keep a meaningful public constructor; `equals`/`hashCode` on the id. No logic inside an entity that needs a repository.
 - The six-table minimum with 1:M, M:1 and M:M relationships must stay visible in the README's ER diagram.
 
 ### Code quality
 - Package by feature. Names say what the thing does (`RefreshTokenService.rotate`, not `process`). Methods are short and single-purpose. No commented-out code, no dead code, no `TODO` without an issue number.
 - No magic numbers or strings: use constants, enums or `@ConfigurationProperties` (see `JwtProperties`).
 - Logging through SLF4J (never `System.out`), at the right level, without personal data or secrets.
+- Lombok is allowed (`@Getter`, `@RequiredArgsConstructor`, `@NoArgsConstructor`, `@Slf4j`, `@Builder`); keep it `optional` in the pom. Not on DTOs: use `record`.
 - Prefer `record` for DTOs and immutability. `Optional` only as a return type.
 - Frontend: TypeScript strict, no `any`, API calls only through `src/lib`, server actions for mutations, no secrets in client code.
 
