@@ -9,7 +9,10 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.repository.RoleRepository;
 import com.connecta.backend.user.repository.UserRepository;
+import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +76,15 @@ public class AuthService {
     public TokenResponse refresh(String refreshToken) {
         RefreshTokenService.Issued issued = refreshTokens.rotate(refreshToken);
         return tokensFor(issued.user(), issued.rawToken());
+    }
+
+    /** The signed-in user. A valid token is not enough: deleted or disabled accounts are rejected. */
+    @Transactional(readOnly = true)
+    public UserResponse currentUser(UUID id) {
+        return users.findById(id)
+                .filter(User::isEnabled)
+                .map(UserResponse::from)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is not available"));
     }
 
     public void logout(String refreshToken) {
