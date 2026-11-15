@@ -123,6 +123,9 @@ erDiagram
 | GET | `/api/organizations/{id}/invitations` | `OWNER` or `ADMIN` of it | 200 | List its invitations, newest first (`page`, `size` max 100). Never includes tokens. |
 | DELETE | `/api/organizations/{id}/invitations/{invitationId}` | `OWNER` or `ADMIN` of it | 204 | Revoke an invitation. An accepted one gets `409`. |
 | POST | `/api/invitations/accept` | authenticated; email must match the invitation | 200 | Accept with the token. Joins the organization with the invited role. |
+| GET | `/api/organizations/{id}/members` | any member of it | 200 | List its members with their role (`page`, `size` max 100). No password data. |
+| PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` or above of it | 200 | Change a member's role. Not above the caller's own role; the last `OWNER` cannot be demoted (`422`). |
+| DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. Same role ceiling as a change; the last `OWNER` cannot leave (`422`). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
 

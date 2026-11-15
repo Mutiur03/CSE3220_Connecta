@@ -1,6 +1,5 @@
 package com.connecta.backend.org.service;
 
-import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.common.dto.PageResponse;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
@@ -38,11 +37,12 @@ public class OrganizationService {
     private final MembershipRepository memberships;
     private final UserService users;
     private final TenantAccessService tenants;
+    private final ActiveCaller activeCaller;
 
     /** Any signed-in user. The creator becomes the OWNER. */
     @Transactional
     public OrganizationResponse create(String subject, CreateOrganizationRequest request) {
-        User creator = users.findEnabledById(parseUserId(subject)).orElseThrow(AccountNotAvailableException::new);
+        User creator = activeCaller.load(subject);
         Role owner = users.findRole(Roles.OWNER);
         if (organizations.existsBySlug(request.slug())) {
             throw new OrganizationSlugTakenException();
@@ -59,20 +59,22 @@ public class OrganizationService {
     /** Any member, whatever their role. */
     @Transactional(readOnly = true)
     public PageResponse<OrganizationResponse> listForCaller(String subject, int page, int size) {
-        Page<Membership> found = memberships.findByUserId(activeCallerId(subject), PageRequest.of(page, size, BY_NAME));
+        UUID callerId = activeCaller.load(subject).getId();
+        Page<Membership> found = memberships.findByUserId(callerId, PageRequest.of(page, size, BY_NAME));
         return PageResponse.from(found, OrganizationResponse::from);
     }
 
     /** Any member, whatever their role. */
     @Transactional(readOnly = true)
     public OrganizationResponse get(String subject, UUID organizationId) {
-        return OrganizationResponse.from(tenants.requireMembership(organizationId, activeCallerId(subject)));
+        UUID callerId = activeCaller.load(subject).getId();
+        return OrganizationResponse.from(tenants.requireMembership(organizationId, callerId));
     }
 
     /** OWNER or ADMIN of the organization (ADMIN is reached by OWNER through the role hierarchy). */
     @Transactional
     public OrganizationResponse rename(String subject, UUID organizationId, UpdateOrganizationRequest request) {
-        Membership membership = tenants.requireRole(organizationId, activeCallerId(subject), Roles.ADMIN);
+        Membership membership = tenants.requireRole(organizationId, activeCaller.load(subject).getId(), Roles.ADMIN);
         membership.getOrganization().rename(request.name());
         return OrganizationResponse.from(membership);
     }
@@ -83,23 +85,8 @@ public class OrganizationService {
      */
     @Transactional
     public void delete(String subject, UUID organizationId) {
-        Membership membership = tenants.requireRole(organizationId, activeCallerId(subject), Roles.OWNER);
+        Membership membership = tenants.requireRole(organizationId, activeCaller.load(subject).getId(), Roles.OWNER);
         memberships.delete(membership);
         organizations.delete(membership.getOrganization());
-    }
-
-    /** The caller's id, once the account is confirmed to exist and be enabled. */
-    private UUID activeCallerId(String subject) {
-        UUID userId = parseUserId(subject);
-        users.findEnabledById(userId).orElseThrow(AccountNotAvailableException::new);
-        return userId;
-    }
-
-    private static UUID parseUserId(String subject) {
-        try {
-            return UUID.fromString(subject);
-        } catch (IllegalArgumentException | NullPointerException e) {
-            throw new AccountNotAvailableException();
-        }
     }
 }

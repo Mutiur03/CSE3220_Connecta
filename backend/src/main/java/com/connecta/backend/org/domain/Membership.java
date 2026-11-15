@@ -54,6 +54,11 @@ public class Membership {
         this.role = role;
     }
 
+    /** Sets the role this membership holds. Callers decide whether the change is allowed. */
+    public void changeRole(Role role) {
+        this.role = role;
+    }
+
     @PrePersist
     void onCreate() {
         createdAt = updatedAt = Instant.now();

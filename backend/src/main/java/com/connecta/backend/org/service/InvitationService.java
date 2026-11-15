@@ -1,6 +1,5 @@
 package com.connecta.backend.org.service;
 
-import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.common.dto.PageResponse;
 import com.connecta.backend.config.InvitationProperties;
 import com.connecta.backend.org.domain.Invitation;
@@ -44,6 +43,7 @@ public class InvitationService {
     private final MembershipRepository memberships;
     private final UserService users;
     private final TenantAccessService tenants;
+    private final ActiveCaller activeCaller;
     private final InvitationTokenGenerator tokens;
     private final InvitationProperties props;
     private final Clock clock;
@@ -55,7 +55,7 @@ public class InvitationService {
      */
     @Transactional
     public InvitationCreatedResponse create(String subject, UUID organizationId, CreateInvitationRequest request) {
-        Membership inviter = tenants.requireRole(organizationId, activeCaller(subject).getId(), Roles.ADMIN);
+        Membership inviter = tenants.requireRole(organizationId, activeCaller.load(subject).getId(), Roles.ADMIN);
         if (!tenants.hasAtLeast(inviter, request.role())) {
             throw new InsufficientOrganizationRoleException();
         }
@@ -82,7 +82,7 @@ public class InvitationService {
     /** ADMIN or above. Pending, accepted and revoked invitations, newest first. */
     @Transactional(readOnly = true)
     public PageResponse<InvitationResponse> list(String subject, UUID organizationId, int page, int size) {
-        tenants.requireRole(organizationId, activeCaller(subject).getId(), Roles.ADMIN);
+        tenants.requireRole(organizationId, activeCaller.load(subject).getId(), Roles.ADMIN);
         Page<Invitation> found =
                 invitations.findByOrganizationId(organizationId, PageRequest.of(page, size, NEWEST_FIRST));
         return PageResponse.from(found, InvitationResponse::from);
@@ -91,7 +91,7 @@ public class InvitationService {
     /** ADMIN or above. Revoking an already revoked invitation does nothing; an accepted one is refused. */
     @Transactional
     public void revoke(String subject, UUID organizationId, UUID invitationId) {
-        tenants.requireRole(organizationId, activeCaller(subject).getId(), Roles.ADMIN);
+        tenants.requireRole(organizationId, activeCaller.load(subject).getId(), Roles.ADMIN);
         Invitation invitation = invitations.findByIdAndOrganizationId(invitationId, organizationId)
                 .orElseThrow(InvitationNotFoundException::new);
         invitation.revoke();
@@ -103,7 +103,7 @@ public class InvitationService {
      */
     @Transactional
     public OrganizationResponse accept(String subject, AcceptInvitationRequest request) {
-        User invitee = activeCaller(subject);
+        User invitee = activeCaller.load(subject);
         Invitation invitation = invitations.findByTokenHash(tokens.hash(request.token()))
                 .filter(found -> found.getEmail().equals(invitee.getEmail()))
                 .orElseThrow(InvitationNotFoundException::new);
@@ -128,19 +128,6 @@ public class InvitationService {
                 .isPresent();
         if (alreadyMember) {
             throw new AlreadyMemberException();
-        }
-    }
-
-    /** The caller, once the account is confirmed to exist and be enabled. */
-    private User activeCaller(String subject) {
-        return users.findEnabledById(parseUserId(subject)).orElseThrow(AccountNotAvailableException::new);
-    }
-
-    private static UUID parseUserId(String subject) {
-        try {
-            return UUID.fromString(subject);
-        } catch (IllegalArgumentException | NullPointerException e) {
-            throw new AccountNotAvailableException();
         }
     }
 }
