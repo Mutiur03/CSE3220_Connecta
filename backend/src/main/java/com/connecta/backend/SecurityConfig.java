@@ -23,6 +23,8 @@ class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/actuator/health").permitAll()
+                        // API docs; disabled in the prod profile, so nothing is served there.
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .build();
