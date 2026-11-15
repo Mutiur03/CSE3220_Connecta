@@ -90,7 +90,8 @@ class MemberServiceTests {
     }
 
     private void ownerCountIs(long count) {
-        lenient().when(memberships.countByOrganizationIdAndRoleName(organizationId, Roles.OWNER)).thenReturn(count);
+        lenient().when(memberships.findByOrganizationIdAndRoleName(organizationId, Roles.OWNER)).thenReturn(
+                java.util.Collections.nCopies((int) count, membership(TestUsers.user("o@example.com", Roles.OWNER), Roles.OWNER)));
     }
 
     @Nested
@@ -189,7 +190,7 @@ class MemberServiceTests {
 
             assertThrows(InsufficientOrganizationRoleException.class,
                     () -> service.changeRole(subject, organizationId, target.getId(), Roles.AGENT));
-            verify(memberships, never()).countByOrganizationIdAndRoleName(any(), any());
+            verify(memberships, never()).findByOrganizationIdAndRoleName(any(), any());
         }
 
         @Test
@@ -247,7 +248,7 @@ class MemberServiceTests {
 
             service.changeRole(subject, organizationId, target.getId(), Roles.OWNER);
 
-            verify(memberships, never()).countByOrganizationIdAndRoleName(any(), any());
+            verify(memberships, never()).findByOrganizationIdAndRoleName(any(), any());
         }
     }
 

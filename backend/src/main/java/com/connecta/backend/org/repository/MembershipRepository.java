@@ -1,6 +1,7 @@
 package com.connecta.backend.org.repository;
 
 import com.connecta.backend.org.domain.Membership;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 
@@ -30,6 +32,10 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
     @EntityGraph(attributePaths = {"user", "role"})
     Optional<Membership> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
-    /** How many memberships in the organization hold this role. Used to keep at least one OWNER. */
-    long countByOrganizationIdAndRoleName(UUID organizationId, String roleName);
+    /**
+     * The memberships holding this role, locked for update. Concurrent owner removals queue on these rows,
+     * so the last-OWNER check cannot be passed by two transactions at once.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<Membership> findByOrganizationIdAndRoleName(UUID organizationId, String roleName);
 }

@@ -97,9 +97,9 @@ public class MemberService {
         }
     }
 
-    /** Called when an OWNER is about to lose the role or leave: another OWNER must remain. */
+    /** Called when an OWNER is about to lose the role or leave: another OWNER must remain; the owner rows are locked, so two owners leaving at once cannot both pass. */
     private void requireAnotherOwner(UUID organizationId) {
-        if (memberships.countByOrganizationIdAndRoleName(organizationId, Roles.OWNER) <= 1) {
+        if (memberships.findByOrganizationIdAndRoleName(organizationId, Roles.OWNER).size() <= 1) {
             throw new LastOwnerException();
         }
     }
