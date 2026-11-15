@@ -51,3 +51,55 @@ Read [AGENTS.md](AGENTS.md) first. In short:
 - Commits follow Conventional Commits (`type(scope): subject`, scopes `frontend|backend|db|ci|docs`), no `Co-authored-by` or attribution lines. Husky + commitlint enforce this locally.
 - The commit author, the `gh` account and the issue assignee must be the same person (checked on commit and push).
 - Branches: `main` (protected, releases only), `develop` (protected, integration), feature branches. Feature PRs target `develop` and are squash-merged with 1 approval; `develop` is merged into `main` with a merge commit for a release. CI runs per area (path-filtered).
+
+## Architecture
+```mermaid
+flowchart LR
+    Browser --> Frontend["Next.js frontend :3000"]
+    Frontend -->|REST /api| Backend["Spring Boot backend :8080"]
+    Backend -->|JPA + Flyway| DB[(PostgreSQL)]
+```
+Backend layers per feature: `web` (controllers) -> `service` -> `repository` -> `domain`, with `dto` records at the edges. Design patterns are listed in [docs/design-patterns.md](docs/design-patterns.md).
+
+## Roles
+Roles are `OWNER > ADMIN > AGENT` (a higher role inherits the lower ones). They map to the course roles as `OWNER` = ADMIN, `ADMIN` = SELLER, `AGENT` = BUYER, giving three-tier role-based access. Default is deny: every path needs a valid access token unless it is on the public list in `SecurityConfig`.
+
+## ER diagram
+```mermaid
+erDiagram
+    USERS ||--o{ USER_ROLES : has
+    ROLES ||--o{ USER_ROLES : granted_by
+    USERS ||--o{ REFRESH_TOKENS : owns
+    USERS { uuid id PK
+        string email UK
+        string password_hash
+        string full_name
+        boolean enabled }
+    ROLES { uuid id PK
+        string name UK }
+    USER_ROLES { uuid user_id FK
+        uuid role_id FK }
+    REFRESH_TOKENS { uuid id PK
+        uuid user_id FK }
+```
+`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. More tables arrive with later milestones.
+
+## API endpoints
+| Method | Path | Access | Success | Description |
+|---|---|---|---|---|
+| POST | `/api/auth/register` | public | 201 | Create an `AGENT` account. |
+| POST | `/api/auth/login` | public | 200 | Exchange email and password for access and refresh tokens. |
+| POST | `/api/auth/refresh` | public | 200 | Rotate the refresh token (single use). |
+| POST | `/api/auth/logout` | public | 204 | Revoke the refresh token. |
+| GET | `/api/auth/me` | authenticated | 200 | Current user. |
+
+Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
+
+## Run with Docker
+```bash
+docker compose up --build
+```
+Configuration comes from `.env` (copy `.env.example`). Note: the compose file currently starts PostgreSQL only; the app and frontend services are added by the Docker issue (#111).
+
+## CI/CD
+GitHub Actions in `.github/workflows`: `backend.yml` and `frontend.yml` build and test on every PR and on pushes to `develop` and `main` (Maven and pnpm caches on); `commits.yml` runs commitlint. Feature PRs are squash-merged into `develop`; a release PR `develop` -> `main` is merged with a merge commit. Automatic deploy to Render from `main` is added by #112.
