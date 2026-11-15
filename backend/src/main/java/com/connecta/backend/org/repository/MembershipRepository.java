@@ -16,7 +16,7 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
     List<Membership> findAllByUserId(UUID userId);
 
     /** One page of a user's memberships, with the organization loaded. The pageable carries the sort. */
-    @EntityGraph(attributePaths = "organization")
+    @EntityGraph(attributePaths = {"organization", "role"})
     Page<Membership> findByUserId(UUID userId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"organization", "role"})

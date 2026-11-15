@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +29,7 @@ import com.connecta.backend.user.service.UserService;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,12 +58,20 @@ class OrganizationServiceTests {
     @Mock
     UserService users;
 
+    @Mock
+    TenantAccessService tenants;
+
     @InjectMocks
     OrganizationService service;
 
     private final User caller = TestUsers.user("jane@example.com", Roles.AGENT);
     private final String subject = caller.getId().toString();
     private final UUID organizationId = UUID.randomUUID();
+
+    @BeforeEach
+    void callerIsEnabled() {
+        lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
+    }
 
     private Organization organization() {
         Organization organization = new Organization(NAME, SLUG);
@@ -84,15 +94,16 @@ class OrganizationServiceTests {
         @Test
         void savesTheOrganizationAndMakesTheCallerOwner() {
             Role owner = new Role(Roles.OWNER);
-            when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
             when(users.findRole(Roles.OWNER)).thenReturn(owner);
             when(organizations.existsBySlug(SLUG)).thenReturn(false);
             when(organizations.saveAndFlush(any(Organization.class))).thenAnswer(call -> call.getArgument(0));
+            when(memberships.save(any(Membership.class))).thenAnswer(call -> call.getArgument(0));
 
             OrganizationResponse created = service.create(subject, createRequest());
 
             assertEquals(NAME, created.name());
             assertEquals(SLUG, created.slug());
+            assertEquals(Roles.OWNER, created.callerRole());
             ArgumentCaptor<Membership> saved = ArgumentCaptor.forClass(Membership.class);
             verify(memberships).save(saved.capture());
             assertEquals(caller, saved.getValue().getUser());
@@ -101,7 +112,6 @@ class OrganizationServiceTests {
 
         @Test
         void aTakenSlugIsRejectedBeforeAnythingIsSaved() {
-            when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
             when(users.findRole(Roles.OWNER)).thenReturn(new Role(Roles.OWNER));
             when(organizations.existsBySlug(SLUG)).thenReturn(true);
 
@@ -112,7 +122,6 @@ class OrganizationServiceTests {
 
         @Test
         void aConcurrentDuplicateSlugIsReportedAsTaken() {
-            when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
             when(users.findRole(Roles.OWNER)).thenReturn(new Role(Roles.OWNER));
             when(organizations.existsBySlug(SLUG)).thenReturn(false);
             when(organizations.saveAndFlush(any(Organization.class)))
@@ -138,7 +147,6 @@ class OrganizationServiceTests {
 
         @Test
         void aMissingOwnerRoleIsAServerFaultAndNothingIsSaved() {
-            when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
             when(users.findRole(Roles.OWNER)).thenThrow(new RoleNotSeededException(Roles.OWNER));
 
             assertThrows(RoleNotSeededException.class, () -> service.create(subject, createRequest()));
@@ -150,7 +158,7 @@ class OrganizationServiceTests {
     class ListForCaller {
 
         @Test
-        void returnsTheRequestedPageSortedByName() {
+        void returnsTheRequestedPageSortedByNameWithTheCallerRole() {
             Page<Membership> found = new PageImpl<>(List.of(membershipAs(Roles.AGENT)), PageRequest.of(0, 2), 3);
             when(memberships.findByUserId(eq(caller.getId()), any(Pageable.class))).thenReturn(found);
 
@@ -158,6 +166,7 @@ class OrganizationServiceTests {
 
             assertEquals(1, page.content().size());
             assertEquals(NAME, page.content().get(0).name());
+            assertEquals(Roles.AGENT, page.content().get(0).callerRole());
             assertEquals(3, page.totalElements());
             ArgumentCaptor<Pageable> asked = ArgumentCaptor.forClass(Pageable.class);
             verify(memberships).findByUserId(eq(caller.getId()), asked.capture());
@@ -180,6 +189,14 @@ class OrganizationServiceTests {
         void aSubjectThatIsNotAUserIdIsNotAvailable() {
             assertThrows(AccountNotAvailableException.class, () -> service.listForCaller("nope", 0, 20));
         }
+
+        @Test
+        void aDisabledCallerIsNotAvailableAndNothingIsListed() {
+            when(users.findEnabledById(caller.getId())).thenReturn(Optional.empty());
+
+            assertThrows(AccountNotAvailableException.class, () -> service.listForCaller(subject, 0, 20));
+            verify(memberships, never()).findByUserId(any(), any());
+        }
     }
 
     @Nested
@@ -187,18 +204,29 @@ class OrganizationServiceTests {
 
         @Test
         void aMemberGetsTheOrganizationWhateverTheirRole() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.of(membershipAs(Roles.AGENT)));
+            when(tenants.requireMembership(organizationId, caller.getId()))
+                    .thenReturn(membershipAs(Roles.AGENT));
 
-            assertEquals(NAME, service.get(subject, organizationId).name());
+            OrganizationResponse found = service.get(subject, organizationId);
+
+            assertEquals(NAME, found.name());
+            assertEquals(Roles.AGENT, found.callerRole());
         }
 
         @Test
         void aNonMemberOrUnknownIdIsNotFound() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.empty());
+            when(tenants.requireMembership(organizationId, caller.getId()))
+                    .thenThrow(new NotAMemberException());
 
-            assertThrows(OrganizationNotFoundException.class, () -> service.get(subject, organizationId));
+            assertThrows(NotAMemberException.class, () -> service.get(subject, organizationId));
+        }
+
+        @Test
+        void aDisabledCallerIsNotAvailableAndTenantsAreNotConsulted() {
+            when(users.findEnabledById(caller.getId())).thenReturn(Optional.empty());
+
+            assertThrows(AccountNotAvailableException.class, () -> service.get(subject, organizationId));
+            verify(tenants, never()).requireMembership(any(), any());
         }
     }
 
@@ -206,44 +234,53 @@ class OrganizationServiceTests {
     class Rename {
 
         @Test
-        void anOwnerRenamesTheOrganization() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.of(membershipAs(Roles.OWNER)));
+        void anOwnerRenamesTheOrganizationAndKeepsTheSlug() {
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
+                    .thenReturn(membershipAs(Roles.OWNER));
 
             OrganizationResponse renamed = service.rename(subject, organizationId,
                     new UpdateOrganizationRequest("  Acme Desk "));
 
             assertEquals("Acme Desk", renamed.name());
             assertEquals(SLUG, renamed.slug());
+            assertEquals(Roles.OWNER, renamed.callerRole());
         }
 
         @Test
         void anAdminRenamesTheOrganization() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.of(membershipAs(Roles.ADMIN)));
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
+                    .thenReturn(membershipAs(Roles.ADMIN));
 
             assertEquals("Acme Desk", service.rename(subject, organizationId,
                     new UpdateOrganizationRequest("Acme Desk")).name());
         }
 
         @Test
-        void anAgentIsDeniedAndTheNameIsKept() {
-            Membership agent = membershipAs(Roles.AGENT);
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.of(agent));
+        void aRenameRequiresAtLeastAdmin() {
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
+                    .thenThrow(new InsufficientOrganizationRoleException());
 
             assertThrows(InsufficientOrganizationRoleException.class,
                     () -> service.rename(subject, organizationId, new UpdateOrganizationRequest("Hacked")));
-            assertEquals(NAME, agent.getOrganization().getName());
+            verify(tenants).requireRole(organizationId, caller.getId(), Roles.ADMIN);
         }
 
         @Test
         void aNonMemberOrUnknownIdIsNotFound() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.empty());
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
+                    .thenThrow(new NotAMemberException());
 
-            assertThrows(OrganizationNotFoundException.class,
+            assertThrows(NotAMemberException.class,
                     () -> service.rename(subject, organizationId, new UpdateOrganizationRequest("Acme Desk")));
+        }
+
+        @Test
+        void aDisabledCallerIsNotAvailableAndNothingIsRenamed() {
+            when(users.findEnabledById(caller.getId())).thenReturn(Optional.empty());
+
+            assertThrows(AccountNotAvailableException.class,
+                    () -> service.rename(subject, organizationId, new UpdateOrganizationRequest("Acme Desk")));
+            verify(tenants, never()).requireRole(any(), any(), any());
         }
     }
 
@@ -251,11 +288,10 @@ class OrganizationServiceTests {
     class Delete {
 
         @Test
-        void anOwnerDeletesTheOrganization() {
+        void anOwnerDeletesTheOrganizationAndTheCallersMembership() {
             Organization target = organization();
             Membership ownership = new Membership(target, caller, new Role(Roles.OWNER));
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.of(ownership));
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER)).thenReturn(ownership);
 
             service.delete(subject, organizationId);
 
@@ -264,18 +300,19 @@ class OrganizationServiceTests {
         }
 
         @Test
-        void anAdminIsDeniedAndNothingIsDeleted() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.of(membershipAs(Roles.ADMIN)));
+        void deleteRequiresOwnerSoAnAdminIsDeniedAndNothingIsDeleted() {
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER))
+                    .thenThrow(new InsufficientOrganizationRoleException());
 
             assertThrows(InsufficientOrganizationRoleException.class, () -> service.delete(subject, organizationId));
             verify(organizations, never()).delete(any());
+            verify(memberships, never()).delete(any());
         }
 
         @Test
         void anAgentIsDeniedAndNothingIsDeleted() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.of(membershipAs(Roles.AGENT)));
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER))
+                    .thenThrow(new InsufficientOrganizationRoleException());
 
             assertThrows(InsufficientOrganizationRoleException.class, () -> service.delete(subject, organizationId));
             verify(organizations, never()).delete(any());
@@ -283,10 +320,19 @@ class OrganizationServiceTests {
 
         @Test
         void aNonMemberOrUnknownIdIsNotFound() {
-            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
-                    .thenReturn(Optional.empty());
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER))
+                    .thenThrow(new NotAMemberException());
 
-            assertThrows(OrganizationNotFoundException.class, () -> service.delete(subject, organizationId));
+            assertThrows(NotAMemberException.class, () -> service.delete(subject, organizationId));
+            verify(organizations, never()).delete(any());
+        }
+
+        @Test
+        void aDisabledCallerIsNotAvailableAndNothingIsDeleted() {
+            when(users.findEnabledById(caller.getId())).thenReturn(Optional.empty());
+
+            assertThrows(AccountNotAvailableException.class, () -> service.delete(subject, organizationId));
+            verify(tenants, never()).requireRole(any(), any(), any());
             verify(organizations, never()).delete(any());
         }
     }

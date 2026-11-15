@@ -16,6 +16,7 @@ import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.MembershipRepository;
+import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.org.repository.OrganizationRepository;
 import com.connecta.backend.support.RandomJwtSecret;
 import com.connecta.backend.support.TestClock;
@@ -189,6 +190,7 @@ class OrganizationControllerIntegrationTests {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(2))
                     .andExpect(jsonPath("$.content[0].name").value("Bravo"))
+                    .andExpect(jsonPath("$.content[0].callerRole").value("OWNER"))
                     .andExpect(jsonPath("$.content[1].name").value("Charlie"))
                     .andExpect(jsonPath("$.page").value(0))
                     .andExpect(jsonPath("$.size").value(2))
@@ -238,6 +240,7 @@ class OrganizationControllerIntegrationTests {
             mvc.perform(get(BASE + "/" + acme.getId()).header(AUTH, bearer(agent)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(acme.getId().toString()))
+                    .andExpect(jsonPath("$.callerRole").value("AGENT"))
                     .andExpect(jsonPath("$.name").value("Acme"));
         }
 
@@ -325,6 +328,29 @@ class OrganizationControllerIntegrationTests {
         void anonymousCallerIsUnauthorized() throws Exception {
             mvc.perform(json(patch(BASE + "/" + UUID.randomUUID()), "{\"name\":\"Acme\"}"))
                     .andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
+    class DisabledAccount {
+
+        @Test
+        void aDisabledUserWithAValidTokenIsRefusedOnEveryEndpoint() throws Exception {
+            User user = newUser();
+            Organization acme = organization("Acme");
+            join(acme, user, Roles.OWNER);
+            TestUsers.set(user, "enabled", false);
+            users.saveAndFlush(user);
+            String token = bearer(user);
+
+            mvc.perform(get(BASE).header(AUTH, token)).andExpect(status().isUnauthorized());
+            mvc.perform(get(BASE + "/" + acme.getId()).header(AUTH, token)).andExpect(status().isUnauthorized());
+            mvc.perform(json(patch(BASE + "/" + acme.getId()).header(AUTH, token), "{\"name\":\"Acme Desk\"}"))
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(delete(BASE + "/" + acme.getId()).header(AUTH, token)).andExpect(status().isUnauthorized());
+
+            assertEquals("Acme", organizations.findById(acme.getId()).orElseThrow().getName());
+            assertTrue(organizations.existsById(acme.getId()));
         }
     }
 

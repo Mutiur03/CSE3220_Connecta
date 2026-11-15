@@ -1,8 +1,6 @@
 package com.connecta.backend.org.controller;
 
 import com.connecta.backend.auth.service.AccountNotAvailableException;
-import com.connecta.backend.org.service.InsufficientOrganizationRoleException;
-import com.connecta.backend.org.service.OrganizationNotFoundException;
 import com.connecta.backend.org.service.OrganizationSlugTakenException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -16,19 +14,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class OrganizationExceptionHandler {
 
-    @ExceptionHandler(OrganizationNotFoundException.class)
-    ProblemDetail notFound(OrganizationNotFoundException e) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "Organization not found");
-    }
-
     @ExceptionHandler(OrganizationSlugTakenException.class)
     ProblemDetail slugTaken(OrganizationSlugTakenException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
-    }
-
-    @ExceptionHandler(InsufficientOrganizationRoleException.class)
-    ProblemDetail insufficientRole(InsufficientOrganizationRoleException e) {
-        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
     }
 
     @ExceptionHandler(AccountNotAvailableException.class)

@@ -13,7 +13,6 @@ import com.connecta.backend.user.domain.Role;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
-import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -24,9 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Organizations and the caller's role in each. The role rules live here, because they depend on the
- * caller's membership of one organization, not on a global role. A caller who is not a member gets
- * the same 404 as an unknown id.
+ * Organization lifecycle. Membership and role checks belong to {@link TenantAccessService}; this service
+ * only chooses which role each operation requires. Every operation first confirms the caller's account is
+ * still enabled, so a disabled user with an unexpired token is refused.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,6 +37,7 @@ public class OrganizationService {
     private final OrganizationRepository organizations;
     private final MembershipRepository memberships;
     private final UserService users;
+    private final TenantAccessService tenants;
 
     /** Any signed-in user. The creator becomes the OWNER. */
     @Transactional
@@ -49,8 +49,7 @@ public class OrganizationService {
         }
         try {
             Organization organization = organizations.saveAndFlush(new Organization(request.name(), request.slug()));
-            memberships.save(new Membership(organization, creator, owner));
-            return OrganizationResponse.from(organization);
+            return OrganizationResponse.from(memberships.save(new Membership(organization, creator, owner)));
         } catch (DataIntegrityViolationException e) {
             // A concurrent create with the same slug surfaces here, as a 409, and not at commit.
             throw new OrganizationSlugTakenException();
@@ -60,24 +59,22 @@ public class OrganizationService {
     /** Any member, whatever their role. */
     @Transactional(readOnly = true)
     public PageResponse<OrganizationResponse> listForCaller(String subject, int page, int size) {
-        Page<Membership> found = memberships.findByUserId(parseUserId(subject), PageRequest.of(page, size, BY_NAME));
-        return PageResponse.from(found, membership -> OrganizationResponse.from(membership.getOrganization()));
+        Page<Membership> found = memberships.findByUserId(activeCallerId(subject), PageRequest.of(page, size, BY_NAME));
+        return PageResponse.from(found, OrganizationResponse::from);
     }
 
     /** Any member, whatever their role. */
     @Transactional(readOnly = true)
     public OrganizationResponse get(String subject, UUID organizationId) {
-        return OrganizationResponse.from(memberOf(organizationId, subject).getOrganization());
+        return OrganizationResponse.from(tenants.requireMembership(organizationId, activeCallerId(subject)));
     }
 
-    /** OWNER or ADMIN of the organization. The slug never changes. */
+    /** OWNER or ADMIN of the organization (ADMIN is reached by OWNER through the role hierarchy). */
     @Transactional
     public OrganizationResponse rename(String subject, UUID organizationId, UpdateOrganizationRequest request) {
-        Membership membership = memberOf(organizationId, subject);
-        requireRole(membership, Roles.OWNER, Roles.ADMIN);
-        Organization organization = membership.getOrganization();
-        organization.rename(request.name());
-        return OrganizationResponse.from(organization);
+        Membership membership = tenants.requireRole(organizationId, activeCallerId(subject), Roles.ADMIN);
+        membership.getOrganization().rename(request.name());
+        return OrganizationResponse.from(membership);
     }
 
     /**
@@ -86,21 +83,16 @@ public class OrganizationService {
      */
     @Transactional
     public void delete(String subject, UUID organizationId) {
-        Membership membership = memberOf(organizationId, subject);
-        requireRole(membership, Roles.OWNER);
+        Membership membership = tenants.requireRole(organizationId, activeCallerId(subject), Roles.OWNER);
         memberships.delete(membership);
         organizations.delete(membership.getOrganization());
     }
 
-    private Membership memberOf(UUID organizationId, String subject) {
-        return memberships.findByOrganizationIdAndUserId(organizationId, parseUserId(subject))
-                .orElseThrow(() -> new OrganizationNotFoundException(organizationId));
-    }
-
-    private static void requireRole(Membership membership, String... allowedRoles) {
-        if (!List.of(allowedRoles).contains(membership.getRole().getName())) {
-            throw new InsufficientOrganizationRoleException();
-        }
+    /** The caller's id, once the account is confirmed to exist and be enabled. */
+    private UUID activeCallerId(String subject) {
+        UUID userId = parseUserId(subject);
+        users.findEnabledById(userId).orElseThrow(AccountNotAvailableException::new);
+        return userId;
     }
 
     private static UUID parseUserId(String subject) {
