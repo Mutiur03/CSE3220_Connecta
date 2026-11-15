@@ -38,6 +38,9 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?Set NEXT_PUBLIC_API_URL in .env}
     container_name: connecta-frontend
+    environment:
+      # Server-side calls use the service address; the browser uses NEXT_PUBLIC_API_URL.
+      API_URL: http://app:8080
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
