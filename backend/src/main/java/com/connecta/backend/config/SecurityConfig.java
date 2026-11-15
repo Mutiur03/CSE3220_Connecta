@@ -1,4 +1,4 @@
-package com.connecta.backend;
+package com.connecta.backend.config;
 
 import java.util.Arrays;
 import java.util.List;
