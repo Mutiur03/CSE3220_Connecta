@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ["frontend/**", ".github/workflows/frontend.yml"]
   push:
-    branches: [main]
+    branches: [main, develop]
     paths: ["frontend/**", ".github/workflows/frontend.yml"]
 jobs:
   check:

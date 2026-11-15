@@ -22,7 +22,7 @@ body:
         - [ ] Implemented
         - [ ] Tests added and passing
         - [ ] Tenant scope checked (if it touches data)
-        - [ ] Reviewed and merged to main
+        - [ ] Reviewed and merged to develop
   - type: input
     id: blocked
     attributes:
