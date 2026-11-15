@@ -1,0 +1,21 @@
+{
+  "name": "connecta",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "frontend/**/*.{js,jsx,ts,tsx}": [
+      "pnpm --dir frontend exec eslint --fix",
+      "pnpm --dir frontend exec prettier --write"
+    ],
+    "frontend/**/*.{json,css,md}": "pnpm --dir frontend exec prettier --write"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0"
+  }
+}
