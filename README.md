@@ -81,8 +81,18 @@ erDiagram
         uuid role_id FK }
     REFRESH_TOKENS { uuid id PK
         uuid user_id FK }
+    ORGANIZATIONS ||--o{ MEMBERSHIPS : has
+    USERS ||--o{ MEMBERSHIPS : joins
+    ROLES ||--o{ MEMBERSHIPS : held_in
+    ORGANIZATIONS { uuid id PK
+        string name
+        string slug UK }
+    MEMBERSHIPS { uuid id PK
+        uuid organization_id FK
+        uuid user_id FK
+        uuid role_id FK }
 ```
-`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. More tables arrive with later milestones.
+`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). More tables arrive with later milestones.
 
 ## API endpoints
 | Method | Path | Access | Success | Description |
