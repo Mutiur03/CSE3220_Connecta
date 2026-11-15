@@ -7,7 +7,6 @@ import com.connecta.backend.auth.dto.TokenResponse;
 import com.connecta.backend.auth.dto.UserResponse;
 import com.connecta.backend.auth.service.AuthService;
 import jakarta.validation.Valid;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -48,7 +47,7 @@ public class AuthController {
     /** The user the access token belongs to. */
     @GetMapping("/me")
     public UserResponse me(@AuthenticationPrincipal Jwt jwt) {
-        return authService.currentUser(UUID.fromString(jwt.getSubject()));
+        return authService.currentUser(jwt.getSubject());
     }
 
     @PostMapping("/logout")

@@ -125,7 +125,7 @@ class UserServiceTests {
         void failsWhenTheAgentRoleIsNotSeeded() {
             when(roles.findByName(Roles.AGENT)).thenReturn(Optional.empty());
 
-            assertThrows(IllegalStateException.class, () -> service.createAgent(EMAIL, "hash", "Jane"));
+            assertThrows(RoleNotSeededException.class, () -> service.createAgent(EMAIL, "hash", "Jane"));
             verify(users, never()).saveAndFlush(any());
         }
 

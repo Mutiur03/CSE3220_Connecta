@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,6 +30,11 @@ class GlobalExceptionHandlerTests {
 
     @RestController
     static class StubController {
+
+        @GetMapping("/boom")
+        String boom() {
+            throw new IllegalStateException("secret internal detail");
+        }
 
         @PostMapping("/stub")
         String create(@Valid @RequestBody Payload payload) {
@@ -95,6 +101,22 @@ class GlobalExceptionHandlerTests {
             mvc.perform(post("/stub").contentType(MediaType.TEXT_PLAIN).content("x"))
                     .andExpect(status().isUnsupportedMediaType())
                     .andExpect(jsonPath("$.status").value(415));
+        }
+    }
+
+    @Nested
+    class UnexpectedErrors {
+
+        @Test
+        void returnsGeneric500WithoutLeakingTheCause() throws Exception {
+            mvc.perform(get("/boom"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.status").value(500))
+                    .andExpect(jsonPath("$.title").value("Internal Server Error"))
+                    .andExpect(jsonPath("$.detail").value("An unexpected error occurred"))
+                    .andExpect(content().string(not(containsString("secret internal detail"))))
+                    .andExpect(content().string(not(containsString("IllegalStateException"))));
         }
     }
 }

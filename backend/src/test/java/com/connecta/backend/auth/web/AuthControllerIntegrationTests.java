@@ -14,6 +14,7 @@ import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
 import com.connecta.backend.auth.dto.TokenResponse;
 import com.connecta.backend.auth.dto.UserResponse;
+import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.auth.service.AuthService;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
@@ -198,11 +199,22 @@ class AuthControllerIntegrationTests {
         @Test
         void meReturnsTheUserOfTheAccessToken() throws Exception {
             User user = TestUsers.user("jane@example.com", Roles.AGENT);
-            when(authService.currentUser(user.getId())).thenReturn(jane());
+            when(authService.currentUser(user.getId().toString())).thenReturn(jane());
 
             mvc.perform(get("/api/auth/me").header("Authorization", TestTokens.bearer(jwtProperties, user)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.email").value("jane@example.com"));
+        }
+
+        @Test
+        void meReturns401ProblemJsonWhenTheAccountIsNotAvailable() throws Exception {
+            User user = TestUsers.user("jane@example.com", Roles.AGENT);
+            when(authService.currentUser(user.getId().toString())).thenThrow(new AccountNotAvailableException());
+
+            mvc.perform(get("/api/auth/me").header("Authorization", TestTokens.bearer(jwtProperties, user)))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.status").value(401))
+                    .andExpect(jsonPath("$.detail").value("Account is not available"));
         }
 
         @Test
