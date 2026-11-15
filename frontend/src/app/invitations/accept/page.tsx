@@ -1,34 +1,29 @@
 import type { Metadata } from "next";
-import OrgAcceptForm from "@/components/org-accept-form";
-import { getCurrentUser } from "@/lib/session";
+import { Suspense } from "react";
+import { InvitationFormSkeleton } from "../invitation-page-skeleton";
+import AcceptInvitationContent from "./accept-invitation-content";
 
-export const metadata: Metadata = { title: "Accept invitation · Connecta" };
+export const metadata: Metadata = { title: "Accept invitation" };
 
-export default async function AcceptInvitationPage({
+export default function AcceptInvitationPage({
   searchParams,
 }: {
   searchParams: Promise<{ token?: string }>;
 }) {
-  const { token } = await searchParams;
-  // Keep the token in the return target, so an expired session refreshes back to this exact link.
-  await getCurrentUser(
-    typeof token === "string"
-      ? `/invitations/accept?token=${encodeURIComponent(token)}`
-      : "/invitations/accept",
-  );
-
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-display font-medium tracking-tight">
           Accept an invitation
         </h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
+        <p className="text-ink-muted">
           Paste the token you were sent. It works only for the email address it
           was issued to.
         </p>
       </div>
-      <OrgAcceptForm initialToken={typeof token === "string" ? token : ""} />
+      <Suspense fallback={<InvitationFormSkeleton />}>
+        <AcceptInvitationContent searchParams={searchParams} />
+      </Suspense>
     </main>
   );
 }

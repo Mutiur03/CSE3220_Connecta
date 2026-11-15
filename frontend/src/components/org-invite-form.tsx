@@ -1,9 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import type { OrgActionState } from "@/lib/org-actions";
+import { alertText } from "@/lib/org-form-state";
 import { ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
-import { buttonClass, fieldClass } from "./org-styles";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Field } from "./ui/field";
+import OrgTokenBox from "./org-token-box";
+import { fieldClass } from "./org-styles";
+import { useFocusInvalidField } from "./use-focus-invalid-field";
 
 type Props = {
   action: (
@@ -16,38 +22,31 @@ type Props = {
 
 export default function OrgInviteForm({ action, roleOptions }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusInvalidField(formRef, state.errors);
+  const alert = alertText(state);
 
   return (
     <div className="flex flex-col gap-4">
       <form
+        ref={formRef}
         action={formAction}
         noValidate
         className="flex max-w-xl flex-col gap-4 sm:flex-row sm:items-start"
       >
-        <div className="flex flex-1 flex-col gap-1">
-          <label htmlFor="invite-email" className="text-sm font-medium">
-            Email
-          </label>
-          <input
+        <div className="flex-1">
+          <Field
             id="invite-email"
             name="email"
+            label="Email"
             type="email"
             maxLength={254}
             defaultValue={state.values?.email}
-            aria-invalid={state.errors?.email ? true : undefined}
-            aria-describedby={
-              state.errors?.email ? "invite-email-error" : undefined
-            }
-            className={fieldClass}
+            error={state.errors?.email}
           />
-          {state.errors?.email && (
-            <p id="invite-email-error" className="text-sm text-red-600">
-              {state.errors.email}
-            </p>
-          )}
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="invite-role" className="text-sm font-medium">
+          <label htmlFor="invite-role" className="text-sm font-medium text-ink">
             Role
           </label>
           <select
@@ -56,6 +55,7 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
             defaultValue={
               state.values?.role ?? roleOptions[roleOptions.length - 1]
             }
+            aria-invalid={state.errors?.role ? true : undefined}
             className={fieldClass}
           >
             {roleOptions.map((role) => (
@@ -65,38 +65,22 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
             ))}
           </select>
         </div>
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={pending}
-          className={`${buttonClass("primary")} sm:mt-6`}
+          className="sm:mt-6"
         >
           {pending ? "Creating…" : "Create invitation"}
-        </button>
+        </Button>
       </form>
 
-      <p role="alert" className="text-sm text-red-600">
-        {state.message ?? state.errors?.role}
-      </p>
+      {alert && <Alert tone="danger">{alert}</Alert>}
 
       {state.token && (
-        <div
-          role="status"
-          className="flex max-w-xl flex-col gap-2 rounded-md border border-zinc-300 p-4 dark:border-zinc-700"
-        >
-          <p className="text-sm font-medium">
-            {state.notice} Copy this token now. It is shown only once.
-          </p>
-          <input
-            readOnly
-            aria-label="Invitation token"
-            value={state.token}
-            onFocus={(event) => event.currentTarget.select()}
-            className={`${fieldClass} font-mono text-xs`}
-          />
-          <p className="text-xs text-zinc-500">
-            No email is sent yet. Pass the token to the invitee, who opens
-            /invitations/accept and pastes it.
-          </p>
+        <div className="flex max-w-xl flex-col gap-3">
+          <Alert tone="success">{state.notice}</Alert>
+          <OrgTokenBox key={state.token} token={state.token} />
         </div>
       )}
     </div>
