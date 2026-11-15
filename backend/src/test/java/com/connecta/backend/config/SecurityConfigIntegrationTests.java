@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.connecta.backend.auth.security.JwtProperties;
 import com.connecta.backend.support.MockRepositories;
 import com.connecta.backend.support.TestTokens;
 import com.connecta.backend.support.TestUsers;
@@ -23,7 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @MockRepositories
 @AutoConfigureMockMvc
-class SecurityConfigTests {
+class SecurityConfigIntegrationTests {
 
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
 
@@ -180,6 +179,28 @@ class SecurityConfigTests {
                     .andExpect(status().isOk());
             mvc.perform(get("/api/test/agent-and-above").header("Authorization", as()))
                     .andExpect(status().isForbidden());
+        }
+    }
+
+    @Nested
+    class ActuatorMetrics {
+
+        private String as(String role) {
+            return TestTokens.bearer(jwtProperties, TestUsers.user("jane@example.com", role));
+        }
+
+        @Test
+        void infoAllowsAdmin() throws Exception {
+            mvc.perform(get("/actuator/info").header("Authorization", as(Roles.ADMIN)))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void prometheusDeniesAgentsAndAnonymous() throws Exception {
+            mvc.perform(get("/actuator/prometheus").header("Authorization", as(Roles.AGENT)))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
+            mvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());
         }
     }
 

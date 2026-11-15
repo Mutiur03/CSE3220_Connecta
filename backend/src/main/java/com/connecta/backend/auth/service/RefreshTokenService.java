@@ -2,7 +2,7 @@ package com.connecta.backend.auth.service;
 
 import com.connecta.backend.auth.domain.RefreshToken;
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
-import com.connecta.backend.auth.security.JwtProperties;
+import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.user.domain.User;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -12,6 +12,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,10 @@ public class RefreshTokenService {
     public record Issued(User user, String rawToken) {
     }
 
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
+    private static final int TOKEN_BYTES = 32;
+    private static final String HASH_ALGORITHM = "SHA-256";
+
     private final RefreshTokenRepository tokens;
     private final JwtProperties props;
     private final Clock clock;
@@ -39,7 +45,7 @@ public class RefreshTokenService {
 
     @Transactional
     public String issue(User user) {
-        byte[] bytes = new byte[32];
+        byte[] bytes = new byte[TOKEN_BYTES];
         random.nextBytes(bytes);
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         Instant now = clock.instant();
@@ -54,6 +60,7 @@ public class RefreshTokenService {
         RefreshToken stored = tokens.findByTokenHash(hash(rawToken)).orElseThrow(InvalidTokenException::new);
         User user = stored.getUser();
         if (stored.isRevoked()) {
+            log.warn("Refresh token reuse detected, revoking all sessions of user {}", user.getId());
             tokens.revokeAllForUser(user.getId(), now);
             throw new InvalidTokenException();
         }
@@ -73,7 +80,7 @@ public class RefreshTokenService {
 
     static String hash(String rawToken) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(rawToken.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance(HASH_ALGORITHM).digest(rawToken.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

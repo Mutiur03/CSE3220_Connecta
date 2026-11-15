@@ -66,6 +66,10 @@ public class RefreshToken {
         }
     }
 
+    public UUID getId() {
+        return id;
+    }
+
     public User getUser() {
         return user;
     }
@@ -80,5 +84,15 @@ public class RefreshToken {
 
     public Instant getRevokedAt() {
         return revokedAt;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || o instanceof RefreshToken other && getId() != null && getId().equals(other.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return RefreshToken.class.hashCode();
     }
 }

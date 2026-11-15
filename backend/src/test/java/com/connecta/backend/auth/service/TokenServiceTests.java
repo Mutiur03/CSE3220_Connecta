@@ -3,15 +3,14 @@ package com.connecta.backend.auth.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-import com.connecta.backend.auth.security.JwtProperties;
+import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.config.JwtConfig;
+import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -29,7 +28,7 @@ class TokenServiceTests {
 
     @Test
     void accessTokenCarriesSubjectEmailRolesAndLifetime() {
-        Clock clock = Clock.fixed(Instant.now(), ZoneOffset.UTC);
+        Clock clock = TestClock.FIXED;
         User user = TestUsers.user("jane@example.com", Roles.ADMIN, Roles.AGENT);
         TokenService service = service(clock);
 
@@ -45,7 +44,7 @@ class TokenServiceTests {
 
     @Test
     void everyTokenHasItsOwnId() {
-        TokenService service = service(Clock.systemUTC());
+        TokenService service = service(TestClock.FIXED);
         User user = TestUsers.user("jane@example.com", Roles.AGENT);
 
         String a = service.createAccessToken(user);

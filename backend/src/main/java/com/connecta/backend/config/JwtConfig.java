@@ -1,6 +1,5 @@
 package com.connecta.backend.config;
 
-import com.connecta.backend.auth.security.JwtProperties;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -22,6 +21,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 public class JwtConfig {
 
     static final int MIN_SECRET_BYTES = 32;
+    private static final String SECRET_KEY_ALGORITHM = "HmacSHA256";
 
     @Bean
     public Clock clock() {
@@ -52,6 +52,6 @@ public class JwtConfig {
         if (bytes.length < MIN_SECRET_BYTES) {
             throw new IllegalStateException("app.jwt.secret must be at least " + MIN_SECRET_BYTES + " bytes");
         }
-        return new SecretKeySpec(bytes, "HmacSHA256");
+        return new SecretKeySpec(bytes, SECRET_KEY_ALGORITHM);
     }
 }

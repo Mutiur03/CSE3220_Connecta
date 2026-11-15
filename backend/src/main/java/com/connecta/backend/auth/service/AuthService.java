@@ -4,15 +4,11 @@ import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
 import com.connecta.backend.auth.dto.TokenResponse;
 import com.connecta.backend.auth.dto.UserResponse;
-import com.connecta.backend.user.domain.Role;
-import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
-import com.connecta.backend.user.repository.RoleRepository;
-import com.connecta.backend.user.repository.UserRepository;
+import com.connecta.backend.user.service.UserService;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,41 +16,36 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
-    private final UserRepository users;
-    private final RoleRepository roles;
+    // Checked when the email is unknown, so unknown and wrong-password logins take similar time.
+    // Same default BCrypt cost as the PasswordEncoder bean in SecurityConfig; computed once.
+    private static final String DUMMY_HASH = new BCryptPasswordEncoder().encode("not-a-real-password");
+
+    private final UserService users;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final RefreshTokenService refreshTokens;
-    // Checked when the email is unknown, so unknown and wrong-password logins take similar time.
-    private final String dummyHash;
 
-    public AuthService(UserRepository users, RoleRepository roles, PasswordEncoder passwordEncoder,
+    public AuthService(UserService users, PasswordEncoder passwordEncoder,
             TokenService tokenService, RefreshTokenService refreshTokens) {
         this.users = users;
-        this.roles = roles;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.refreshTokens = refreshTokens;
-        this.dummyHash = passwordEncoder.encode("not-a-real-password");
     }
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
         String email = User.normalizeEmail(request.email());
-        if (users.existsByEmail(email)) {
+        if (users.emailExists(email)) {
             throw new EmailAlreadyUsedException();
         }
-        User user = new User(email, passwordEncoder.encode(request.password()), request.fullName());
-        Role agent = roles.findByName(Roles.AGENT)
-                .orElseThrow(() -> new IllegalStateException("Role AGENT is not seeded"));
-        user.addRole(agent);
         try {
-            // Flush now so a concurrent duplicate surfaces here, as a 409, and not at commit.
-            users.saveAndFlush(user);
+            User user = users.createAgent(email, passwordEncoder.encode(request.password()), request.fullName());
+            return UserResponse.from(user);
         } catch (DataIntegrityViolationException e) {
+            // A concurrent duplicate surfaces here, as a 409, and not at commit.
             throw new EmailAlreadyUsedException();
         }
-        return UserResponse.from(user);
     }
 
     // Not readOnly: login stores a refresh token, and Postgres rejects writes in a read-only transaction.
@@ -62,7 +53,7 @@ public class AuthService {
     public TokenResponse login(LoginRequest request) {
         User user = users.findByEmail(User.normalizeEmail(request.email())).orElse(null);
         if (user == null) {
-            passwordEncoder.matches(request.password(), dummyHash);
+            passwordEncoder.matches(request.password(), DUMMY_HASH);
             throw new InvalidCredentialsException();
         }
         if (!user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -80,19 +71,27 @@ public class AuthService {
 
     /** The signed-in user. A valid token is not enough: deleted or disabled accounts are rejected. */
     @Transactional(readOnly = true)
-    public UserResponse currentUser(UUID id) {
-        return users.findById(id)
-                .filter(User::isEnabled)
+    public UserResponse currentUser(String subject) {
+        return users.findEnabledById(parseUserId(subject))
                 .map(UserResponse::from)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is not available"));
+                .orElseThrow(AccountNotAvailableException::new);
     }
 
+    private static UUID parseUserId(String subject) {
+        try {
+            return UUID.fromString(subject);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new AccountNotAvailableException();
+        }
+    }
+
+    @Transactional
     public void logout(String refreshToken) {
         refreshTokens.revoke(refreshToken);
     }
 
     private TokenResponse tokensFor(User user, String refreshToken) {
-        return new TokenResponse("Bearer", tokenService.createAccessToken(user),
+        return new TokenResponse(TokenResponse.BEARER, tokenService.createAccessToken(user),
                 tokenService.accessTtlSeconds(), refreshToken, UserResponse.from(user));
     }
 }
