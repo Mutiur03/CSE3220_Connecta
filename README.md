@@ -95,6 +95,11 @@ erDiagram
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
 
+Notes on the auth endpoints:
+- `/api/auth/refresh` and `/api/auth/logout` are verb-style paths by convention: they are auth actions, not resources.
+- `logout` is public by design. It revokes the refresh token in the request body, so it needs no access token.
+- Role rules: `register`, `login`, `refresh` and `logout` are public; `me` needs any authenticated role (`OWNER`, `ADMIN` or `AGENT`).
+
 ## Run with Docker
 ```bash
 docker compose up --build
