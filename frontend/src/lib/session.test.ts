@@ -25,6 +25,7 @@ import { ApiError, type Tokens } from "./api";
 import { ACCESS_COOKIE, REFRESH_COOKIE } from "./session-cookies";
 import {
   clearSessionCookies,
+  getAccessToken,
   getCurrentUser,
   getRefreshToken,
   setSessionCookies,
@@ -96,5 +97,26 @@ describe("getCurrentUser", () => {
     store.has.mockReturnValue(true);
     fetchMe.mockRejectedValue(new ApiError(500, "boom"));
     await expect(getCurrentUser()).rejects.toThrow("boom");
+  });
+});
+
+describe("getAccessToken", () => {
+  it("returns the access token cookie", async () => {
+    store.get.mockReturnValue({ value: "access" });
+    expect(await getAccessToken()).toBe("access");
+  });
+
+  it("redirects to refresh when only the refresh cookie is left", async () => {
+    store.get.mockReturnValue(undefined);
+    store.has.mockReturnValue(true);
+    await expect(getAccessToken("/organizations")).rejects.toThrow(
+      "NEXT_REDIRECT /session/refresh?next=/organizations",
+    );
+  });
+
+  it("redirects to login when there are no cookies", async () => {
+    store.get.mockReturnValue(undefined);
+    store.has.mockReturnValue(false);
+    await expect(getAccessToken()).rejects.toThrow("NEXT_REDIRECT /login");
   });
 });

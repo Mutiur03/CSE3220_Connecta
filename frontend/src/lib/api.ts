@@ -28,7 +28,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   init: { method?: string; body?: unknown; accessToken?: string } = {},
 ): Promise<T> {
