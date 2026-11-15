@@ -114,4 +114,14 @@ public class User {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o || o instanceof User other && getId() != null && getId().equals(other.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return User.class.hashCode();
+    }
 }

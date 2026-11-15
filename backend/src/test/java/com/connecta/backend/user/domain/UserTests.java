@@ -1,10 +1,13 @@
 package com.connecta.backend.user.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class UserTests {
 
@@ -38,8 +41,33 @@ class UserTests {
         User user = new User("a@b.c", "hash", "Jane");
         user.addRole(new Role(Roles.ADMIN));
         user.addRole(new Role(Roles.AGENT));
-        user.addRole(new Role(Roles.ADMIN)); // same name, same role
 
         assertEquals(Set.of(Roles.ADMIN, Roles.AGENT), user.getRoleNames());
+    }
+
+    @Test
+    void equalityIsByIdAndTransientEntitiesAreNeverEqual() {
+        UUID id = UUID.randomUUID();
+        User a = new User("a@b.c", "hash", "A");
+        User b = new User("x@y.z", "hash", "B");
+        assertNotEquals(a, b);
+        ReflectionTestUtils.setField(a, "id", id);
+        ReflectionTestUtils.setField(b, "id", id);
+
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+    }
+
+    @Test
+    void roleEqualityIsById() {
+        UUID id = UUID.randomUUID();
+        Role admin = new Role(Roles.ADMIN);
+        Role agent = new Role(Roles.AGENT);
+        assertNotEquals(admin, agent);
+        ReflectionTestUtils.setField(admin, "id", id);
+        ReflectionTestUtils.setField(agent, "id", id);
+
+        assertEquals(admin, agent);
+        assertEquals(admin.hashCode(), agent.hashCode());
     }
 }
