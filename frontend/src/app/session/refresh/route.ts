@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { ApiError, refresh } from "@/lib/api";
 import { redirectTo } from "@/lib/redirect-response";
-import { safeRedirectPath } from "@/lib/redirect";
+import { safeRedirectPath, UNAVAILABLE_REASON } from "@/lib/redirect";
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
@@ -10,12 +10,13 @@ import {
 } from "@/lib/session-cookies";
 
 // Exchanges the refresh token for a new pair (the backend rotates it), then returns to `next`.
+// GET is a deliberate exception to the REST rule: a server component can only redirect, and
+// cookies can only be set from a route handler, so the rotation has to happen on this redirect.
 export async function GET(request: NextRequest) {
   const next = safeRedirectPath(request.nextUrl.searchParams.get("next"));
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
-  const toLogin = () => redirectTo("/login");
 
-  if (!refreshToken) return toLogin();
+  if (!refreshToken) return redirectTo("/login");
 
   try {
     const tokens = await refresh(refreshToken);
@@ -33,12 +34,14 @@ export async function GET(request: NextRequest) {
     );
     return response;
   } catch (error) {
-    const response = toLogin();
-    // Only a rejected token ends the session; a backend outage must not log people out.
     if (error instanceof ApiError && error.status === 401) {
+      // Only a rejected token ends the session.
+      const response = redirectTo("/login");
       response.cookies.delete(ACCESS_COOKIE);
       response.cookies.delete(REFRESH_COOKIE);
+      return response;
     }
-    return response;
+    // A backend outage must not log people out: the cookies stay, and /login says what happened.
+    return redirectTo(`/login?reason=${UNAVAILABLE_REASON}`);
   }
 }

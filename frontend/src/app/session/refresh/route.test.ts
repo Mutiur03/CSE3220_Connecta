@@ -71,16 +71,24 @@ describe("GET /session/refresh", () => {
     expect(response.cookies.get("refresh_token")?.value).toBe("");
   });
 
-  it("redirects to /login without clearing cookies when the backend is unavailable", async () => {
-    refresh.mockRejectedValue(new ApiError(503, "unavailable"));
+  it.each([
+    ["a 503 from the backend", new ApiError(503, "unavailable")],
+    ["an unreachable backend", new TypeError("fetch failed")],
+  ])(
+    "flags the outage on /login without clearing cookies for %s",
+    async (_case, failure) => {
+      refresh.mockRejectedValue(failure);
 
-    const response = await GET(request("?next=%2F", "refresh_token=old"));
+      const response = await GET(request("?next=%2F", "refresh_token=old"));
 
-    expect(response.headers.get("location")).toBe("/login");
-    expectRelative(response.headers.get("location"));
-    expect(response.cookies.get("access_token")).toBeUndefined();
-    expect(response.cookies.get("refresh_token")).toBeUndefined();
-  });
+      expect(response.headers.get("location")).toBe(
+        "/login?reason=unavailable",
+      );
+      expectRelative(response.headers.get("location"));
+      expect(response.cookies.get("access_token")).toBeUndefined();
+      expect(response.cookies.get("refresh_token")).toBeUndefined();
+    },
+  );
 
   it.each(["//evil.com", "https://evil.com", "/\\evil.com"])(
     "falls back to / for an unsafe next value %s",
