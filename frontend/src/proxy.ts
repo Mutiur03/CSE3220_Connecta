@@ -9,7 +9,10 @@ export function proxy(request: NextRequest) {
   const onLogin = request.nextUrl.pathname === "/login";
 
   if (!signedIn && !onLogin) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const login = new URL("/login", request.url);
+    const target = request.nextUrl.pathname + request.nextUrl.search;
+    if (target !== "/") login.searchParams.set("next", target);
+    return NextResponse.redirect(login);
   }
   if (signedIn && onLogin) {
     return NextResponse.redirect(new URL("/", request.url));

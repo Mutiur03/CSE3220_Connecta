@@ -82,7 +82,18 @@ describe("getCurrentUser", () => {
     store.has.mockReturnValue(true);
     fetchMe.mockRejectedValue(new ApiError(401, "expired"));
     await expect(getCurrentUser()).rejects.toThrow(
-      "NEXT_REDIRECT /session/refresh?next=/",
+      "NEXT_REDIRECT /session/refresh?next=%2F",
+    );
+  });
+
+  it("keeps the query of next intact when refreshing", async () => {
+    store.get.mockReturnValue({ value: "access" });
+    store.has.mockReturnValue(true);
+    fetchMe.mockRejectedValue(new ApiError(401, "expired"));
+    await expect(
+      getCurrentUser("/invitations/accept?token=a&b=c"),
+    ).rejects.toThrow(
+      "NEXT_REDIRECT /session/refresh?next=%2Finvitations%2Faccept%3Ftoken%3Da%26b%3Dc",
     );
   });
 
@@ -110,7 +121,7 @@ describe("getAccessToken", () => {
     store.get.mockReturnValue(undefined);
     store.has.mockReturnValue(true);
     await expect(getAccessToken("/organizations")).rejects.toThrow(
-      "NEXT_REDIRECT /session/refresh?next=/organizations",
+      "NEXT_REDIRECT /session/refresh?next=%2Forganizations",
     );
   });
 

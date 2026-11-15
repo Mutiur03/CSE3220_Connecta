@@ -11,3 +11,10 @@ test("home redirects a signed-out visitor to login", async ({ page }) => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/login$/);
 });
+
+test("a protected page keeps its path and query in next", async ({ page }) => {
+  await page.goto("/invitations/accept?token=x");
+  await expect(page).toHaveURL(
+    /\/login\?next=%2Finvitations%2Faccept%3Ftoken%3Dx$/,
+  );
+});

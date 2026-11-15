@@ -54,7 +54,12 @@ export async function getCurrentUser(next = "/"): Promise<User> {
       if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
   }
-  redirect(hasRefresh ? `/session/refresh?next=${next}` : "/login");
+  redirect(hasRefresh ? refreshPath(next) : "/login");
+}
+
+/** `next` may carry its own query string, so it is encoded as one value. */
+function refreshPath(next: string) {
+  return `/session/refresh?next=${encodeURIComponent(next)}`;
 }
 
 /**
@@ -65,7 +70,5 @@ export async function getAccessToken(next = "/"): Promise<string> {
   const store = await cookies();
   const accessToken = store.get(ACCESS_COOKIE)?.value;
   if (accessToken) return accessToken;
-  redirect(
-    store.has(REFRESH_COOKIE) ? `/session/refresh?next=${next}` : "/login",
-  );
+  redirect(store.has(REFRESH_COOKIE) ? refreshPath(next) : "/login");
 }
