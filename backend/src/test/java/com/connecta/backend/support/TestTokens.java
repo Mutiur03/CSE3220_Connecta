@@ -6,7 +6,6 @@ import com.connecta.backend.config.JwtConfig;
 import com.connecta.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.ZoneOffset;
 
 /** Builds real signed access tokens for tests, valid or expired, with the app's own encoder. */
@@ -16,11 +15,11 @@ public final class TestTokens {
     }
 
     public static String bearer(JwtProperties props, User user) {
-        return "Bearer " + token(props, user, Clock.systemUTC());
+        return "Bearer " + token(props, user, TestClock.FIXED);
     }
 
     public static String expiredBearer(JwtProperties props, User user) {
-        Clock anHourAgo = Clock.fixed(Instant.now().minus(Duration.ofHours(1)), ZoneOffset.UTC);
+        Clock anHourAgo = Clock.fixed(TestClock.NOW.minus(Duration.ofHours(1)), ZoneOffset.UTC);
         return "Bearer " + token(props, user, anHourAgo);
     }
 
@@ -28,7 +27,7 @@ public final class TestTokens {
     public static String forgedBearer(JwtProperties real, User user) {
         JwtProperties forged = new JwtProperties("a-different-secret-a-different-secret-0123456789",
                 real.issuer(), real.accessTtl(), real.refreshTtl());
-        return "Bearer " + token(forged, user, Clock.systemUTC());
+        return "Bearer " + token(forged, user, TestClock.FIXED);
     }
 
     private static String token(JwtProperties props, User user, Clock clock) {

@@ -6,7 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
 @MockRepositories
-class BackendApplicationTests {
+class BackendApplicationIntegrationTests {
 
 	@Test
 	void contextLoads() {
