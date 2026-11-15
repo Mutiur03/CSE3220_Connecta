@@ -11,22 +11,23 @@ Stack: Next.js + TypeScript + Tailwind + pnpm (`frontend/`), Spring Boot + Maven
 ## Accounts (who commits and pushes)
 Three collaborators, each logged in to `gh`. Work is done as the account the issue is assigned to, so history shows who built what.
 
-| Account | Noreply email |
-|---|---|
-| `Mutiur03` (admin) | `173971250+Mutiur03@users.noreply.github.com` |
-| `bipro96` | `243103502+bipro96@users.noreply.github.com` |
-| `Aavas-99` | `159434864+Aavas-99@users.noreply.github.com` |
+| Account | Commit name | Noreply email |
+|---|---|---|
+| `Mutiur03` (admin) | `Mutiur Rahman` | `173971250+Mutiur03@users.noreply.github.com` |
+| `bipro96` | `bipro96` | `243103502+bipro96@users.noreply.github.com` |
+| `Aavas-99` | `Aavas Roy` | `159434864+Aavas-99@users.noreply.github.com` |
 
 - Read the issue's assignee: `gh issue view <n> --json assignees --jq '.assignees[].login'`. Act as that account. No assignee: stop and ask.
 - Never run `gh auth switch`. Select the account per command with a token, so accounts never mix:
   ```bash
-  U=bipro96; ID=243103502   # from the table
+  U=bipro96; ID=243103502   # login and id from the table; <Commit name> is the table's name column
   export GH_TOKEN=$(gh auth token -u $U)
-  git -c user.name=$U -c user.email=$ID+$U@users.noreply.github.com commit -m "feat(backend): ..."
+  git -c user.name="<Commit name>" -c user.email=$ID+$U@users.noreply.github.com commit -m "feat(backend): ..."
   git push -u origin <branch>      # pushes as $U via GH_TOKEN
   gh pr create ...                 # PR author is $U
   ```
   Commit author and push account must both be the assignee. Use the same `GH_TOKEN` shell for every step of that issue, and do not leave it exported for the next issue.
+- The commit name must be the account's exact GitHub profile name (table above), not the login. Otherwise GitHub treats author and merger as different people and adds a `Co-authored-by` trailer when squash-merging.
 - Do not commit with the global git identity. Check with `git log -1 --format='%an <%ae>'` before pushing.
 - Review: a PR is approved by a different collaborator than its author (`GH_TOKEN=$(gh auth token -u <reviewer>) gh pr review <n> --approve`). Merge is done by the author, or by `Mutiur03`. Admin bypass is for emergencies only.
 - Only act as an account for issues assigned to it. Never comment, review or approve in another account's name on its own work.
