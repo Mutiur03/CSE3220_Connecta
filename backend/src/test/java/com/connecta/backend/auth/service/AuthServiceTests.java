@@ -191,4 +191,27 @@ class AuthServiceTests {
         }
 
     }
+
+    @Nested
+    class CurrentUser {
+
+        @Test
+        void malformedSubjectIsRejectedAsAccountNotAvailable() {
+            assertThrows(AccountNotAvailableException.class, () -> service.currentUser("not-a-uuid"));
+            verifyNoInteractions(users);
+        }
+
+        @Test
+        void missingSubjectIsRejectedAsAccountNotAvailable() {
+            assertThrows(AccountNotAvailableException.class, () -> service.currentUser(null));
+        }
+
+        @Test
+        void unknownOrDisabledAccountIsRejected() {
+            java.util.UUID id = java.util.UUID.randomUUID();
+            when(users.findEnabledById(id)).thenReturn(Optional.empty());
+
+            assertThrows(AccountNotAvailableException.class, () -> service.currentUser(id.toString()));
+        }
+    }
 }

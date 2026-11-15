@@ -1,5 +1,6 @@
 package com.connecta.backend.auth.web;
 
+import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
@@ -18,6 +19,11 @@ class AuthExceptionHandler {
 
     @ExceptionHandler(InvalidTokenException.class)
     ProblemDetail invalidToken(InvalidTokenException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(AccountNotAvailableException.class)
+    ProblemDetail accountNotAvailable(AccountNotAvailableException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
     }
 

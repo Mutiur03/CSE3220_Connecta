@@ -45,7 +45,7 @@ public class UserService {
     @Transactional
     public User createAgent(String normalizedEmail, String passwordHash, String fullName) {
         Role agent = roles.findByName(Roles.AGENT)
-                .orElseThrow(() -> new IllegalStateException("Role AGENT is not seeded"));
+                .orElseThrow(() -> new RoleNotSeededException(Roles.AGENT));
         User user = new User(normalizedEmail, passwordHash, fullName);
         user.addRole(agent);
         return users.saveAndFlush(user);

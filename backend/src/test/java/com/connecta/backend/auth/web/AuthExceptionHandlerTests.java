@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
@@ -28,6 +29,11 @@ class AuthExceptionHandlerTests {
         @GetMapping("/bad-token")
         void badToken() {
             throw new InvalidTokenException();
+        }
+
+        @GetMapping("/no-account")
+        void noAccount() {
+            throw new AccountNotAvailableException();
         }
 
         @GetMapping("/bad-credentials")
@@ -60,6 +66,15 @@ class AuthExceptionHandlerTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.detail").value("Invalid or expired refresh token"));
+    }
+
+    @Test
+    void accountNotAvailableIs401() throws Exception {
+        mvc.perform(get("/no-account"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.detail").value("Account is not available"));
     }
 
     @Test

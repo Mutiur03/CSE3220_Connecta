@@ -8,8 +8,6 @@ import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -73,10 +71,18 @@ public class AuthService {
 
     /** The signed-in user. A valid token is not enough: deleted or disabled accounts are rejected. */
     @Transactional(readOnly = true)
-    public UserResponse currentUser(UUID id) {
-        return users.findEnabledById(id)
+    public UserResponse currentUser(String subject) {
+        return users.findEnabledById(parseUserId(subject))
                 .map(UserResponse::from)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is not available"));
+                .orElseThrow(AccountNotAvailableException::new);
+    }
+
+    private static UUID parseUserId(String subject) {
+        try {
+            return UUID.fromString(subject);
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new AccountNotAvailableException();
+        }
     }
 
     @Transactional

@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -68,7 +67,7 @@ public class AuthController {
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
     @GetMapping("/me")
     public UserResponse me(@AuthenticationPrincipal Jwt jwt) {
-        return authService.currentUser(UUID.fromString(jwt.getSubject()));
+        return authService.currentUser(jwt.getSubject());
     }
 
     @Operation(summary = "Revoke a refresh token (public by design)")
