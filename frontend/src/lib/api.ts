@@ -1,6 +1,13 @@
-// Base URL of the backend REST API. Set NEXT_PUBLIC_API_URL in frontend/.env.local to override.
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+// Backend REST API base URL. Server code prefers API_URL (runtime, server-only, e.g. http://app:8080 in
+// Docker); the browser has no API_URL, so it falls back to NEXT_PUBLIC_API_URL (the public address).
+// Read per call, not at module load, so standalone images pick up runtime env.
+export function apiBaseUrl(): string {
+  return (
+    process.env.API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://localhost:8080"
+  );
+}
 
 export type User = {
   id: string;
@@ -28,11 +35,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   init: { method?: string; body?: unknown; accessToken?: string } = {},
 ): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${apiBaseUrl()}${path}`, {
     method: init.method ?? "GET",
     headers: {
       ...(init.body === undefined
@@ -77,7 +84,7 @@ export const fetchMe = (accessToken: string) =>
   request<User>("/api/auth/me", { accessToken });
 
 export async function getBackendStatus(): Promise<string> {
-  const res = await fetch(`${API_URL}/actuator/health`);
+  const res = await fetch(`${apiBaseUrl()}/actuator/health`);
   if (!res.ok) throw new Error(`Backend returned ${res.status}`);
   return (await res.json()).status;
 }

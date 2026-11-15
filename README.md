@@ -64,6 +64,8 @@ Backend layers per feature: `controller` (REST controllers + exception handlers)
 ## Roles
 Roles are `OWNER > ADMIN > AGENT` (a higher role inherits the lower ones). They map to the course roles as `OWNER` = ADMIN, `ADMIN` = SELLER, `AGENT` = BUYER, giving three-tier role-based access. Default is deny: every path needs a valid access token unless it is on the public list in `SecurityConfig`.
 
+Tenant isolation: an organization's data is reached only through `org.service.TenantAccessService`. A user who is not a member of an organization gets `404` (the same answer as an unknown organization), and a member whose role is too low gets `403`.
+
 ## ER diagram
 ```mermaid
 erDiagram
@@ -81,8 +83,28 @@ erDiagram
         uuid role_id FK }
     REFRESH_TOKENS { uuid id PK
         uuid user_id FK }
+    ORGANIZATIONS ||--o{ MEMBERSHIPS : has
+    USERS ||--o{ MEMBERSHIPS : joins
+    ROLES ||--o{ MEMBERSHIPS : held_in
+    ORGANIZATIONS { uuid id PK
+        string name
+        string slug UK }
+    MEMBERSHIPS { uuid id PK
+        uuid organization_id FK
+        uuid user_id FK
+        uuid role_id FK }
+    ORGANIZATIONS ||--o{ INVITATIONS : receives
+    ROLES ||--o{ INVITATIONS : offers
+    USERS ||--o{ INVITATIONS : sends
+    INVITATIONS { uuid id PK
+        uuid organization_id FK
+        string email
+        uuid role_id FK
+        uuid invited_by FK
+        string token_hash UK
+        string status }
 ```
-`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. More tables arrive with later milestones.
+`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). More tables arrive with later milestones.
 
 ## API endpoints
 | Method | Path | Access | Success | Description |
@@ -92,6 +114,18 @@ erDiagram
 | POST | `/api/auth/refresh` | public | 200 | Rotate the refresh token (single use). |
 | POST | `/api/auth/logout` | public | 204 | Revoke the refresh token. |
 | GET | `/api/auth/me` | authenticated | 200 | Current user. |
+| GET | `/api/organizations` | authenticated | 200 | Organizations the caller belongs to (`page`, `size` max 100). |
+| POST | `/api/organizations` | authenticated | 201 | Create an organization; the caller becomes its `OWNER`. |
+| GET | `/api/organizations/{id}` | member | 200 | One organization. Non-members get `404`. |
+| PATCH | `/api/organizations/{id}` | `OWNER` or `ADMIN` of it | 200 | Rename it. The slug is fixed. |
+| DELETE | `/api/organizations/{id}` | `OWNER` of it | 204 | Delete it and its memberships. |
+| POST | `/api/organizations/{id}/invitations` | `OWNER` or `ADMIN` of it | 201 | Invite an email with a role (not above the caller's own). Returns the raw token once. |
+| GET | `/api/organizations/{id}/invitations` | `OWNER` or `ADMIN` of it | 200 | List its invitations, newest first (`page`, `size` max 100). Never includes tokens. |
+| DELETE | `/api/organizations/{id}/invitations/{invitationId}` | `OWNER` or `ADMIN` of it | 204 | Revoke an invitation. An accepted one gets `409`. |
+| POST | `/api/invitations/accept` | authenticated; email must match the invitation | 200 | Accept with the token. Joins the organization with the invited role. |
+| GET | `/api/organizations/{id}/members` | any member of it | 200 | List its members with their role (`page`, `size` max 100). No password data. |
+| PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` or above of it | 200 | Change a member's role. Not above the caller's own role; the last `OWNER` cannot be demoted (`422`). |
+| DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. Same role ceiling as a change; the last `OWNER` cannot leave (`422`). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
 
@@ -104,7 +138,7 @@ Notes on the auth endpoints:
 ```bash
 docker compose up --build
 ```
-Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
+Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. The frontend also reads `API_URL` (server-side backend address, set to `http://app:8080` in compose; defaults to `NEXT_PUBLIC_API_URL` outside Docker). Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
 
 ## Monitoring
 Actuator exposes `health` (public), and `info`, `metrics` and `prometheus` (ADMIN token required). Config lives in `ops/`:

@@ -39,9 +39,10 @@ export async function getRefreshToken() {
 /**
  * The signed-in user, or a redirect. The proxy only checks that a cookie exists; this is the real
  * check, because the backend validates the token. An expired access token (its cookie is gone, or
- * the backend answers 401) goes through /session/refresh, which rotates the refresh token.
+ * the backend answers 401) goes through /session/refresh, which rotates the refresh token and then
+ * returns to `next`.
  */
-export async function getCurrentUser(): Promise<User> {
+export async function getCurrentUser(next = "/"): Promise<User> {
   const store = await cookies();
   const accessToken = store.get(ACCESS_COOKIE)?.value;
   const hasRefresh = store.has(REFRESH_COOKIE);
@@ -53,5 +54,21 @@ export async function getCurrentUser(): Promise<User> {
       if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
   }
-  redirect(hasRefresh ? "/session/refresh?next=/" : "/login");
+  redirect(hasRefresh ? refreshPath(next) : "/login");
+}
+
+/** `next` may carry its own query string, so it is encoded as one value. */
+function refreshPath(next: string) {
+  return `/session/refresh?next=${encodeURIComponent(next)}`;
+}
+
+/**
+ * The access token for calls to the backend, or a redirect when it is gone. Pages and actions call
+ * getCurrentUser first, which refreshes an expired token; this only reads the cookie.
+ */
+export async function getAccessToken(next = "/"): Promise<string> {
+  const store = await cookies();
+  const accessToken = store.get(ACCESS_COOKIE)?.value;
+  if (accessToken) return accessToken;
+  redirect(store.has(REFRESH_COOKIE) ? refreshPath(next) : "/login");
 }

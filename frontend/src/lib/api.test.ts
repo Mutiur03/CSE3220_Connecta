@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, fetchMe, login, logout, refresh } from "./api";
+import { ApiError, apiBaseUrl, fetchMe, login, logout, refresh } from "./api";
 
 const user = {
   id: "1",
@@ -26,7 +26,10 @@ function respond(status: number, body?: unknown) {
   return fetchMock;
 }
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
 
 describe("api client", () => {
   it("login posts the credentials as JSON and returns the tokens", async () => {
@@ -104,5 +107,25 @@ describe("api client", () => {
     await fetchMe("t");
 
     expect(fetchMock.mock.calls[0][1].cache).toBe("no-store");
+  });
+});
+
+describe("apiBaseUrl", () => {
+  it("prefers the server-side API_URL", () => {
+    vi.stubEnv("API_URL", "http://app:8080");
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8080");
+    expect(apiBaseUrl()).toBe("http://app:8080");
+  });
+
+  it("falls back to NEXT_PUBLIC_API_URL when API_URL is unset", () => {
+    vi.stubEnv("API_URL", undefined);
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com");
+    expect(apiBaseUrl()).toBe("https://api.example.com");
+  });
+
+  it("falls back to localhost when neither variable is set", () => {
+    vi.stubEnv("API_URL", undefined);
+    vi.stubEnv("NEXT_PUBLIC_API_URL", undefined);
+    expect(apiBaseUrl()).toBe("http://localhost:8080");
   });
 });

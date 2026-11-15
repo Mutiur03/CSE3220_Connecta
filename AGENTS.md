@@ -205,6 +205,16 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 - Workflows in `.github/workflows`: build and test on every PR; on push to `main` build, test and deploy to Render automatically. Maven and pnpm caches are enabled. A red build blocks the merge.
 - Observability (bonus): Actuator health, info and metrics, a Micrometer Prometheus endpoint, and a Grafana dashboard JSON committed under `ops/`.
 
+### Frontend design and quality (every UI change)
+Load these skills with the Skill tool **before** designing or writing UI, not after. They are part of the work, not optional polish.
+1. **`frontend-design:frontend-design`**: pick an aesthetic direction, typography, spacing and color for the product before coding. No templated defaults.
+2. **`modern-web-guidance:modern-web-guidance`**: run it first for HTML, CSS and client-side JS (forms, dialogs, layout, motion, Core Web Vitals). Prefer native platform features over libraries.
+3. **Web design guidelines** (accessibility, forms, focus, contrast, touch targets, reduced motion, responsive layout): run `design:accessibility-review` (WCAG 2.1 AA) on every new or changed screen before the PR. If a dedicated web-design-guidelines skill is installed, load it too.
+4. **React and Next.js best practices:** first read the guide for the installed version in `frontend/node_modules/next/dist/docs/` (see `frontend/AGENTS.md`; this Next.js differs from older versions). Server Components by default, `"use client"` only where state or browser APIs need it, data access inside `<Suspense>` boundaries (Cache Components are on), no request waterfalls, server actions for mutations, `next/image` and `next/font`, no `any`. If a React/Next best-practices skill is installed, load it too.
+5. **`unslop`:** run it on each finished screen to remove AI-looking defaults (gradients, glows, emoji labels, uneven spacing).
+6. **Prove it in the running app.** Unit tests are not enough for UI: start the stack (`docker compose up --build`, only when the human has asked for migrations to run), drive the changed flow in a browser, and check the console for errors. Say in the PR what you clicked through.
+- The PR description lists which of these skills were used and what they changed. A subagent brief for frontend work must name them so the agent loads them too.
+
 ## Agent playbook (how to run one task end to end)
 Follow in order. Stop and ask the human at any "stop" line.
 
@@ -212,6 +222,7 @@ Follow in order. Stop and ask the human at any "stop" line.
 2. **Act as the assignee.** `gh issue view <n> --json assignees`, then `source scripts/use-account.sh <login>` in a fresh shell. Stop if there is no assignee.
 3. **Branch.** `git fetch --prune && git switch develop && git pull --ff-only && git switch -c <type>/<n>-<slug>`. Never branch from `main` or from another feature branch.
 4. **Plan against the course rules and the Engineering standards.** Before coding, name the design pattern the change uses, the roles allowed on each new endpoint, the tables it touches (migration needed?), and the tests it needs (unit for services, MockMvc for controllers). Put each file where "Project structure" says.
+   For UI work, also load the skills in "Frontend design and quality" now.
 5. **Build small.** One concern, about 400 changed lines at most. Commit as you go with conventional messages, no trailers, body lines under 100 characters. Never `--no-verify`.
 6. **Prove it.** Run `./mvnw test` (on Windows `mvnw.cmd`) and the frontend `pnpm lint`, `pnpm test`, `pnpm build` for the areas touched. For anything that needs a database, run it against real PostgreSQL, since mocks hid two bugs before. Never run migrations unless the human asks in that message. Fix failures; never weaken or delete a test to pass.
 7. **Self-check before the PR** (every box must be true):
@@ -224,6 +235,7 @@ Follow in order. Stop and ask the human at any "stop" line.
    - [ ] README updated if an endpoint, table or pipeline changed
    - [ ] Tenant data is scoped to the organization
    - [ ] `docker compose up --build` still works if the change affects running the app
+   - [ ] Frontend change: design, web-guidance, accessibility, React/Next and `unslop` skills used and listed in the PR, and the flow checked in a running app
 8. **Push and open the PR** against `develop`: title is a conventional commit, body has `Closes #<n>` (it will not auto-close, see Branch model), the pattern, and what was run. Draft first, ready when the issue's "Done when" list is complete and CI is green.
 9. **Review.** A different collaborator approves with their own account. Never approve your own work or act as another account on its work. Wait for every required check to be green; do not merge on pending.
 10. **Merge.** Squash-merge into `develop` (merge commits are not allowed there), done by the author or `Mutiur03`. Then `git fetch --prune && git switch develop && git pull --ff-only && git branch -d <branch>`.

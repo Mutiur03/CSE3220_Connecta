@@ -6,7 +6,7 @@ import { login, type LoginState } from "@/lib/auth-actions";
 const field =
   "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 aria-invalid:border-red-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
-export default function LoginForm() {
+export default function LoginForm({ next = "" }: { next?: string }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(
     login,
     {},
@@ -14,6 +14,8 @@ export default function LoginForm() {
 
   return (
     <form action={action} noValidate className="flex w-full flex-col gap-4">
+      {/* Validated by the login action (safeRedirectPath) before any redirect. */}
+      <input type="hidden" name="next" value={next} />
       <div className="flex flex-col gap-1">
         <label htmlFor="email" className="text-sm font-medium">
           Email

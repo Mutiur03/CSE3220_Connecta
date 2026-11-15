@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { ApiError, refresh } from "@/lib/api";
+import { redirectTo } from "@/lib/redirect-response";
 import { safeRedirectPath } from "@/lib/redirect";
 import {
   ACCESS_COOKIE,
@@ -12,14 +13,14 @@ import {
 export async function GET(request: NextRequest) {
   const next = safeRedirectPath(request.nextUrl.searchParams.get("next"));
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
-  const toLogin = () => NextResponse.redirect(new URL("/login", request.url));
+  const toLogin = () => redirectTo("/login");
 
   if (!refreshToken) return toLogin();
 
   try {
     const tokens = await refresh(refreshToken);
     const secure = process.env.NODE_ENV === "production";
-    const response = NextResponse.redirect(new URL(next, request.url));
+    const response = redirectTo(next);
     response.cookies.set(
       ACCESS_COOKIE,
       tokens.accessToken,

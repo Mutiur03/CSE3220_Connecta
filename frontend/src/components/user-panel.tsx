@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { logout } from "@/lib/auth-actions";
 import { getCurrentUser } from "@/lib/session";
 
@@ -13,6 +14,12 @@ export default async function UserPanel() {
       <p className="text-sm text-zinc-500">
         {user.email} · {user.roles.join(", ")}
       </p>
+      <Link
+        href="/organizations"
+        className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+      >
+        Organizations
+      </Link>
       <form action={logout}>
         <button
           type="submit"

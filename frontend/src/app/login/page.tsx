@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import LoginForm from "@/components/login-form";
 
 export const metadata: Metadata = { title: "Sign in · Connecta" };
 
-export default function LoginPage() {
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
   return (
     <main className="flex flex-1 items-center justify-center p-8">
       <div className="flex w-full max-w-sm flex-col gap-6">
@@ -13,8 +18,20 @@ export default function LoginPage() {
             Sign in to your inbox.
           </p>
         </div>
-        <LoginForm />
+        {/* Reading searchParams makes the route dynamic, so it renders inside Suspense. */}
+        <Suspense>
+          <LoginFormWithNext searchParams={searchParams} />
+        </Suspense>
       </div>
     </main>
   );
+}
+
+async function LoginFormWithNext({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const { next } = await searchParams;
+  return <LoginForm next={typeof next === "string" ? next : ""} />;
 }
