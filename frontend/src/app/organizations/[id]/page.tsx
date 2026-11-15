@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import OrgActionButton from "@/components/org-action-button";
 import OrgInvitations from "@/components/org-invitations";
 import OrgMembersTable from "@/components/org-members-table";
+import OrgPagination from "@/components/org-pagination";
 import OrgRenameForm from "@/components/org-rename-form";
-import OrgRoleBadge from "@/components/org-role-badge";
+import { OrgSectionSkeleton } from "@/components/org-skeleton";
 import { deleteOrganization, renameOrganization } from "@/lib/org-actions";
-import { ApiError } from "@/lib/api";
-import { getOrganization, listInvitations, listMembers } from "@/lib/org-api";
+import { listInvitations, listMembers } from "@/lib/org-api";
 import {
   assignableRoles,
   canDelete,
@@ -16,55 +16,81 @@ import {
   canRename,
   ROLE_LABELS,
 } from "@/lib/org-permissions";
-import { isUuid } from "@/lib/org-validation";
-import { getAccessToken, getCurrentUser } from "@/lib/session";
+import {
+  ORG_PAGE_SIZE,
+  pageCount,
+  pageHref,
+  pageRange,
+  parsePageParam,
+} from "@/lib/org-pagination";
+import {
+  findOrganization,
+  loadOrganization,
+  loadSession,
+  notFoundOnMissing,
+} from "./data";
 
-export const metadata: Metadata = { title: "Organization · Connecta" };
+type RouteParams = Promise<{ id: string }>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export default async function OrganizationPage({
+const MEMBERS_KEY = "membersPage";
+const INVITATIONS_KEY = "invitationsPage";
+
+export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>;
-}) {
+  params: RouteParams;
+}): Promise<Metadata> {
   const { id } = await params;
-  // The id goes into a redirect path, so only a UUID is accepted here.
-  if (!isUuid(id)) notFound();
+  const organization = await findOrganization(id);
+  return { title: organization?.name ?? "Organization" };
+}
 
-  const path = `/organizations/${id}`;
-  const user = await getCurrentUser(path);
-  const accessToken = await getAccessToken(path);
-  // Another tenant's organization and a missing one both answer 404, so both show the same page.
-  const organization = await getOrganization(accessToken, id).catch(
-    (error: unknown) => {
-      if (error instanceof ApiError && error.status === 404) notFound();
-      throw error;
-    },
+// Each section streams behind its own boundary, so a slow list does not hold up the header.
+export default function OrganizationPage({
+  params,
+  searchParams,
+}: {
+  params: RouteParams;
+  searchParams: SearchParams;
+}) {
+  return (
+    <>
+      <Suspense fallback={<OrgSectionSkeleton label="organization" />}>
+        <OrganizationHeader params={params} />
+      </Suspense>
+      <Suspense fallback={<OrgSectionSkeleton label="members" />}>
+        <MembersSection params={params} searchParams={searchParams} />
+      </Suspense>
+      <Suspense fallback={<OrgSectionSkeleton label="invitations" />}>
+        <InvitationsSection params={params} searchParams={searchParams} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <DeleteSection params={params} />
+      </Suspense>
+    </>
   );
+}
 
+async function OrganizationHeader({ params }: { params: RouteParams }) {
+  const { id } = await params;
+  const organization = await loadOrganization(id);
   const role = organization.callerRole;
-  const [members, invitations] = await Promise.all([
-    listMembers(accessToken, id),
-    canInvite(role) ? listInvitations(accessToken, id) : undefined,
-  ]);
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 p-6 sm:p-8">
+    <>
       <header className="flex flex-col gap-2">
         <Link
           href="/organizations"
-          className="text-sm text-zinc-500 underline-offset-4 hover:underline"
+          className="text-sm text-ink-muted underline-offset-4 hover:underline"
         >
           All organizations
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {organization.name}
-          </h1>
-          <OrgRoleBadge role={role} />
-        </div>
-        <p className="text-sm text-zinc-500">
-          Slug: <code>{organization.slug}</code> · You are{" "}
-          {ROLE_LABELS[role].toLowerCase()}
+        <h1 className="text-display font-semibold tracking-tight">
+          {organization.name}
+        </h1>
+        <p className="text-sm text-ink-muted">
+          Slug <code>{organization.slug}</code> · Your role: {ROLE_LABELS[role]}
         </p>
       </header>
 
@@ -82,63 +108,148 @@ export default async function OrganizationPage({
           />
         </section>
       )}
+    </>
+  );
+}
 
-      <section
-        aria-labelledby="members-heading"
-        className="flex flex-col gap-3"
-      >
-        <h2 id="members-heading" className="text-lg font-medium">
-          Members
-        </h2>
-        <OrgMembersTable
-          orgId={id}
-          members={members.content}
-          callerRole={role}
-          callerUserId={user.id}
-        />
-        {members.totalElements > members.content.length && (
-          <p className="text-sm text-zinc-500">
-            Showing {members.content.length} of {members.totalElements} members.
-          </p>
-        )}
-      </section>
+async function MembersSection({
+  params,
+  searchParams,
+}: {
+  params: RouteParams;
+  searchParams: SearchParams;
+}) {
+  const { id } = await params;
+  const page = parsePageParam((await searchParams)[MEMBERS_KEY]);
+  const { user, accessToken } = await loadSession(id);
+  // The members and the organization are fetched together; a 404 on either shows the not-found page.
+  const [organization, members] = await Promise.all([
+    loadOrganization(id),
+    notFoundOnMissing(listMembers(accessToken, id, page, ORG_PAGE_SIZE)),
+  ]);
+  const range = pageRange(page, members.size, members.totalElements);
+  const count = pageCount(members.totalElements, members.size);
+  const current = {
+    [INVITATIONS_KEY]: parsePageParam((await searchParams)[INVITATIONS_KEY]),
+  };
+  const href = (target: number) =>
+    pageHref(
+      `/organizations/${id}`,
+      { ...current, [MEMBERS_KEY]: page },
+      MEMBERS_KEY,
+      target,
+    );
 
-      {invitations && (
-        <section
-          aria-labelledby="invitations-heading"
-          className="flex flex-col gap-3"
-        >
-          <h2 id="invitations-heading" className="text-lg font-medium">
-            Invitations
-          </h2>
-          <OrgInvitations
-            orgId={id}
-            invitations={invitations.content}
-            roleOptions={assignableRoles(role)}
-          />
-        </section>
+  return (
+    <section aria-labelledby="members-heading" className="flex flex-col gap-3">
+      <h2 id="members-heading" className="text-lg font-medium">
+        Members
+      </h2>
+      <OrgMembersTable
+        orgId={id}
+        members={members.content}
+        callerRole={organization.callerRole}
+        callerUserId={user.id}
+      />
+      {range && (
+        <p className="text-sm text-ink-muted tabular-nums">
+          Showing {range.from}–{range.to} of {members.totalElements} members
+        </p>
       )}
+      <OrgPagination
+        label="Members pages"
+        page={page}
+        pageCount={count}
+        previousHref={page > 0 ? href(page - 1) : undefined}
+        nextHref={page + 1 < count ? href(page + 1) : undefined}
+      />
+    </section>
+  );
+}
 
-      {canDelete(role) && (
-        <section
-          aria-labelledby="delete-heading"
-          className="flex flex-col gap-3 border-t border-zinc-200 pt-6 dark:border-zinc-800"
-        >
-          <h2 id="delete-heading" className="text-lg font-medium">
-            Delete organization
-          </h2>
-          <p className="text-sm text-zinc-500">
-            Deletes the organization and all its memberships and invitations.
-          </p>
-          <OrgActionButton
-            action={deleteOrganization.bind(null, id)}
-            label="Delete organization"
-            pendingLabel="Deleting…"
-            confirm="Delete this organization? This cannot be undone."
-            tone="danger"
-          />
-        </section>
+async function InvitationsSection({
+  params,
+  searchParams,
+}: {
+  params: RouteParams;
+  searchParams: SearchParams;
+}) {
+  const { id } = await params;
+  const organization = await loadOrganization(id);
+  const role = organization.callerRole;
+  if (!canInvite(role)) return null;
+
+  const page = parsePageParam((await searchParams)[INVITATIONS_KEY]);
+  const { accessToken } = await loadSession(id);
+  const invitations = await notFoundOnMissing(
+    listInvitations(accessToken, id, page, ORG_PAGE_SIZE),
+  );
+  const range = pageRange(page, invitations.size, invitations.totalElements);
+  const count = pageCount(invitations.totalElements, invitations.size);
+  const current = {
+    [MEMBERS_KEY]: parsePageParam((await searchParams)[MEMBERS_KEY]),
+  };
+  const href = (target: number) =>
+    pageHref(
+      `/organizations/${id}`,
+      { ...current, [INVITATIONS_KEY]: page },
+      INVITATIONS_KEY,
+      target,
+    );
+
+  return (
+    <section
+      aria-labelledby="invitations-heading"
+      className="flex flex-col gap-3"
+    >
+      <h2 id="invitations-heading" className="text-lg font-medium">
+        Invitations
+      </h2>
+      <OrgInvitations
+        orgId={id}
+        invitations={invitations.content}
+        roleOptions={assignableRoles(role)}
+      />
+      {range && (
+        <p className="text-sm text-ink-muted tabular-nums">
+          Showing {range.from}–{range.to} of {invitations.totalElements}{" "}
+          invitations
+        </p>
       )}
-    </main>
+      <OrgPagination
+        label="Invitations pages"
+        page={page}
+        pageCount={count}
+        previousHref={page > 0 ? href(page - 1) : undefined}
+        nextHref={page + 1 < count ? href(page + 1) : undefined}
+      />
+    </section>
+  );
+}
+
+async function DeleteSection({ params }: { params: RouteParams }) {
+  const { id } = await params;
+  const organization = await loadOrganization(id);
+  if (!canDelete(organization.callerRole)) return null;
+
+  return (
+    <section
+      aria-labelledby="delete-heading"
+      className="flex flex-col gap-3 border-t border-line pt-6"
+    >
+      <h2 id="delete-heading" className="text-lg font-medium">
+        Delete organization
+      </h2>
+      <p className="text-sm text-ink-muted">
+        Deletes the organization and all its memberships and invitations.
+      </p>
+      <OrgActionButton
+        action={deleteOrganization.bind(null, id)}
+        label="Delete organization"
+        pendingLabel="Deleting…"
+        confirm="Delete this organization? This cannot be undone."
+        tone="danger"
+      />
+    </section>
   );
 }

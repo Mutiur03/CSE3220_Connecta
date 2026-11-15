@@ -3,6 +3,7 @@ import {
   acceptInvitation,
   changeMemberRole,
   createInvitation,
+  listInvitations,
   listMembers,
   listOrganizations,
   removeMember,
@@ -73,6 +74,32 @@ describe("organization api client", () => {
     await listMembers("tok", "org-1");
 
     expect(fetchMock.mock.calls[0][0]).toMatch(/members\?page=0&size=100$/);
+  });
+
+  it("passes the requested member page and size", async () => {
+    const fetchMock = respond(200, {
+      content: [],
+      page: 2,
+      size: 20,
+      totalElements: 0,
+    });
+
+    await listMembers("tok", "org-1", 2, 20);
+
+    expect(fetchMock.mock.calls[0][0]).toMatch(/members\?page=2&size=20$/);
+  });
+
+  it("passes the requested invitation page and size", async () => {
+    const fetchMock = respond(200, {
+      content: [],
+      page: 1,
+      size: 20,
+      totalElements: 0,
+    });
+
+    await listInvitations("tok", "org-1", 1, 20);
+
+    expect(fetchMock.mock.calls[0][0]).toMatch(/invitations\?page=1&size=20$/);
   });
 
   it("revokes an invitation with DELETE and resolves on 204", async () => {
