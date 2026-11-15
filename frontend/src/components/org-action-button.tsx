@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import type { OrgActionState } from "@/lib/org-actions";
-import { buttonClass } from "./org-styles";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
 
 type Props = {
   action: (
@@ -29,22 +30,18 @@ export default function OrgActionButton({
 
   return (
     <form action={formAction} className="flex flex-col items-start gap-1">
-      <button
+      <Button
         type="submit"
+        variant={tone === "danger" ? "danger" : "secondary"}
         disabled={pending}
         aria-label={ariaLabel}
         onClick={(event) => {
           if (confirm && !window.confirm(confirm)) event.preventDefault();
         }}
-        className={buttonClass(tone)}
       >
         {pending ? pendingLabel : label}
-      </button>
-      {state.message && (
-        <p role="alert" className="text-sm text-red-600">
-          {state.message}
-        </p>
-      )}
+      </Button>
+      {state.message && <Alert tone="danger">{state.message}</Alert>}
     </form>
   );
 }

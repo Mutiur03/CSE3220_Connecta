@@ -1,8 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { acceptInvitation, type OrgActionState } from "@/lib/org-actions";
-import { buttonClass, fieldClass } from "./org-styles";
+import { alertText } from "@/lib/org-form-state";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Field } from "./ui/field";
+import { useFocusInvalidField } from "./use-focus-invalid-field";
 
 export default function OrgAcceptForm({
   initialToken,
@@ -13,44 +17,30 @@ export default function OrgAcceptForm({
     acceptInvitation,
     {},
   );
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusInvalidField(formRef, state.errors);
+  const alert = alertText(state);
 
   return (
     <form
+      ref={formRef}
       action={action}
       noValidate
       className="flex w-full max-w-md flex-col gap-4"
     >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="invite-token" className="text-sm font-medium">
-          Invitation token
-        </label>
-        <input
-          id="invite-token"
-          name="token"
-          autoComplete="off"
-          defaultValue={state.values?.token ?? initialToken}
-          aria-invalid={state.errors?.token ? true : undefined}
-          aria-describedby={
-            state.errors?.token ? "invite-token-error" : undefined
-          }
-          className={`${fieldClass} font-mono text-xs`}
-        />
-        {state.errors?.token && (
-          <p id="invite-token-error" className="text-sm text-red-600">
-            {state.errors.token}
-          </p>
-        )}
-      </div>
-      <p role="alert" className="min-h-5 text-sm text-red-600">
-        {state.message}
-      </p>
-      <button
-        type="submit"
-        disabled={pending}
-        className={buttonClass("primary")}
-      >
+      <Field
+        id="invite-token"
+        name="token"
+        label="Invitation token"
+        autoComplete="off"
+        defaultValue={state.values?.token ?? initialToken}
+        error={state.errors?.token}
+        className="font-mono text-xs"
+      />
+      {alert && <Alert tone="danger">{alert}</Alert>}
+      <Button type="submit" variant="primary" disabled={pending}>
         {pending ? "Accepting…" : "Accept invitation"}
-      </button>
+      </Button>
     </form>
   );
 }
