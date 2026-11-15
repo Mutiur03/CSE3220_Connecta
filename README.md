@@ -39,7 +39,7 @@ Node.js 24+, pnpm, JDK 17, Docker.
 ### Tests and checks
 ```bash
 cd backend && ./mvnw test                                  # tests never touch a database
-cd frontend && pnpm lint && pnpm exec tsc --noEmit && pnpm build
+cd frontend && pnpm lint && pnpm build   # build also type-checks
 ```
 
 ### Configuration
