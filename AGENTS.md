@@ -8,6 +8,29 @@ Stack: Next.js + TypeScript + Tailwind + pnpm (`frontend/`), Spring Boot + Maven
 - Assign yourself before writing code. Assigned means taken. Never work on another person's issue.
 - User stories (`US-*`) are trackers. Work the child tasks, never the story.
 
+## Accounts (who commits and pushes)
+Three collaborators, each logged in to `gh`. Work is done as the account the issue is assigned to, so history shows who built what.
+
+| Account | Noreply email |
+|---|---|
+| `Mutiur03` (admin) | `173971250+Mutiur03@users.noreply.github.com` |
+| `bipro96` | `243103502+bipro96@users.noreply.github.com` |
+| `Aavas-99` | `159434864+Aavas-99@users.noreply.github.com` |
+
+- Read the issue's assignee: `gh issue view <n> --json assignees --jq '.assignees[].login'`. Act as that account. No assignee: stop and ask.
+- Never run `gh auth switch`. Select the account per command with a token, so accounts never mix:
+  ```bash
+  U=bipro96; ID=243103502   # from the table
+  export GH_TOKEN=$(gh auth token -u $U)
+  git -c user.name=$U -c user.email=$ID+$U@users.noreply.github.com commit -m "feat(backend): ..."
+  git push -u origin <branch>      # pushes as $U via GH_TOKEN
+  gh pr create ...                 # PR author is $U
+  ```
+  Commit author and push account must both be the assignee. Use the same `GH_TOKEN` shell for every step of that issue, and do not leave it exported for the next issue.
+- Do not commit with the global git identity. Check with `git log -1 --format='%an <%ae>'` before pushing.
+- Review: a PR is approved by a different collaborator than its author (`GH_TOKEN=$(gh auth token -u <reviewer>) gh pr review <n> --approve`). Merge is done by the author, or by `Mutiur03`. Admin bypass is for emergencies only.
+- Only act as an account for issues assigned to it. Never comment, review or approve in another account's name on its own work.
+
 ## Branches
 - One issue = one branch = one PR.
 - Always branch from latest `main`: `git switch main && git pull && git switch -c <type>/<issue#>-<slug>`.
