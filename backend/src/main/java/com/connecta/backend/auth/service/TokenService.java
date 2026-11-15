@@ -1,6 +1,6 @@
 package com.connecta.backend.auth.service;
 
-import com.connecta.backend.auth.security.JwtProperties;
+import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Instant;
@@ -15,6 +15,9 @@ import org.springframework.stereotype.Service;
 /** Issues short-lived signed access tokens. Refresh tokens are handled by RefreshTokenService. */
 @Service
 public class TokenService {
+
+    public static final String CLAIM_EMAIL = "email";
+    public static final String CLAIM_ROLES = "roles";
 
     private final JwtEncoder encoder;
     private final JwtProperties props;
@@ -34,8 +37,8 @@ public class TokenService {
                 .issuedAt(now)
                 .expiresAt(now.plus(props.accessTtl()))
                 .id(UUID.randomUUID().toString())
-                .claim("email", user.getEmail())
-                .claim("roles", user.getRoleNames().stream().sorted().toList())
+                .claim(CLAIM_EMAIL, user.getEmail())
+                .claim(CLAIM_ROLES, user.getRoleNames().stream().sorted().toList())
                 .build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();

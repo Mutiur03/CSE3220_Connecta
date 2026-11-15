@@ -12,7 +12,7 @@ import static org.mockito.Mockito.when;
 
 import com.connecta.backend.auth.domain.RefreshToken;
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
-import com.connecta.backend.auth.security.JwtProperties;
+import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;

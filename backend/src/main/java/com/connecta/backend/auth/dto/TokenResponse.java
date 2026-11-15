@@ -7,4 +7,6 @@ public record TokenResponse(
         long expiresIn,
         String refreshToken,
         UserResponse user) {
+
+    public static final String BEARER = "Bearer";
 }

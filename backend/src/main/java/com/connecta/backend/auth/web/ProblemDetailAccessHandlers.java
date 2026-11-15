@@ -1,4 +1,4 @@
-package com.connecta.backend.auth.security;
+package com.connecta.backend.auth.web;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

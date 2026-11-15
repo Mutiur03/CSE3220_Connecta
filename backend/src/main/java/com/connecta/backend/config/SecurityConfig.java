@@ -1,6 +1,7 @@
 package com.connecta.backend.config;
 
-import com.connecta.backend.auth.security.ProblemDetailAccessHandlers;
+import com.connecta.backend.auth.web.ProblemDetailAccessHandlers;
+import com.connecta.backend.auth.service.TokenService;
 import com.connecta.backend.user.domain.Roles;
 import java.util.Arrays;
 import java.util.List;
@@ -42,6 +43,8 @@ class SecurityConfig {
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 
+    private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         ProblemDetailAccessHandlers errors = new ProblemDetailAccessHandlers();
@@ -82,16 +85,16 @@ class SecurityConfig {
     @Bean
     RoleHierarchy roleHierarchy() {
         return RoleHierarchyImpl.fromHierarchy(
-                "ROLE_" + Roles.OWNER + " > ROLE_" + Roles.ADMIN + "\n"
-                + "ROLE_" + Roles.ADMIN + " > ROLE_" + Roles.AGENT);
+                Roles.AUTHORITY_PREFIX + Roles.OWNER + " > " + Roles.AUTHORITY_PREFIX + Roles.ADMIN + "\n"
+                + Roles.AUTHORITY_PREFIX + Roles.ADMIN + " > " + Roles.AUTHORITY_PREFIX + Roles.AGENT);
     }
 
     /** Maps the token's "roles" claim to ROLE_* authorities (ROLE_ADMIN, ROLE_AGENT, ...). */
     @Bean
     JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName("roles");
-        authorities.setAuthorityPrefix("ROLE_");
+        authorities.setAuthoritiesClaimName(TokenService.CLAIM_ROLES);
+        authorities.setAuthorityPrefix(Roles.AUTHORITY_PREFIX);
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(authorities);
         return converter;
@@ -107,7 +110,7 @@ class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource(@Value("${app.cors.allowed-origins}") String origins) {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).toList());
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(ALLOWED_METHODS);
         config.setAllowedHeaders(List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);

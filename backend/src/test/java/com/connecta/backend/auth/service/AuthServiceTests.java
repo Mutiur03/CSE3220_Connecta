@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -18,8 +19,7 @@ import com.connecta.backend.auth.dto.UserResponse;
 import com.connecta.backend.user.domain.Role;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
-import com.connecta.backend.user.repository.RoleRepository;
-import com.connecta.backend.user.repository.UserRepository;
+import com.connecta.backend.user.service.UserService;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,10 +37,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class AuthServiceTests {
 
     @Mock
-    UserRepository users;
-
-    @Mock
-    RoleRepository roles;
+    UserService users;
 
     @Mock
     TokenService tokenService;
@@ -53,7 +50,7 @@ class AuthServiceTests {
 
     @BeforeEach
     void setUp() {
-        service = new AuthService(users, roles, encoder, tokenService, refreshTokens);
+        service = new AuthService(users, encoder, tokenService, refreshTokens);
     }
 
     private User existingUser(boolean enabled) throws Exception {
@@ -71,35 +68,36 @@ class AuthServiceTests {
 
         @Test
         void registerHashesPasswordNormalizesEmailAndAssignsAgentRole() {
-            when(users.existsByEmail("jane@example.com")).thenReturn(false);
-            when(roles.findByName(Roles.AGENT)).thenReturn(Optional.of(new Role(Roles.AGENT)));
-            when(users.saveAndFlush(any(User.class))).thenAnswer(i -> i.getArgument(0));
+            when(users.emailExists("jane@example.com")).thenReturn(false);
+            when(users.createAgent(anyString(), anyString(), anyString())).thenAnswer(i -> {
+                User created = new User(i.getArgument(0), i.getArgument(1), i.getArgument(2));
+                created.addRole(new Role(Roles.AGENT));
+                return created;
+            });
 
             UserResponse response = service.register(
                     new RegisterRequest("  Jane@Example.com ", "correct-password", "Jane"));
 
-            ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
-            verify(users).saveAndFlush(saved.capture());
-            assertEquals("jane@example.com", saved.getValue().getEmail());
-            assertNotEquals("correct-password", saved.getValue().getPasswordHash());
-            assertTrue(encoder.matches("correct-password", saved.getValue().getPasswordHash()));
+            ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
+            verify(users).createAgent(eq("jane@example.com"), hash.capture(), eq("Jane"));
+            assertNotEquals("correct-password", hash.getValue());
+            assertTrue(encoder.matches("correct-password", hash.getValue()));
             assertEquals(Set.of(Roles.AGENT), response.roles());
         }
 
         @Test
         void registerRejectsExistingEmail() {
-            when(users.existsByEmail("jane@example.com")).thenReturn(true);
+            when(users.emailExists("jane@example.com")).thenReturn(true);
 
             assertThrows(EmailAlreadyUsedException.class,
                     () -> service.register(new RegisterRequest("Jane@example.com", "correct-password", "Jane")));
-            verify(users, never()).saveAndFlush(any());
+            verify(users, never()).createAgent(any(), any(), any());
         }
 
         @Test
         void registerMapsConcurrentDuplicateToEmailAlreadyUsed() {
-            when(users.existsByEmail(anyString())).thenReturn(false);
-            when(roles.findByName(Roles.AGENT)).thenReturn(Optional.of(new Role(Roles.AGENT)));
-            when(users.saveAndFlush(any(User.class))).thenThrow(new DataIntegrityViolationException("dup"));
+            when(users.emailExists(anyString())).thenReturn(false);
+            when(users.createAgent(anyString(), anyString(), anyString())).thenThrow(new DataIntegrityViolationException("dup"));
 
             assertThrows(EmailAlreadyUsedException.class,
                     () -> service.register(new RegisterRequest("jane@example.com", "correct-password", "Jane")));

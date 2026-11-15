@@ -2,7 +2,6 @@ package com.connecta.backend.config;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.connecta.backend.auth.security.JwtProperties;
 import com.connecta.backend.auth.service.TokenService;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
