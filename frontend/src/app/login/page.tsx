@@ -5,7 +5,7 @@ import { Alert } from "@/components/ui/alert";
 import { UNAVAILABLE_REASON } from "@/lib/redirect";
 import { LoginFormFallback } from "./login-form-fallback";
 
-export const metadata: Metadata = { title: "Sign in · Connecta" };
+export const metadata: Metadata = { title: "Sign in" };
 
 type LoginSearchParams = {
   next?: string | string[];
