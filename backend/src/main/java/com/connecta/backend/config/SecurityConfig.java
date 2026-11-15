@@ -1,12 +1,16 @@
 package com.connecta.backend.config;
 
 import com.connecta.backend.auth.security.ProblemDetailAccessHandlers;
+import com.connecta.backend.user.domain.Roles;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -28,6 +32,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * checked by Spring's BearerTokenAuthenticationFilter using the JwtDecoder from JwtConfig.
  */
 @Configuration
+@EnableMethodSecurity
 class SecurityConfig {
 
     /** Reachable without a token. The API docs are disabled in the prod profile, so nothing is served there. */
@@ -46,6 +51,8 @@ class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(PUBLIC_PATHS).permitAll()
+                        // Everything under /api/admin needs ADMIN (OWNER inherits it, see roleHierarchy).
+                        .requestMatchers("/api/admin/**").hasRole(Roles.ADMIN)
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o
                         .bearerTokenResolver(ignoreTokenOnPublicPaths())
@@ -66,6 +73,17 @@ class SecurityConfig {
                 .toList());
         DefaultBearerTokenResolver defaults = new DefaultBearerTokenResolver();
         return request -> publicPaths.matches(request) ? null : defaults.resolve(request);
+    }
+
+    /**
+     * OWNER inherits everything ADMIN can do, and ADMIN everything AGENT can do. Spring applies this to
+     * URL rules and to @PreAuthorize / @PostAuthorize alike.
+     */
+    @Bean
+    RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.fromHierarchy(
+                "ROLE_" + Roles.OWNER + " > ROLE_" + Roles.ADMIN + "\n"
+                + "ROLE_" + Roles.ADMIN + " > ROLE_" + Roles.AGENT);
     }
 
     /** Maps the token's "roles" claim to ROLE_* authorities (ROLE_ADMIN, ROLE_AGENT, ...). */
