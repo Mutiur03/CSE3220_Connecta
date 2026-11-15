@@ -21,4 +21,15 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 
     @EntityGraph(attributePaths = {"organization", "role"})
     Optional<Membership> findByOrganizationIdAndUserId(UUID organizationId, UUID userId);
+
+    /** One page of an organization's memberships, with the user and role loaded. The pageable carries the sort. */
+    @EntityGraph(attributePaths = {"user", "role"})
+    Page<Membership> findByOrganizationId(UUID organizationId, Pageable pageable);
+
+    /** A membership only if it belongs to the organization, so another tenant's id reads as not found. */
+    @EntityGraph(attributePaths = {"user", "role"})
+    Optional<Membership> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
+    /** How many memberships in the organization hold this role. Used to keep at least one OWNER. */
+    long countByOrganizationIdAndRoleName(UUID organizationId, String roleName);
 }
