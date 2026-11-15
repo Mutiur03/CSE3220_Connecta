@@ -1,4 +1,4 @@
-import BackendStatus from "./backend-status";
+import BackendStatus from "@/components/backend-status";
 
 export default function Home() {
   return (
