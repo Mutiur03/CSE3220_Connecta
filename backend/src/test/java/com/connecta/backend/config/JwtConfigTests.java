@@ -48,6 +48,15 @@ class JwtConfigTests {
     }
 
     @Test
+    void tokenThatExpiredHalfAMinuteAgoIsRejected() {
+        // Spring's default 60 s leeway would still accept this one.
+        Instant issued = Instant.now().minus(Duration.ofMinutes(15)).minus(Duration.ofSeconds(30));
+        String justExpired = tokenIssuedAt(Clock.fixed(issued, ZoneOffset.UTC));
+
+        assertThrows(JwtValidationException.class, () -> decoder(SECRET, "connecta").decode(justExpired));
+    }
+
+    @Test
     void tokenSignedWithAnotherSecretIsRejected() {
         String token = tokenIssuedAt(Clock.systemUTC());
 

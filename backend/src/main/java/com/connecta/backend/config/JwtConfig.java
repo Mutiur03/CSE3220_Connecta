@@ -4,6 +4,7 @@ import com.connecta.backend.auth.security.JwtProperties;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Duration;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.context.annotation.Bean;
@@ -37,7 +38,9 @@ public class JwtConfig {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(secretKey(props))
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
-        JwtTimestampValidator timestamps = new JwtTimestampValidator();
+        // Spring's default accepts tokens up to 60 s past expiry. This backend issues and checks its
+        // own tokens on one clock, so there is no drift to forgive: expiry is exact.
+        JwtTimestampValidator timestamps = new JwtTimestampValidator(Duration.ZERO);
         timestamps.setClock(clock);
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 timestamps, new JwtIssuerValidator(props.issuer())));
