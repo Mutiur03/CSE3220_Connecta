@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.connecta.backend.auth.security.JwtProperties;
 import com.connecta.backend.auth.service.TokenService;
+import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Roles;
 import java.time.Clock;
@@ -32,17 +33,17 @@ class JwtConfigTests {
     }
 
     private JwtDecoder decoder(String secret, String issuer) {
-        return config.jwtDecoder(props(secret, issuer), Clock.systemUTC());
+        return config.jwtDecoder(props(secret, issuer), TestClock.FIXED);
     }
 
     @Test
     void validTokenIsAccepted() {
-        decoder(SECRET, "connecta").decode(tokenIssuedAt(Clock.systemUTC()));
+        decoder(SECRET, "connecta").decode(tokenIssuedAt(TestClock.FIXED));
     }
 
     @Test
     void expiredTokenIsRejected() {
-        String old = tokenIssuedAt(Clock.fixed(Instant.now().minus(Duration.ofHours(1)), ZoneOffset.UTC));
+        String old = tokenIssuedAt(Clock.fixed(TestClock.NOW.minus(Duration.ofHours(1)), ZoneOffset.UTC));
 
         assertThrows(JwtValidationException.class, () -> decoder(SECRET, "connecta").decode(old));
     }
@@ -50,7 +51,7 @@ class JwtConfigTests {
     @Test
     void tokenThatExpiredHalfAMinuteAgoIsRejected() {
         // Spring's default 60 s leeway would still accept this one.
-        Instant issued = Instant.now().minus(Duration.ofMinutes(15)).minus(Duration.ofSeconds(30));
+        Instant issued = TestClock.NOW.minus(Duration.ofMinutes(15)).minus(Duration.ofSeconds(30));
         String justExpired = tokenIssuedAt(Clock.fixed(issued, ZoneOffset.UTC));
 
         assertThrows(JwtValidationException.class, () -> decoder(SECRET, "connecta").decode(justExpired));
@@ -58,7 +59,7 @@ class JwtConfigTests {
 
     @Test
     void tokenSignedWithAnotherSecretIsRejected() {
-        String token = tokenIssuedAt(Clock.systemUTC());
+        String token = tokenIssuedAt(TestClock.FIXED);
 
         assertThrows(JwtException.class,
                 () -> decoder("another-secret-another-secret-0123456789", "connecta").decode(token));
@@ -66,14 +67,14 @@ class JwtConfigTests {
 
     @Test
     void tokenFromAnotherIssuerIsRejected() {
-        String token = tokenIssuedAt(Clock.systemUTC());
+        String token = tokenIssuedAt(TestClock.FIXED);
 
         assertThrows(JwtValidationException.class, () -> decoder(SECRET, "someone-else").decode(token));
     }
 
     @Test
     void tamperedTokenIsRejected() {
-        String token = tokenIssuedAt(Clock.systemUTC());
+        String token = tokenIssuedAt(TestClock.FIXED);
         String tampered = token.substring(0, token.length() - 4) + "AAAA";
 
         assertThrows(JwtException.class, () -> decoder(SECRET, "connecta").decode(tampered));

@@ -23,7 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @SpringBootTest
 @MockRepositories
 @AutoConfigureMockMvc
-class SecurityConfigTests {
+class SecurityConfigIntegrationTests {
 
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
 
