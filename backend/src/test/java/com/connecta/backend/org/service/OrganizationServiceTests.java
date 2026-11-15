@@ -34,7 +34,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -61,7 +60,6 @@ class OrganizationServiceTests {
     @Mock
     TenantAccessService tenants;
 
-    @InjectMocks
     OrganizationService service;
 
     private final User caller = TestUsers.user("jane@example.com", Roles.AGENT);
@@ -70,6 +68,7 @@ class OrganizationServiceTests {
 
     @BeforeEach
     void callerIsEnabled() {
+        service = new OrganizationService(organizations, memberships, users, tenants, new ActiveCaller(users));
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
     }
 

@@ -83,7 +83,7 @@ class InvitationServiceTests {
 
     @BeforeEach
     void setUp() {
-        service = new InvitationService(invitations, memberships, users, tenants, tokens,
+        service = new InvitationService(invitations, memberships, users, tenants, new ActiveCaller(users), tokens,
                 new InvitationProperties(TTL), TestClock.FIXED, events);
         lenient().when(users.findEnabledById(admin.getId())).thenReturn(Optional.of(admin));
     }
