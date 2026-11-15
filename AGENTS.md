@@ -2,6 +2,21 @@
 
 Stack: Next.js + TypeScript + Tailwind + pnpm (`frontend/`), Spring Boot + Maven (`backend/`), PostgreSQL + Flyway.
 
+## Project structure (strict)
+Put every file in its proper place from the first commit. A misplaced file is a review blocker.
+
+**Backend** (`backend/`, standard Maven layout, same as IntelliJ generates)
+- `src/main/java/com/connecta/backend/<feature>/`: package by feature (`config`, `auth`, `org`, `product`, `inbox`, `meta`, ...). Inside a feature use sub-packages by layer: `web` (controllers), `service`, `repository`, `domain` (entities), `dto`. Only `BackendApplication` lives in the root package.
+- `src/test/java/...`: **mirrors the production package exactly.** The test for `a.b.Foo` is `a.b.FooTests`, in package `a.b`. Context or database tests are `FooIntegrationTests`. No catch-all test classes in the root package; a cross-cutting behavior is tested in the package of the class that implements it. Group with `@Nested`, not with extra classes.
+- `src/main/resources/`: properties and `db/migration/`. Test-only resources go in `src/test/resources/`.
+
+**Frontend** (`frontend/src/`)
+- `app/`: routes only (`page`, `layout`, route handlers, route-private pieces).
+- `components/`: shared UI components. `lib/`: non-UI code (API client, helpers).
+- Tests sit next to the file they test: `name.test.ts(x)`. End-to-end tests go in `frontend/e2e/`.
+
+**Repo root**: `backend/`, `frontend/`, `scripts/` (tooling), `.github/` (templates, workflows). No application code at the root.
+
 ## Picking work
 - Take only issues labelled `agent-ready` (agents) that are open, unassigned and not blocked. `human` issues are never started by an agent: comment and stop.
 - Every issue listed under "Blocked by" must be closed first.
