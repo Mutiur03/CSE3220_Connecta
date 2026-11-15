@@ -128,6 +128,16 @@ Small system design, clean architecture, security, tests, professional Git use, 
 - Constructor injection only (no field `@Autowired`). Services are `@Service`; transactions are declared on service methods (`@Transactional`, `readOnly = true` for reads).
 - Cross-feature calls go through the other feature's service, never its repository.
 
+### SOLID (applies to all new and changed code; reviewers check it)
+- **S, single responsibility:** a class has one reason to change. A service that does two jobs (issuing tokens and storing them, parsing and persisting) is split. A method does one thing.
+- **O, open/closed:** a new variant (assignment rule, channel, parser) is a new class behind an existing interface, never a new `if`/`switch` branch in old code. Chosen by a factory or Spring injection (see Design patterns).
+- **L, Liskov:** every implementation honors its interface contract: same inputs accepted, no new checked or surprise exceptions, no `UnsupportedOperationException` stubs. A shared contract test or the same test per variant proves it.
+- **I, interface segregation:** keep interfaces small and role-specific (`ChannelClient` sends, it does not also parse webhooks). Do not force an implementation to carry methods it does not use.
+- **D, dependency inversion:** depend on abstractions (`PasswordEncoder`, `Clock`, `JwtEncoder`, our own strategy/adapter interfaces), injected through the constructor. Never `new` a collaborator inside a service, and never read a static singleton, when an injected one exists: two copies drift apart.
+- **Interfaces only where they pay:** introduce one when there are two or more implementations, or a boundary to an outside system (Meta API, clock). One implementation and no boundary means a plain class. Do not create an interface to tick SOLID.
+- **Constructors:** inject through the constructor and keep the fields `final`. A hand-written constructor is fine when it must run code, for example to derive a value from an injected dependency.
+- The PR description names the SOLID principle a refactor or new abstraction serves, next to the design pattern.
+
 ### Design patterns (at least one per feature, named in the PR and listed in `docs/design-patterns.md`)
 Use a pattern only where it removes a real problem; do not wrap code in a pattern to tick a box. Planned uses:
 
@@ -205,6 +215,7 @@ Follow in order. Stop and ask the human at any "stop" line.
 6. **Prove it.** Run `./mvnw test` (on Windows `mvnw.cmd`) and the frontend `pnpm lint`, `pnpm test`, `pnpm build` for the areas touched. For anything that needs a database, run it against real PostgreSQL, since mocks hid two bugs before. Never run migrations unless the human asks in that message. Fix failures; never weaken or delete a test to pass.
 7. **Self-check before the PR** (every box must be true):
    - [ ] Pattern named in the PR description
+   - [ ] SOLID checked: no new `if`/`switch` for a variant, no `new` collaborator inside a service, no fat interface
    - [ ] Every new endpoint has a role rule plus allowed and denied tests
    - [ ] Errors go through the global handler, correct status codes
    - [ ] No hardcoded credentials, `.env.example` updated
