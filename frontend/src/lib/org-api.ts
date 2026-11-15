@@ -3,7 +3,7 @@ import type { OrgRole } from "./org-permissions";
 
 /** Default page size for the organization list. */
 export const PAGE_SIZE = 20;
-/** The backend's largest page. Members and invitations are fetched in one page of this size. */
+/** The backend's largest page. The default for member and invitation lists; the pages pass their own size. */
 export const MAX_PAGE_SIZE = 100;
 
 export type Page<T> = {
@@ -85,11 +85,15 @@ export const renameOrganization = (
 export const deleteOrganization = (accessToken: string, orgId: string) =>
   request<void>(orgPath(orgId), { method: "DELETE", accessToken });
 
-export const listMembers = (accessToken: string, orgId: string) =>
-  request<Page<Member>>(
-    `${orgPath(orgId)}/members${pageQuery(0, MAX_PAGE_SIZE)}`,
-    { accessToken },
-  );
+export const listMembers = (
+  accessToken: string,
+  orgId: string,
+  page = 0,
+  size = MAX_PAGE_SIZE,
+) =>
+  request<Page<Member>>(`${orgPath(orgId)}/members${pageQuery(page, size)}`, {
+    accessToken,
+  });
 
 export const changeMemberRole = (
   accessToken: string,
@@ -119,9 +123,14 @@ export const removeMember = (
     },
   );
 
-export const listInvitations = (accessToken: string, orgId: string) =>
+export const listInvitations = (
+  accessToken: string,
+  orgId: string,
+  page = 0,
+  size = MAX_PAGE_SIZE,
+) =>
   request<Page<Invitation>>(
-    `${orgPath(orgId)}/invitations${pageQuery(0, MAX_PAGE_SIZE)}`,
+    `${orgPath(orgId)}/invitations${pageQuery(page, size)}`,
     { accessToken },
   );
 
