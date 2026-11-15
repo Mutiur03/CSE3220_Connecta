@@ -20,7 +20,7 @@ Node.js 24+, pnpm, JDK 17, Docker.
 2. **Environment.** Copy `.env.example` to `.env` (used by docker compose). The backend works without any variables in dev: its `dev` profile has local defaults. The frontend reads `frontend/.env.local` (see `.env.example`).
 3. **Start PostgreSQL:**
    ```bash
-   docker compose up -d
+   docker compose up -d postgres
    ```
 4. **Start the backend** (port 8080). Flyway applies pending migrations on startup.
    ```bash
@@ -99,7 +99,7 @@ Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` pr
 ```bash
 docker compose up --build
 ```
-Configuration comes from `.env` (copy `.env.example`). Note: the compose file currently starts PostgreSQL only; the app and frontend services are added by the Docker issue (#111).
+Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
 
 ## CI/CD
 GitHub Actions in `.github/workflows`: `backend.yml` and `frontend.yml` build and test on every PR and on pushes to `develop` and `main` (Maven and pnpm caches on); `commits.yml` runs commitlint. Feature PRs are squash-merged into `develop`; a release PR `develop` -> `main` is merged with a merge commit. `deploy.yml` runs on every push to `main`: it builds and tests backend and frontend, then POSTs to the Render deploy hook (`curl -fsS -X POST`), failing loudly if the repository secret `RENDER_DEPLOY_HOOK_URL` is missing. That secret (the deploy hook URL from the Render service settings) must be added by a maintainer under Settings -> Secrets and variables -> Actions. `compose.yml` validates `docker-compose.yml` with `.env.example` on PRs.
