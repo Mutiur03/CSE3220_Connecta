@@ -48,7 +48,7 @@ async function HeaderAccount() {
 export default function AppHeader() {
   return (
     <header className="border-b border-line bg-surface">
-      <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-4 px-6 sm:px-8">
+      <div className="mx-auto flex h-14 w-full max-w-4xl items-center gap-4 px-6 sm:px-8">
         <Link
           href="/"
           className="inline-flex min-h-11 items-center rounded-control font-semibold text-ink"
