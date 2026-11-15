@@ -2,9 +2,10 @@
 
 import { useActionState } from "react";
 import { login, type LoginState } from "@/lib/auth-actions";
+import { Button } from "@/components/ui/button";
+import { fieldClasses } from "@/components/ui/classes";
 
-const field =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 aria-invalid:border-red-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+const field = fieldClasses;
 
 export default function LoginForm({ next = "" }: { next?: string }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(
@@ -17,7 +18,7 @@ export default function LoginForm({ next = "" }: { next?: string }) {
       {/* Validated by the login action (safeRedirectPath) before any redirect. */}
       <input type="hidden" name="next" value={next} />
       <div className="flex flex-col gap-1">
-        <label htmlFor="email" className="text-sm font-medium">
+        <label htmlFor="email" className="text-sm font-medium text-ink">
           Email
         </label>
         <input
@@ -31,14 +32,14 @@ export default function LoginForm({ next = "" }: { next?: string }) {
           className={field}
         />
         {state.errors?.email && (
-          <p id="email-error" className="text-sm text-red-600">
+          <p id="email-error" className="text-sm text-danger">
             {state.errors.email}
           </p>
         )}
       </div>
 
       <div className="flex flex-col gap-1">
-        <label htmlFor="password" className="text-sm font-medium">
+        <label htmlFor="password" className="text-sm font-medium text-ink">
           Password
         </label>
         <input
@@ -53,23 +54,19 @@ export default function LoginForm({ next = "" }: { next?: string }) {
           className={field}
         />
         {state.errors?.password && (
-          <p id="password-error" className="text-sm text-red-600">
+          <p id="password-error" className="text-sm text-danger">
             {state.errors.password}
           </p>
         )}
       </div>
 
-      <p role="alert" className="min-h-5 text-sm text-red-600">
+      <p role="alert" className="min-h-5 text-sm text-danger">
         {state.message}
       </p>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-      >
+      <Button type="submit" variant="primary" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }
