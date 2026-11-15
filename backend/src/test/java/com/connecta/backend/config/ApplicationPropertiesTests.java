@@ -1,4 +1,4 @@
-package com.connecta.backend;
+package com.connecta.backend.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,7 +9,7 @@ import java.io.Reader;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
-class EnvSettingsTests {
+class ApplicationPropertiesTests {
 
     private static Properties load(String name) throws Exception {
         Properties p = new Properties();

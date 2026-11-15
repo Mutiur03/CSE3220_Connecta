@@ -1,4 +1,4 @@
-package com.connecta.backend;
+package com.connecta.backend.db;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
