@@ -10,3 +10,4 @@ One row per pattern in use. Add a row (pattern, classes, reason) whenever a feat
 | Template Method (planned) | Webhook intake (M3+) | Shared verify, parse, dedupe, persist skeleton with a per-channel parsing step. |
 | Strategy (planned) | `AssignmentStrategy` (M5+) | Round-robin, least-loaded and manual assignment behind one interface. |
 | Adapter (planned) | `ChannelClient` (M4+) | One adapter per Meta channel, so the inbox never sees Meta's API. |
+| Facade | `org.service.TenantAccessService` (`requireMembership`, `requireRole`, `hasAtLeast`) | One entry point for every tenant check, so features never touch `MembershipRepository` or the role order directly. |
