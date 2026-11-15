@@ -6,7 +6,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -37,11 +36,11 @@ public class Role {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof Role other && Objects.equals(name, other.name);
+        return this == o || o instanceof Role other && getId() != null && getId().equals(other.getId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(name);
+        return Role.class.hashCode();
     }
 }
