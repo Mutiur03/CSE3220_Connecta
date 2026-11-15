@@ -8,10 +8,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
+import com.connecta.backend.auth.dto.TokenResponse;
 import com.connecta.backend.auth.dto.UserResponse;
 import com.connecta.backend.user.domain.Role;
 import com.connecta.backend.user.domain.Roles;
@@ -39,12 +41,18 @@ class AuthServiceTests {
     @Mock
     RoleRepository roles;
 
+    @Mock
+    TokenService tokenService;
+
+    @Mock
+    RefreshTokenService refreshTokens;
+
     PasswordEncoder encoder = new BCryptPasswordEncoder(4);
     AuthService service;
 
     @BeforeEach
     void setUp() {
-        service = new AuthService(users, roles, encoder);
+        service = new AuthService(users, roles, encoder, tokenService, refreshTokens);
     }
 
     private User existingUser(boolean enabled) throws Exception {
@@ -94,20 +102,29 @@ class AuthServiceTests {
     }
 
     @Test
-    void loginSucceedsWithCorrectPasswordAndAnyEmailCase() throws Exception {
-        when(users.findByEmail("jane@example.com")).thenReturn(Optional.of(existingUser(true)));
+    void loginReturnsAccessAndRefreshTokensForAnyEmailCase() throws Exception {
+        User user = existingUser(true);
+        when(users.findByEmail("jane@example.com")).thenReturn(Optional.of(user));
+        when(tokenService.createAccessToken(user)).thenReturn("access-token");
+        when(tokenService.accessTtlSeconds()).thenReturn(900L);
+        when(refreshTokens.issue(user)).thenReturn("refresh-token");
 
-        UserResponse response = service.login(new LoginRequest("JANE@example.com", "correct-password"));
+        TokenResponse response = service.login(new LoginRequest("JANE@example.com", "correct-password"));
 
-        assertEquals("jane@example.com", response.email());
+        assertEquals("Bearer", response.tokenType());
+        assertEquals("access-token", response.accessToken());
+        assertEquals("refresh-token", response.refreshToken());
+        assertEquals(900L, response.expiresIn());
+        assertEquals("jane@example.com", response.user().email());
     }
 
     @Test
-    void loginFailsWithWrongPassword() throws Exception {
+    void loginFailsWithWrongPasswordAndIssuesNothing() throws Exception {
         when(users.findByEmail("jane@example.com")).thenReturn(Optional.of(existingUser(true)));
 
         assertThrows(InvalidCredentialsException.class,
                 () -> service.login(new LoginRequest("jane@example.com", "wrong-password")));
+        verifyNoInteractions(tokenService, refreshTokens);
     }
 
     @Test
@@ -116,6 +133,7 @@ class AuthServiceTests {
 
         assertThrows(InvalidCredentialsException.class,
                 () -> service.login(new LoginRequest("nobody@example.com", "whatever-password")));
+        verifyNoInteractions(tokenService, refreshTokens);
     }
 
     @Test
@@ -124,5 +142,34 @@ class AuthServiceTests {
 
         assertThrows(InvalidCredentialsException.class,
                 () -> service.login(new LoginRequest("jane@example.com", "correct-password")));
+        verifyNoInteractions(tokenService, refreshTokens);
+    }
+
+    @Test
+    void refreshRotatesTheTokenAndIssuesNewAccessToken() throws Exception {
+        User user = existingUser(true);
+        when(refreshTokens.rotate("old-refresh")).thenReturn(new RefreshTokenService.Issued(user, "new-refresh"));
+        when(tokenService.createAccessToken(user)).thenReturn("new-access");
+        when(tokenService.accessTtlSeconds()).thenReturn(900L);
+
+        TokenResponse response = service.refresh("old-refresh");
+
+        assertEquals("new-access", response.accessToken());
+        assertEquals("new-refresh", response.refreshToken());
+    }
+
+    @Test
+    void refreshPropagatesInvalidToken() {
+        when(refreshTokens.rotate("bad")).thenThrow(new InvalidTokenException());
+
+        assertThrows(InvalidTokenException.class, () -> service.refresh("bad"));
+        verifyNoInteractions(tokenService);
+    }
+
+    @Test
+    void logoutRevokesTheRefreshToken() {
+        service.logout("some-refresh");
+
+        verify(refreshTokens).revoke("some-refresh");
     }
 }

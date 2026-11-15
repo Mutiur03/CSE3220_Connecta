@@ -1,5 +1,6 @@
 package com.connecta.backend.support;
 
+import com.connecta.backend.auth.repository.RefreshTokenRepository;
 import com.connecta.backend.user.repository.RoleRepository;
 import com.connecta.backend.user.repository.UserRepository;
 import java.lang.annotation.Documented;
@@ -16,6 +17,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-@MockitoBean(types = {UserRepository.class, RoleRepository.class})
+@MockitoBean(types = {UserRepository.class, RoleRepository.class, RefreshTokenRepository.class})
 public @interface MockRepositories {
 }
