@@ -11,7 +11,7 @@ export default function AcceptInvitationPage({
   searchParams: Promise<{ token?: string }>;
 }) {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-6 sm:p-8">
       <div className="flex flex-col gap-1">
         <h1 className="text-display font-medium tracking-tight">
           Accept an invitation
