@@ -11,23 +11,22 @@ Stack: Next.js + TypeScript + Tailwind + pnpm (`frontend/`), Spring Boot + Maven
 ## Accounts (who commits and pushes)
 Three collaborators, each logged in to `gh`. Work is done as the account the issue is assigned to, so history shows who built what.
 
-| Account | Commit name | Noreply email |
-|---|---|---|
-| `Mutiur03` (admin) | `Mutiur Rahman` | `173971250+Mutiur03@users.noreply.github.com` |
-| `bipro96` | `bipro96` | `243103502+bipro96@users.noreply.github.com` |
-| `Aavas-99` | `Aavas Roy` | `159434864+Aavas-99@users.noreply.github.com` |
+| Account | Noreply email |
+|---|---|
+| `Mutiur03` (admin) | `173971250+Mutiur03@users.noreply.github.com` |
+| `bipro96` | `243103502+bipro96@users.noreply.github.com` |
+| `Aavas-99` | `159434864+Aavas-99@users.noreply.github.com` |
 
 - Read the issue's assignee: `gh issue view <n> --json assignees --jq '.assignees[].login'`. Act as that account. No assignee: stop and ask.
 - Never run `gh auth switch`. Select the account per command with a token, so accounts never mix:
   ```bash
-  U=bipro96; ID=243103502   # login and id from the table; <Commit name> is the table's name column
+  U=bipro96; ID=243103502   # from the table
   export GH_TOKEN=$(gh auth token -u $U)
-  git -c user.name="<Commit name>" -c user.email=$ID+$U@users.noreply.github.com commit -m "feat(backend): ..."
+  git -c user.name=$U -c user.email=$ID+$U@users.noreply.github.com commit -m "feat(backend): ..."
   git push -u origin <branch>      # pushes as $U via GH_TOKEN
   gh pr create ...                 # PR author is $U
   ```
   Commit author and push account must both be the assignee. Use the same `GH_TOKEN` shell for every step of that issue, and do not leave it exported for the next issue.
-- The commit name must be the account's exact GitHub profile name (table above), not the login. Otherwise GitHub treats author and merger as different people and adds a `Co-authored-by` trailer when squash-merging.
 - Do not commit with the global git identity. Check with `git log -1 --format='%an <%ae>'` before pushing.
 - Review: a PR is approved by a different collaborator than its author (`GH_TOKEN=$(gh auth token -u <reviewer>) gh pr review <n> --approve`). Merge is done by the author, or by `Mutiur03`. Admin bypass is for emergencies only.
 - Only act as an account for issues assigned to it. Never comment, review or approve in another account's name on its own work.
@@ -52,11 +51,11 @@ Three collaborators, each logged in to `gh`. Work is done as the account the iss
 - Conventional Commits, enforced by Husky + commitlint: `type(scope): subject`.
 - Scopes: `frontend`, `backend`, `db`, `ci`, `docs`.
 - Never use `--no-verify`.
-- Clean messages only (strict): no `Co-authored-by` trailers, no "Generated with" or tool/AI attribution lines, no pasted bot summaries. Each commit has exactly one author. The commit-msg hook rejects them. Squash-merges use the PR title only (repo setting), so keep PR titles clean too.
+- Clean messages only (strict): no `Co-authored-by` trailers, no "Generated with" or tool/AI attribution lines, no pasted bot summaries. Each commit has exactly one author. The commit-msg hook rejects them. PRs are rebase-merged: every commit lands on `main` exactly as authored (squash-merge is disabled because GitHub rewrites the author and adds a `Co-authored-by` trailer).
 
 ## Pull requests
 - Open a draft PR early, mark ready only when the issue's "Done when" list is complete and CI is green.
-- Title is a conventional commit message (PRs are squash-merged, so the title becomes the commit). Body contains `Closes #<issue>`.
+- Title is a conventional commit message. Body contains `Closes #<issue>`. Each commit in the PR must itself be clean and conventional, because rebase-merge puts every commit on `main`: squash fixups and tidy history (`git rebase -i`) before marking ready.
 - Keep PRs small: one concern, ideally under ~400 changed lines. Split larger issues.
 - Rebase on `main` before marking ready (`git fetch && git rebase origin/main`). No merge commits.
 - 1 approval required. Author never merges their own unreviewed PR. Delete the branch after merge.
