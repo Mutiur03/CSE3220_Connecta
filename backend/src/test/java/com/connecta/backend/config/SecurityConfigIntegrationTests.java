@@ -184,6 +184,28 @@ class SecurityConfigIntegrationTests {
     }
 
     @Nested
+    class ActuatorMetrics {
+
+        private String as(String role) {
+            return TestTokens.bearer(jwtProperties, TestUsers.user("jane@example.com", role));
+        }
+
+        @Test
+        void infoAllowsAdmin() throws Exception {
+            mvc.perform(get("/actuator/info").header("Authorization", as(Roles.ADMIN)))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void prometheusDeniesAgentsAndAnonymous() throws Exception {
+            mvc.perform(get("/actuator/prometheus").header("Authorization", as(Roles.AGENT)))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
+            mvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
     class Cors {
 
         @Test
