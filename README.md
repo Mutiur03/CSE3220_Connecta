@@ -93,6 +93,16 @@ erDiagram
         uuid organization_id FK
         uuid user_id FK
         uuid role_id FK }
+    ORGANIZATIONS ||--o{ INVITATIONS : receives
+    ROLES ||--o{ INVITATIONS : offers
+    USERS ||--o{ INVITATIONS : sends
+    INVITATIONS { uuid id PK
+        uuid organization_id FK
+        string email
+        uuid role_id FK
+        uuid invited_by FK
+        string token_hash UK
+        string status }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). More tables arrive with later milestones.
 
@@ -109,6 +119,10 @@ erDiagram
 | GET | `/api/organizations/{id}` | member | 200 | One organization. Non-members get `404`. |
 | PATCH | `/api/organizations/{id}` | `OWNER` or `ADMIN` of it | 200 | Rename it. The slug is fixed. |
 | DELETE | `/api/organizations/{id}` | `OWNER` of it | 204 | Delete it and its memberships. |
+| POST | `/api/organizations/{id}/invitations` | `OWNER` or `ADMIN` of it | 201 | Invite an email with a role (not above the caller's own). Returns the raw token once. |
+| GET | `/api/organizations/{id}/invitations` | `OWNER` or `ADMIN` of it | 200 | List its invitations, newest first (`page`, `size` max 100). Never includes tokens. |
+| DELETE | `/api/organizations/{id}/invitations/{invitationId}` | `OWNER` or `ADMIN` of it | 204 | Revoke an invitation. An accepted one gets `409`. |
+| POST | `/api/invitations/accept` | authenticated; email must match the invitation | 200 | Accept with the token. Joins the organization with the invited role. |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
 

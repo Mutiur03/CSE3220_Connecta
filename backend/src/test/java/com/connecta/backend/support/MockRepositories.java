@@ -1,6 +1,7 @@
 package com.connecta.backend.support;
 
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
+import com.connecta.backend.org.repository.InvitationRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
 import com.connecta.backend.user.repository.RoleRepository;
@@ -24,6 +25,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
 @MockitoBean(types = {UserRepository.class, RoleRepository.class, RefreshTokenRepository.class,
-        OrganizationRepository.class, MembershipRepository.class})
+        OrganizationRepository.class, MembershipRepository.class, InvitationRepository.class})
 public @interface MockRepositories {
 }

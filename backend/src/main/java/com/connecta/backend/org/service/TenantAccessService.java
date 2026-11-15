@@ -48,6 +48,12 @@ public class TenantAccessService {
         return membership;
     }
 
+    /** True when the user has a membership in the organization, whatever its role. */
+    @Transactional(readOnly = true)
+    public boolean isMember(UUID organizationId, UUID userId) {
+        return memberships.findByOrganizationIdAndUserId(organizationId, userId).isPresent();
+    }
+
     /** True when the membership's role is {@code requiredRole} or reaches it through the role hierarchy. */
     public boolean hasAtLeast(Membership membership, String requiredRole) {
         String held = Roles.AUTHORITY_PREFIX + membership.getRole().getName();

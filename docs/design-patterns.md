@@ -12,3 +12,5 @@ One row per pattern in use. Add a row (pattern, classes, reason) whenever a feat
 | Strategy (planned) | `AssignmentStrategy` (M5+) | Round-robin, least-loaded and manual assignment behind one interface. |
 | Adapter (planned) | `ChannelClient` (M4+) | One adapter per Meta channel, so the inbox never sees Meta's API. |
 | Facade | `org.service.TenantAccessService` (`requireMembership`, `requireRole`, `hasAtLeast`) | One entry point for every tenant check, so features never touch `MembershipRepository` or the role order directly. |
+| Factory Method (lightweight) | `org.service.InvitationTokenGenerator.issue()` returns `Issued(raw, hash)` | One call makes the random token and its SHA-256 hash together, so the raw token is handed out once and only the hash is stored. One product, so no abstract factory. |
+| Observer | `org.service.InvitationCreatedEvent` published by `InvitationService.create` through `ApplicationEventPublisher` | Creating an invitation announces it without the service knowing who reacts. No listener yet; the email sender will subscribe. |
