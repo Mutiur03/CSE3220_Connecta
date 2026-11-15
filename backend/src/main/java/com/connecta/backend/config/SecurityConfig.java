@@ -53,6 +53,8 @@ class SecurityConfig {
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // Everything under /api/admin needs ADMIN (OWNER inherits it, see roleHierarchy).
                         .requestMatchers("/api/admin/**").hasRole(Roles.ADMIN)
+                        // Health is public; metrics, info and the Prometheus scrape need ADMIN.
+                        .requestMatchers("/actuator/**").hasRole(Roles.ADMIN)
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o
                         .bearerTokenResolver(ignoreTokenOnPublicPaths())
