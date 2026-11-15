@@ -4,7 +4,7 @@
 Closes #
 
 ## Checklist
-- [ ] Branch is `<type>/<issue#>-<slug>` and rebased on latest `main`
+- [ ] Branch is `<type>/<issue#>-<slug>` and rebased on latest `develop`
 - [ ] PR title is a conventional commit (`type(scope): subject`)
 - [ ] Issue's "Done when" items are complete
 - [ ] Tests added/updated and passing
