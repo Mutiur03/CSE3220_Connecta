@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { safeRedirectPath } from "./redirect";
+import { safeRedirectPath, signedInLoginTarget } from "./redirect";
+
+describe("signedInLoginTarget", () => {
+  it.each([
+    ["/organizations", "/organizations"],
+    ["/organizations?page=2", "/organizations?page=2"],
+    [null, "/"],
+    ["//evil.example", "/"],
+    ["/login", "/"],
+    ["/login/?next=%2Finbox", "/"],
+  ])("sends a signed-in visitor with next %j to %j", (next, target) => {
+    expect(signedInLoginTarget(next)).toBe(target);
+  });
+});
 
 describe("safeRedirectPath", () => {
   it.each([
