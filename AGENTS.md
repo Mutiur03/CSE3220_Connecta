@@ -40,7 +40,7 @@ Commits made before this change use `<id>+<login>@users.noreply.github.com` (Mut
 - Never run `gh auth switch`. Act as an account with the helper, once per shell, so accounts never mix:
   ```bash
   source scripts/use-account.sh bipro96   # sets git author AND committer plus GH_TOKEN
-  git switch main && git pull --ff-only
+  git switch develop && git pull --ff-only
   git switch -c feat/58-availability
   git commit -m "feat(backend): ..."      # author and committer are bipro96
   git push -u origin feat/58-availability # pushes as bipro96
@@ -48,7 +48,7 @@ Commits made before this change use `<id>+<login>@users.noreply.github.com` (Mut
   ```
   Use one shell per account. Every git command in it (commit, amend, rebase, cherry-pick) and every `gh` call uses that identity, so a rebase can never fall back to your global git config. Start a new shell, or source the helper again, before acting as someone else.
 - Do not rely on the global git identity. Check with `git log -1 --format='%an <%ae> | %cn <%ce>'` before pushing: both halves must be the same person.
-- Keep local and remote in sync: after a PR merges, run `git fetch --prune && git switch main && git pull --ff-only && git branch -d <branch>`. Do not stack PRs; start a dependent branch only after the one it needs has merged, so nothing has to be rebased or force-pushed.
+- Keep local and remote in sync: after a PR merges, run `git fetch --prune && git switch develop && git pull --ff-only && git branch -d <branch>`. Do not stack PRs; start a dependent branch only after the one it needs has merged, so nothing has to be rebased or force-pushed.
 - Review: a PR is approved by a different collaborator than its author (`GH_TOKEN=$(gh auth token -u <reviewer>) gh pr review <n> --approve`). Merge is done by the author, or by `Mutiur03`. Admin bypass is for emergencies only.
 - Only act as an account for issues assigned to it. Never comment, review or approve in another account's name on its own work.
 
@@ -63,24 +63,181 @@ Commits made before this change use `<id>+<login>@users.noreply.github.com` (Mut
 - A commit already made with the wrong author or committer is rewritten before any push (`source scripts/use-account.sh <login>` then `git commit --amend --no-edit --reset-author`), never pushed.
 - The check is local-only by design; there is no CI substitute, so skipping hooks means the rule is broken.
 
+## Branch model
+- `main`: protected, always deployable, receives releases only. Render deploys from it.
+- `develop`: protected staging branch. All feature PRs target it. `main` stays the default branch, so `Closes #<n>` does not fire on a merge into `develop`: close the issue by hand once the PR is merged (comment the PR link), or let the release PR close it.
+- Feature branches: `<type>/<issue#>-<slug>` from `develop`, one PR each.
+- Release: when `develop` is green and demo-ready, open a PR `develop` -> `main` titled `chore: release <date or version>`, 1 approval, squash-merge. Nobody pushes to either branch directly.
+- Both branches use the same ruleset: PR required, 1 approval, no force push, no deletion, squash only.
+
+## Course requirements (graded, read before coding)
+Source: CSE 3220 lab guidelines. These are marks, and the starred items are automatic failures if missing.
+- Design patterns*: every feature uses a named pattern (Strategy, Factory, Adapter, Observer, Builder, Repository, Template Method, ...). The PR description names it. Keep `docs/design-patterns.md` listing pattern -> class -> why.
+- Role-based access*: every endpoint states its role rule (`SecurityConfig` or `@PreAuthorize`), with one allowed-role and one denied-role test. Roles are `OWNER > ADMIN > AGENT`.
+- Tests*: at least 20 service-layer unit tests (JUnit, Mockito) and 10 controller-layer integration tests (`@SpringBootTest`, MockMvc). Every PR with logic ships tests. They must pass in CI.
+- Docker*: `docker compose up --build` must keep working (app + PostgreSQL, configuration from environment variables only, no hardcoded credentials, `.env.example` current).
+- Deployment*: the app stays deployable to Render from `main`, with CI/CD deploying automatically.
+- No direct push to `main`* (enforced by the ruleset).
+- REST: correct HTTP methods and status codes, one global exception handler (problem-detail JSON, no stack traces), at least 5 controllers and CRUD on at least 3 entities.
+- Database: at least 6 tables with 1:M, M:1 and M:M relationships through JPA, all created by Flyway migrations.
+- Code quality: clear names, small methods, no swallowed exceptions.
+- README: description, architecture diagram, ER diagram, API endpoints, run steps, CI/CD explanation. A PR that changes an endpoint, a table or the pipeline updates the matching README section.
+- Bonus: Actuator (done), Prometheus metrics, Grafana dashboard, a second deployment platform.
+
+### Objective and team
+- Goal: a small but complete web app showing a professional workflow (Spring Boot, PostgreSQL, Spring Security, Docker, GitHub CI/CD, Render). Feature richness is not the goal.
+- Team: exactly three members, the three collaborators in Accounts. Every member must have visible commits and merged PRs.
+
+### Detail the guidelines require
+- Auth: registration, login/logout, BCrypt, role-based authorization by method-level or URL rules. The guidelines name ADMIN, SELLER, BUYER; we use `OWNER`, `ADMIN`, `AGENT`. The README states this mapping so graders see three-tier role-based access.
+- Docker: a `Dockerfile` and a `docker-compose.yml` with the application and PostgreSQL containers. Credentials only through environment variables. The app must start with `docker compose up --build`.
+- Git: `main` (protected), `develop`, feature branches, no direct push to `main`, PR with at least one review approval. Branch protection must be configured (5 marks).
+- CI/CD: a GitHub Actions workflow builds the project, runs the tests, and deploys to Render automatically from `main` (5 marks for the workflow, 5 for working auto-deploy).
+- Deployment: public Render URL, app runs without errors. Submit the live URL and the repository link.
+
+### Deliverables
+- GitHub repository.
+- README with project description, architecture diagram, ER diagram, API endpoints, run instructions, CI/CD explanation.
+- Deployed URL.
+- 15-minute demo presentation.
+
+### Marking (100) and where agents lose marks
+| Area | Marks | Breakdown |
+|---|---|---|
+| Design patterns and code quality | 20 | patterns 10, clean code and naming 5, exception handling 5 |
+| Security and role management | 15 | Spring Security 5, password encryption 3, role-based access enforced 7 |
+| Testing | 15 | unit test quality 7, integration tests 5, tests run in CI 3 |
+| Dockerization | 10 | Dockerfile 4, compose works 4, environment config 2 |
+| CI/CD and Git workflow | 15 | branch protection 5, Actions workflow 5, automatic deployment 5 |
+| Database design | 10 | proper entity relationships |
+| Deployment and demo | 10 | app runs without error 5, demonstration 5 |
+| Documentation | 5 | clear README on GitHub |
+- Bonus (up to 20): Monitoring (10): Actuator 2, Prometheus application metrics 4, working Grafana dashboard 4. Additional deployment (10): a platform other than Render 5, deployment documentation in the README 5.
+
+### Automatic failure (any one fails the project)
+No design patterns, no role-based access control, direct push to `main`, no Dockerization, tests not implemented, app not deployed.
+
+### What is evaluated
+Small system design, clean architecture, security, tests, professional Git use, CI/CD, Docker, and production-ready deployment. A task is not done if it breaks any item above.
+
+## Engineering standards (graded: follow exactly)
+
+### Layering
+- `web` (controller) -> `service` -> `repository` -> `domain`. A controller never touches a repository or an entity directly; it takes a request DTO and returns a response DTO. A repository is only called from a service. Entities never leave the service layer and never appear in JSON.
+- Business rules live in services (or in the entity when it is a rule about that entity alone). Controllers only validate input, call one service method, and map the result to a status code.
+- Constructor injection only (no field `@Autowired`). Services are `@Service`; transactions are declared on service methods (`@Transactional`, `readOnly = true` for reads).
+- Cross-feature calls go through the other feature's service, never its repository.
+
+### Design patterns (at least one per feature, named in the PR and listed in `docs/design-patterns.md`)
+Use a pattern only where it removes a real problem; do not wrap code in a pattern to tick a box. Planned uses:
+
+| Pattern | Where in Connecta |
+|---|---|
+| Repository | every persistence access goes through a Spring Data repository |
+| DTO + mapper | request/response `record`s with a static `from(entity)` factory (see `auth/dto`) |
+| Strategy | conversation assignment: an `AssignmentStrategy` with round-robin, least-loaded and manual variants |
+| Adapter | channel providers: one `ChannelClient` interface, one adapter each for Instagram and Messenger, so the inbox never knows Meta's API |
+| Factory | picks the `ChannelClient` / `AssignmentStrategy` for an organization's settings |
+| Observer | Spring `ApplicationEventPublisher`: a new message publishes an event; assignment, notifications and live updates listen |
+| Template Method | webhook intake: shared verify -> parse -> dedupe -> persist skeleton, per-channel parsing step |
+| Chain of Responsibility | the Spring Security filter chain (already in place) |
+| Builder | test data and complex immutable objects |
+
+When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adapter`, `...Factory`), add a unit test per variant, and add a row (pattern, classes, reason) to `docs/design-patterns.md`.
+
+### REST conventions
+- Base path `/api`. Resources are plural lowercase nouns in kebab-case: `/api/organizations`, `/api/organizations/{orgId}/members`, `/api/conversations/{id}/messages`. No verbs in paths; a non-CRUD action is a sub-resource (`POST /api/conversations/{id}/assignment`).
+- Methods: `GET` read (safe, no side effects), `POST` create, `PUT` full replace, `PATCH` partial update, `DELETE` remove. Idempotent methods stay idempotent.
+- Status codes: `200` read or update with a body, `201` create (with a `Location` header), `204` delete or no body, `400` malformed or invalid input, `401` not authenticated, `403` authenticated but not allowed, `404` not found (also for another tenant's data, so ids are not leaked), `409` conflict (duplicate, state clash), `422` a well-formed request that breaks a business rule, `500` never on purpose.
+- JSON: camelCase fields, ISO-8601 UTC timestamps, UUID ids, enums as strings. Never expose password hashes, token hashes, or another tenant's data.
+- Lists are paginated with `page` and `size` (default 20, max 100) and a stable `sort`, and return `{content, page, size, totalElements}`. Never return an unbounded list.
+- Validation: Jakarta Bean Validation annotations on request records (`@NotBlank`, `@Size`, `@Email`) and `@Valid` on the controller parameter. Mirror the DB limits (see `RegisterRequest`).
+- Every endpoint is documented for OpenAPI (summary, response codes) and listed in the README's endpoint table.
+
+### Exception handling
+- Services throw small domain exceptions named for the problem (`EmailAlreadyUsedException`), never bare `RuntimeException` or `Exception`, and never return `null` to signal failure.
+- Exceptions are mapped to `ProblemDetail` (RFC 9457) in one place: feature handlers in `<feature>/web/<Feature>ExceptionHandler`, the shared fallback in `common/web/GlobalExceptionHandler`. Controllers have no try/catch.
+- Error bodies have `status`, `title`, `detail` (and `errors` per field for validation). No stack traces, SQL, class names or secrets in a response. Unknown errors are logged and answered with a generic `500`.
+- Authentication failures give the same message for an unknown user and a wrong password.
+- Each new exception gets a MockMvc test that checks the status and body.
+
+### Security
+- Default is deny: a new path is authenticated unless it is added to the public list on purpose. Admin-only paths sit under `/api/admin/**`.
+- Authorization is stated twice: a URL rule in `SecurityConfig` for coarse access, and `@PreAuthorize` on service methods for fine rules (for example "only an admin of this organization").
+- Passwords only as BCrypt. Secrets (`JWT_SECRET`, DB password, Meta tokens) only from the environment, never in code, tests, logs or the README.
+- Tenant isolation: every query on tenant data is filtered by organization, and a cross-tenant id returns `404`. Each such feature has a test for the cross-tenant case.
+
+### Database and JPA
+- Schema changes only through new Flyway migrations (`V<yyyyMMddHHmm>__desc.sql`); `ddl-auto=validate`.
+- Foreign keys, `NOT NULL`, unique and check constraints belong in the migration, not only in Java. Index every foreign key and every column used in a `WHERE` or join.
+- Relationships: `@ManyToOne(fetch = LAZY)` by default; map the owning side explicitly; no `CascadeType.ALL` or `EAGER` without a written reason. Use `@EntityGraph` or a fetch join to avoid N+1 queries on lists.
+- Entities: no Lombok `@Data`; keep a protected no-arg constructor and a meaningful public one; `equals`/`hashCode` on the id. No logic inside an entity that needs a repository.
+- The six-table minimum with 1:M, M:1 and M:M relationships must stay visible in the README's ER diagram.
+
+### Code quality
+- Package by feature. Names say what the thing does (`RefreshTokenService.rotate`, not `process`). Methods are short and single-purpose. No commented-out code, no dead code, no `TODO` without an issue number.
+- No magic numbers or strings: use constants, enums or `@ConfigurationProperties` (see `JwtProperties`).
+- Logging through SLF4J (never `System.out`), at the right level, without personal data or secrets.
+- Prefer `record` for DTOs and immutability. `Optional` only as a return type.
+- Frontend: TypeScript strict, no `any`, API calls only through `src/lib`, server actions for mutations, no secrets in client code.
+
+### Testing
+- Unit tests (service layer): JUnit 5 and Mockito, no Spring context, `@Nested` per behavior. One happy path and every failure path for each public service method. Each pattern variant (every strategy, every adapter) has its own test.
+- Integration tests (controller layer): `@SpringBootTest` with MockMvc per controller: status, body, validation errors, `401`, `403` and the cross-tenant `404`. Database-backed tests run against real PostgreSQL once the harness exists.
+- Tests are deterministic (inject `Clock`, no sleeps, no order dependence) and mirror the production package (see Project structure). `./mvnw test` passes locally and in CI before every PR.
+- Keep the totals above 20 unit and 10 integration tests; the PR description lists the tests added.
+
+### Docker, configuration and CI/CD
+- `backend/Dockerfile` is multi-stage: build with Maven, run on a slim JRE image as a non-root user, with a `HEALTHCHECK` on `/actuator/health`. A frontend Dockerfile follows the same idea.
+- `docker-compose.yml` runs the app, PostgreSQL and the frontend with named volumes and a `depends_on` healthcheck, and takes every credential from `.env` (documented in `.env.example`). `docker compose up --build` from a clean clone must work.
+- Spring profiles: `dev` (defaults, Swagger on) and `prod` (no defaults for secrets, docs off). Configuration only through environment variables or `application-*.properties`.
+- Workflows in `.github/workflows`: build and test on every PR; on push to `main` build, test and deploy to Render automatically. Maven and pnpm caches are enabled. A red build blocks the merge.
+- Observability (bonus): Actuator health, info and metrics, a Micrometer Prometheus endpoint, and a Grafana dashboard JSON committed under `ops/`.
+
+## Agent playbook (how to run one task end to end)
+Follow in order. Stop and ask the human at any "stop" line.
+
+1. **Pick.** Open, unassigned, `agent-ready`, all "Blocked by" issues closed. Read the issue, its parent story and its milestone. Stop if it is `human` or blocked.
+2. **Act as the assignee.** `gh issue view <n> --json assignees`, then `source scripts/use-account.sh <login>` in a fresh shell. Stop if there is no assignee.
+3. **Branch.** `git fetch --prune && git switch develop && git pull --ff-only && git switch -c <type>/<n>-<slug>`. Never branch from `main` or from another feature branch.
+4. **Plan against the course rules and the Engineering standards.** Before coding, name the design pattern the change uses, the roles allowed on each new endpoint, the tables it touches (migration needed?), and the tests it needs (unit for services, MockMvc for controllers). Put each file where "Project structure" says.
+5. **Build small.** One concern, about 400 changed lines at most. Commit as you go with conventional messages, no trailers, body lines under 100 characters. Never `--no-verify`.
+6. **Prove it.** Run `./mvnw test` (on Windows `mvnw.cmd`) and the frontend `pnpm lint`, `pnpm test`, `pnpm build` for the areas touched. For anything that needs a database, run it against real PostgreSQL, since mocks hid two bugs before. Never run migrations unless the human asks in that message. Fix failures; never weaken or delete a test to pass.
+7. **Self-check before the PR** (every box must be true):
+   - [ ] Pattern named in the PR description
+   - [ ] Every new endpoint has a role rule plus allowed and denied tests
+   - [ ] Errors go through the global handler, correct status codes
+   - [ ] No hardcoded credentials, `.env.example` updated
+   - [ ] New tables come from a new timestamped Flyway migration, never an edited old one
+   - [ ] README updated if an endpoint, table or pipeline changed
+   - [ ] Tenant data is scoped to the organization
+   - [ ] `docker compose up --build` still works if the change affects running the app
+8. **Push and open the PR** against `develop`: title is a conventional commit, body has `Closes #<n>` (it will not auto-close, see Branch model), the pattern, and what was run. Draft first, ready when the issue's "Done when" list is complete and CI is green.
+9. **Review.** A different collaborator approves with their own account. Never approve your own work or act as another account on its work. Wait for every required check to be green; do not merge on pending.
+10. **Merge.** Squash-merge, done by the author or `Mutiur03`. Then `git fetch --prune && git switch develop && git pull --ff-only && git branch -d <branch>`.
+11. **Close the issue by hand** after the merge: tick its "Done when" boxes and comment the PR link. When all tasks of a story are done, close the story with a short summary comment.
+12. **Release to `main`.** Only on a human's request. Open a PR `develop` -> `main` titled `chore: release <date>`, with the list of merged PRs and a pass of the Course requirements checklist. After it merges, Render deploys; check the live URL and `/actuator/health`.
+
+**Stop and ask** when: the issue is blocked, unassigned, or `human`; a rule here conflicts with the issue; a step needs a secret, a paid service, a Meta account, a database migration run, or a repo-settings change; CI is red for a reason outside the change; or the change would break a graded requirement.
+
 ## Branches
 - One issue = one branch = one PR.
-- Always branch from latest `main`: `git switch main && git pull && git switch -c <type>/<issue#>-<slug>`.
+- Always branch from latest `develop`: `git switch develop && git pull && git switch -c <type>/<issue#>-<slug>`.
 - Name: `feat/17-jwt-tokens`, `fix/54-meta-send-retry`, `chore/10-readme`. Types match Conventional Commits.
-- Never push to `main`. Never force-push a branch someone else uses.
+- Never push to `main` or `develop`. Never force-push a branch someone else uses.
 
 ## Commits
 - Conventional Commits, enforced by Husky + commitlint: `type(scope): subject`.
 - Scopes: `frontend`, `backend`, `db`, `ci`, `docs`.
 - Never use `--no-verify`.
-- Clean messages only (strict): no `Co-authored-by` trailers, no "Generated with" or tool/AI attribution lines, no pasted bot summaries. Each commit has exactly one author. The commit-msg hook rejects them. PRs are rebase-merged: every commit lands on `main` exactly as authored (squash-merge is disabled because GitHub rewrites the author and adds a `Co-authored-by` trailer).
+- Clean messages only (strict): no `Co-authored-by` trailers, no "Generated with" or tool/AI attribution lines, no pasted bot summaries. Each commit has exactly one author. The commit-msg hook rejects them. PRs are squash-merged, so each PR becomes one commit on `develop`: the PR title is that commit's message and must be a clean conventional commit. Squash is the only allowed merge method. It stays clean because each account's local email equals the one GitHub uses (see Accounts).
 
 ## Pull requests
 - Open a draft PR early, mark ready only when the issue's "Done when" list is complete and CI is green.
-- Title is a conventional commit message. Body contains `Closes #<issue>`. Each commit in the PR must itself be clean and conventional, because rebase-merge puts every commit on `main`: squash fixups and tidy history (`git rebase -i`) before marking ready.
+- Title is a conventional commit message. Body contains `Closes #<issue>`. Each commit in the PR must still be clean and conventional (the commit hooks check them), but the PR title is what lands on `develop`.
 - Keep PRs small: one concern, ideally under ~400 changed lines. Split larger issues.
-- Rebase on `main` before marking ready (`git fetch && git rebase origin/main`). No merge commits.
-- 1 approval required. Author never merges their own unreviewed PR. Delete the branch after merge.
+- Rebase on `develop` before marking ready (`git fetch && git rebase origin/develop`). No merge commits.
+- Feature PRs target `develop`, never `main`. 1 approval required. Author never merges their own unreviewed PR. Delete the branch after merge.
 
 ## Avoiding conflicts
 - Stay inside your area: backend work in `backend/`, frontend work in `frontend/`. Do not reformat or touch unrelated files.
