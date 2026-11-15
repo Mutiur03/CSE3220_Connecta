@@ -8,7 +8,6 @@ import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,14 +15,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
-    // Checked when the email is unknown, so unknown and wrong-password logins take similar time.
-    // Same default BCrypt cost as the PasswordEncoder bean in SecurityConfig; computed once.
-    private static final String DUMMY_HASH = new BCryptPasswordEncoder().encode("not-a-real-password");
-
     private final UserService users;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
     private final RefreshTokenService refreshTokens;
+    // Checked when the email is unknown, so unknown and wrong-password logins take similar time.
+    // Hashed with the injected encoder, so it always has the same cost as real hashes.
+    private final String dummyHash;
 
     public AuthService(UserService users, PasswordEncoder passwordEncoder,
             TokenService tokenService, RefreshTokenService refreshTokens) {
@@ -31,6 +29,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.refreshTokens = refreshTokens;
+        this.dummyHash = passwordEncoder.encode("not-a-real-password");
     }
 
     @Transactional
@@ -53,7 +52,7 @@ public class AuthService {
     public TokenResponse login(LoginRequest request) {
         User user = users.findByEmail(User.normalizeEmail(request.email())).orElse(null);
         if (user == null) {
-            passwordEncoder.matches(request.password(), DUMMY_HASH);
+            passwordEncoder.matches(request.password(), dummyHash);
             throw new InvalidCredentialsException();
         }
         if (!user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
