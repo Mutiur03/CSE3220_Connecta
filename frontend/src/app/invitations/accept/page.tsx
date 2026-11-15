@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { InvitationFormSkeleton } from "../invitation-page-skeleton";
 import AcceptInvitationContent from "./accept-invitation-content";
 
-export const metadata: Metadata = { title: "Accept invitation · Connecta" };
+export const metadata: Metadata = { title: "Accept invitation" };
 
 export default function AcceptInvitationPage({
   searchParams,
