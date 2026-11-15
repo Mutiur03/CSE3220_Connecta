@@ -1,3 +1,5 @@
+import BackendStatus from "./backend-status";
+
 export default function Home() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
@@ -5,6 +7,7 @@ export default function Home() {
       <p className="text-zinc-600 dark:text-zinc-400">
         Unified Instagram and Messenger inbox for your team.
       </p>
+      <BackendStatus />
     </main>
   );
 }
