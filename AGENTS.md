@@ -67,8 +67,8 @@ Commits made before this change use `<id>+<login>@users.noreply.github.com` (Mut
 - `main`: protected, always deployable, receives releases only. Render deploys from it.
 - `develop`: protected staging branch. All feature PRs target it. `main` stays the default branch, so `Closes #<n>` does not fire on a merge into `develop`: close the issue by hand once the PR is merged (comment the PR link), or let the release PR close it.
 - Feature branches: `<type>/<issue#>-<slug>` from `develop`, one PR each.
-- Release: when `develop` is green and demo-ready, open a PR `develop` -> `main` titled `chore: release <date or version>`, 1 approval, squash-merge. Nobody pushes to either branch directly.
-- Both branches use the same ruleset: PR required, 1 approval, no force push, no deletion, squash only.
+- Release: when `develop` is green and demo-ready, open a PR `develop` -> `main` titled `chore: release <date or version>`, 1 approval, merged with a **merge commit** (not squash), so `main` keeps each feature commit from `develop` and shows every release as one merge point. Nobody pushes to either branch directly.
+- Both branches require a PR, 1 approval, no force push, no deletion. Merge method differs per branch (enforced by the rulesets `protect-develop` and `protect-main`): `develop` accepts squash only, `main` accepts merge commit only.
 
 ## Course requirements (graded, read before coding)
 Source: CSE 3220 lab guidelines. These are marks, and the starred items are automatic failures if missing.
@@ -214,7 +214,7 @@ Follow in order. Stop and ask the human at any "stop" line.
    - [ ] `docker compose up --build` still works if the change affects running the app
 8. **Push and open the PR** against `develop`: title is a conventional commit, body has `Closes #<n>` (it will not auto-close, see Branch model), the pattern, and what was run. Draft first, ready when the issue's "Done when" list is complete and CI is green.
 9. **Review.** A different collaborator approves with their own account. Never approve your own work or act as another account on its work. Wait for every required check to be green; do not merge on pending.
-10. **Merge.** Squash-merge, done by the author or `Mutiur03`. Then `git fetch --prune && git switch develop && git pull --ff-only && git branch -d <branch>`.
+10. **Merge.** Squash-merge into `develop` (merge commits are not allowed there), done by the author or `Mutiur03`. Then `git fetch --prune && git switch develop && git pull --ff-only && git branch -d <branch>`.
 11. **Close the issue by hand** after the merge: tick its "Done when" boxes and comment the PR link. When all tasks of a story are done, close the story with a short summary comment.
 12. **Release to `main`.** Only on a human's request. Open a PR `develop` -> `main` titled `chore: release <date>`, with the list of merged PRs and a pass of the Course requirements checklist. After it merges, Render deploys; check the live URL and `/actuator/health`.
 
@@ -230,13 +230,13 @@ Follow in order. Stop and ask the human at any "stop" line.
 - Conventional Commits, enforced by Husky + commitlint: `type(scope): subject`.
 - Scopes: `frontend`, `backend`, `db`, `ci`, `docs`.
 - Never use `--no-verify`.
-- Clean messages only (strict): no `Co-authored-by` trailers, no "Generated with" or tool/AI attribution lines, no pasted bot summaries. Each commit has exactly one author. The commit-msg hook rejects them. PRs are squash-merged, so each PR becomes one commit on `develop`: the PR title is that commit's message and must be a clean conventional commit. Squash is the only allowed merge method. It stays clean because each account's local email equals the one GitHub uses (see Accounts).
+- Clean messages only (strict): no `Co-authored-by` trailers, no "Generated with" or tool/AI attribution lines, no pasted bot summaries. Each commit has exactly one author. The commit-msg hook rejects them. PRs are squash-merged, so each PR becomes one commit on `develop`: the PR title is that commit's message and must be a clean conventional commit. Squash is the only allowed merge method on `develop`; a release PR into `main` is a merge commit. It stays clean because each account's local email equals the one GitHub uses (see Accounts).
 
 ## Pull requests
 - Open a draft PR early, mark ready only when the issue's "Done when" list is complete and CI is green.
 - Title is a conventional commit message. Body contains `Closes #<issue>`. Each commit in the PR must still be clean and conventional (the commit hooks check them), but the PR title is what lands on `develop`.
 - Keep PRs small: one concern, ideally under ~400 changed lines. Split larger issues.
-- Rebase on `develop` before marking ready (`git fetch && git rebase origin/develop`). No merge commits.
+- Rebase on `develop` before marking ready (`git fetch && git rebase origin/develop`). No merge commits in feature branches.
 - Feature PRs target `develop`, never `main`. 1 approval required. Author never merges their own unreviewed PR. Delete the branch after merge.
 
 ## Avoiding conflicts

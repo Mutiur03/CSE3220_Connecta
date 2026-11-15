@@ -50,4 +50,4 @@ Read [AGENTS.md](AGENTS.md) first. In short:
 - Work only on issues assigned to you; one issue = one branch = one PR; branch `type/<issue#>-slug`.
 - Commits follow Conventional Commits (`type(scope): subject`, scopes `frontend|backend|db|ci|docs`), no `Co-authored-by` or attribution lines. Husky + commitlint enforce this locally.
 - The commit author, the `gh` account and the issue assignee must be the same person (checked on commit and push).
-- Branches: `main` (protected, releases only), `develop` (protected, integration), feature branches. Feature PRs target `develop` and are squash-merged with 1 approval; `develop` is squash-merged into `main` for a release. CI runs per area (path-filtered).
+- Branches: `main` (protected, releases only), `develop` (protected, integration), feature branches. Feature PRs target `develop` and are squash-merged with 1 approval; `develop` is merged into `main` with a merge commit for a release. CI runs per area (path-filtered).
