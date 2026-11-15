@@ -1,16 +1,16 @@
 import { ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
 
-const TONE: Record<OrgRole, string> = {
-  OWNER: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
-  ADMIN:
-    "border border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100",
-  AGENT: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+// Owner carries the accent (it is the role that matters most); the others step down in ink.
+export const ROLE_BADGE_TONE: Record<OrgRole, string> = {
+  OWNER: "border-accent text-accent",
+  ADMIN: "border-line-strong text-ink",
+  AGENT: "border-line text-ink-muted",
 };
 
 export default function OrgRoleBadge({ role }: { role: OrgRole }) {
   return (
     <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TONE[role]}`}
+      className={`inline-flex items-center rounded-control border px-2 py-0.5 text-caption font-medium ${ROLE_BADGE_TONE[role]}`}
     >
       {ROLE_LABELS[role]}
     </span>
