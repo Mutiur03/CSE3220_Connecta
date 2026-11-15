@@ -26,34 +26,41 @@ Put every file in its proper place from the first commit. A misplaced file is a 
 ## Accounts (who commits and pushes)
 Three collaborators, each logged in to `gh`. Work is done as the account the issue is assigned to, so history shows who built what.
 
-| Account | Noreply email |
+| Account | Commit email (the one GitHub itself uses for the account) |
 |---|---|
-| `Mutiur03` (admin) | `173971250+Mutiur03@users.noreply.github.com` |
-| `bipro96` | `243103502+bipro96@users.noreply.github.com` |
-| `Aavas-99` | `159434864+Aavas-99@users.noreply.github.com` |
+| `Mutiur03` (admin) | `mutiur5bb@gmail.com` |
+| `bipro96` | `bb123biprobiswas@gmail.com` |
+| `Aavas-99` | `roy.aavas@gmail.com` |
+
+Local commits use the same email GitHub uses when it makes a commit for that account (merge buttons, web editor), so author and committer are the same identity everywhere and GitHub never adds a `Co-authored-by` line. This only holds while each account has "Keep my email addresses private" **off** in GitHub Settings -> Emails. If someone turns it on, GitHub switches to a noreply address and this table must change. These emails are public in the repository history.
+
+Commits made before this change use `<id>+<login>@users.noreply.github.com` (Mutiur03 173971250, bipro96 243103502, Aavas-99 159434864). They stay valid and are never rewritten on `main`.
 
 - Read the issue's assignee: `gh issue view <n> --json assignees --jq '.assignees[].login'`. Act as that account. No assignee: stop and ask.
-- Never run `gh auth switch`. Select the account per command with a token, so accounts never mix:
+- Never run `gh auth switch`. Act as an account with the helper, once per shell, so accounts never mix:
   ```bash
-  U=bipro96; ID=243103502   # from the table
-  export GH_TOKEN=$(gh auth token -u $U)
-  git -c user.name=$U -c user.email=$ID+$U@users.noreply.github.com commit -m "feat(backend): ..."
-  git push -u origin <branch>      # pushes as $U via GH_TOKEN
-  gh pr create ...                 # PR author is $U
+  source scripts/use-account.sh bipro96   # sets git author AND committer plus GH_TOKEN
+  git switch main && git pull --ff-only
+  git switch -c feat/58-availability
+  git commit -m "feat(backend): ..."      # author and committer are bipro96
+  git push -u origin feat/58-availability # pushes as bipro96
+  gh pr create ...                        # PR author is bipro96
   ```
-  Commit author and push account must both be the assignee. Use the same `GH_TOKEN` shell for every step of that issue, and do not leave it exported for the next issue.
-- Do not commit with the global git identity. Check with `git log -1 --format='%an <%ae>'` before pushing.
+  Use one shell per account. Every git command in it (commit, amend, rebase, cherry-pick) and every `gh` call uses that identity, so a rebase can never fall back to your global git config. Start a new shell, or source the helper again, before acting as someone else.
+- Do not rely on the global git identity. Check with `git log -1 --format='%an <%ae> | %cn <%ce>'` before pushing: both halves must be the same person.
+- Keep local and remote in sync: after a PR merges, run `git fetch --prune && git switch main && git pull --ff-only && git branch -d <branch>`. Do not stack PRs; start a dependent branch only after the one it needs has merged, so nothing has to be rebased or force-pushed.
 - Review: a PR is approved by a different collaborator than its author (`GH_TOKEN=$(gh auth token -u <reviewer>) gh pr review <n> --approve`). Merge is done by the author, or by `Mutiur03`. Admin bypass is for emergencies only.
 - Only act as an account for issues assigned to it. Never comment, review or approve in another account's name on its own work.
 
 **This rule is strict.** A commit by the wrong person is never acceptable, and it is enforced before the commit and before the push, not after:
 
 - `.husky/pre-commit` and `.husky/pre-push` run `scripts/check-author.mjs`. It blocks when:
-  - the author email is not one of the three noreply emails above (for example the global git identity);
+  - the author or the committer email is not one of the three collaborators' emails;
+  - the committer is a different person than the author (this is what a rebase run with the wrong identity produces);
   - the acting `gh` account (`GH_TOKEN`, else the active account) is not the commit author;
   - the branch is `<type>/<issue#>-<slug>` and that issue is unassigned or assigned to someone other than the author.
 - Fix the cause (identity, `GH_TOKEN`, or assignee) and retry. Never use `--no-verify`, never rewrite the check, never commit "just this once" as someone else.
-- A commit already made with the wrong author is rewritten before any push (`git rebase -r --exec` with the correct `--author`), never pushed.
+- A commit already made with the wrong author or committer is rewritten before any push (`source scripts/use-account.sh <login>` then `git commit --amend --no-edit --reset-author`), never pushed.
 - The check is local-only by design; there is no CI substitute, so skipping hooks means the rule is broken.
 
 ## Branches
