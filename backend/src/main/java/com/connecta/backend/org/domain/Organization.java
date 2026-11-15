@@ -20,14 +20,19 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Organization {
 
+    public static final int NAME_MAX_LENGTH = 100;
+    public static final int SLUG_MAX_LENGTH = 60;
+    /** Lower-case words joined by single hyphens. Mirrors the organizations_slug_format check. */
+    public static final String SLUG_PATTERN = "^[a-z0-9]+(-[a-z0-9]+)*$";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = NAME_MAX_LENGTH)
     private String name;
 
-    @Column(nullable = false, unique = true, length = 60)
+    @Column(nullable = false, unique = true, length = SLUG_MAX_LENGTH)
     private String slug;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -39,6 +44,11 @@ public class Organization {
     public Organization(String name, String slug) {
         this.name = name.trim();
         this.slug = slug;
+    }
+
+    /** The slug is fixed for the life of the organization; only the display name changes. */
+    public void rename(String newName) {
+        this.name = newName.trim();
     }
 
     @PrePersist

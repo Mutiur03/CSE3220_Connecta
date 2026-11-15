@@ -104,6 +104,11 @@ erDiagram
 | POST | `/api/auth/refresh` | public | 200 | Rotate the refresh token (single use). |
 | POST | `/api/auth/logout` | public | 204 | Revoke the refresh token. |
 | GET | `/api/auth/me` | authenticated | 200 | Current user. |
+| GET | `/api/organizations` | authenticated | 200 | Organizations the caller belongs to (`page`, `size` max 100). |
+| POST | `/api/organizations` | authenticated | 201 | Create an organization; the caller becomes its `OWNER`. |
+| GET | `/api/organizations/{id}` | member | 200 | One organization. Non-members get `404`. |
+| PATCH | `/api/organizations/{id}` | `OWNER` or `ADMIN` of it | 200 | Rename it. The slug is fixed. |
+| DELETE | `/api/organizations/{id}` | `OWNER` of it | 204 | Delete it and its memberships. |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
 
