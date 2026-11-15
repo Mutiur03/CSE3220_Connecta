@@ -6,6 +6,8 @@ import com.connecta.backend.user.domain.Roles;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,16 +18,15 @@ import org.springframework.transaction.annotation.Transactional;
  * the role order live in one place. Callers pass the user id from the JWT subject, as {@code AuthController}
  * does. An unknown organization and a non-member both raise {@link NotAMemberException}.
  *
- * <p>The role order mirrors the {@code RoleHierarchy} bean in {@code SecurityConfig}; change both together.
+ * <p>The role order comes from the {@code RoleHierarchy} bean in {@code SecurityConfig}, the single source.
  */
 @Service
 @RequiredArgsConstructor
 public class TenantAccessService {
 
-    /** Highest role first: each role includes every role after it. */
-    private static final List<String> ROLES_HIGHEST_FIRST = List.of(Roles.OWNER, Roles.ADMIN, Roles.AGENT);
-
     private final MembershipRepository memberships;
+
+    private final RoleHierarchy roleHierarchy;
 
     /** The user's membership in the organization. Throws {@link NotAMemberException} otherwise. */
     @Transactional(readOnly = true)
@@ -47,13 +48,11 @@ public class TenantAccessService {
         return membership;
     }
 
-    /** True when the membership's role is {@code requiredRole} or above it. An unknown role held is never enough. */
+    /** True when the membership's role is {@code requiredRole} or reaches it through the role hierarchy. */
     public boolean hasAtLeast(Membership membership, String requiredRole) {
-        int required = ROLES_HIGHEST_FIRST.indexOf(requiredRole);
-        if (required < 0) {
-            throw new IllegalArgumentException("Unknown organization role: " + requiredRole);
-        }
-        int held = ROLES_HIGHEST_FIRST.indexOf(membership.getRole().getName());
-        return held >= 0 && held <= required;
+        String held = Roles.AUTHORITY_PREFIX + membership.getRole().getName();
+        String required = Roles.AUTHORITY_PREFIX + requiredRole;
+        return roleHierarchy.getReachableGrantedAuthorities(List.of(new SimpleGrantedAuthority(held))).stream()
+                .anyMatch(authority -> required.equals(authority.getAuthority()));
     }
 }

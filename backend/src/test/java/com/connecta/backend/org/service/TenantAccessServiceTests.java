@@ -14,14 +14,15 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 
 @ExtendWith(MockitoExtension.class)
 class TenantAccessServiceTests {
@@ -32,8 +33,13 @@ class TenantAccessServiceTests {
     @Mock
     MembershipRepository memberships;
 
-    @InjectMocks
     TenantAccessService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
+                "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
+    }
 
     private static Membership membership(String roleName) {
         return new Membership(new Organization("Org", "org"),
@@ -135,8 +141,8 @@ class TenantAccessServiceTests {
         }
 
         @Test
-        void anUnknownRequiredRoleIsAProgrammingError() {
-            assertThrows(IllegalArgumentException.class, () -> service.hasAtLeast(membership(Roles.OWNER), "GUEST"));
+        void anUnknownRequiredRoleIsNeverGranted() {
+            assertFalse(service.hasAtLeast(membership(Roles.OWNER), "GUEST"));
         }
     }
 }
