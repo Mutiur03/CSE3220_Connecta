@@ -1,6 +1,6 @@
 package com.connecta.backend.support;
 
-import com.connecta.backend.auth.security.JwtProperties;
+import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.auth.service.TokenService;
 import com.connecta.backend.config.JwtConfig;
 import com.connecta.backend.user.domain.User;

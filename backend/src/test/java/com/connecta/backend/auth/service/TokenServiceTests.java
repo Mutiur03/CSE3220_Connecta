@@ -3,7 +3,7 @@ package com.connecta.backend.auth.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-import com.connecta.backend.auth.security.JwtProperties;
+import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.config.JwtConfig;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;

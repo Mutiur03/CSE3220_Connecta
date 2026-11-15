@@ -1,4 +1,4 @@
-package com.connecta.backend.auth.security;
+package com.connecta.backend.auth.web;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

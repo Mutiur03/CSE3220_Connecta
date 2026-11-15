@@ -18,7 +18,7 @@ import com.connecta.backend.auth.service.AuthService;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
-import com.connecta.backend.auth.security.JwtProperties;
+import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.support.MockRepositories;
 import com.connecta.backend.support.TestTokens;
 import com.connecta.backend.support.TestUsers;

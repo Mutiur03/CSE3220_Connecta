@@ -1,4 +1,4 @@
-package com.connecta.backend.auth.security;
+package com.connecta.backend.config;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
