@@ -35,6 +35,12 @@ public class UserService {
         return users.findById(id).filter(User::isEnabled);
     }
 
+    /** A seeded role by name. Other features get roles from here, never from the role repository. */
+    @Transactional(readOnly = true)
+    public Role findRole(String name) {
+        return roles.findByName(name).orElseThrow(() -> new RoleNotSeededException(name));
+    }
+
     /**
      * Stores a new user with the AGENT role. Flushes so a concurrent duplicate email surfaces here as
      * a DataIntegrityViolationException and not at commit.
