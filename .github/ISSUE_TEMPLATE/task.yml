@@ -1,0 +1,30 @@
+name: Task
+description: A unit of work (one issue = one branch = one PR)
+labels: ["task"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What needs to be done and why.
+    validations:
+      required: true
+  - type: input
+    id: story
+    attributes:
+      label: Part of story
+      placeholder: "US-Mx-xx (#123)"
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      value: |
+        - [ ] Implemented
+        - [ ] Tests added and passing
+        - [ ] Tenant scope checked (if it touches data)
+        - [ ] Reviewed and merged to main
+  - type: input
+    id: blocked
+    attributes:
+      label: Blocked by
+      placeholder: "#12 or none"
