@@ -66,6 +66,15 @@ Text needs 4.5:1, boundaries and focus need 3:1. Enforced for every pair in `des
 
 Before values: zinc-300 and zinc-700 borders, zinc-500 muted text, red-600 danger text, as measured in the M2 and M3 audits and recomputed here. After values measured in the running app with `getComputedStyle` (login page, both themes). Muted and danger "after" on the page background are the test values.
 
+## Theme
+
+The app follows the OS light or dark setting. The header toggle pins a theme for this browser.
+
+- Every token in `globals.css` is `light-dark(<light>, <dark>)`, so a new token has both values in one line. `color-scheme` on `:root` picks the half; `data-theme="light|dark"` on `<html>` overrides it.
+- The choice lives in `localStorage` under `theme`. An inline script in `<head>` (`THEME_INIT_SCRIPT`) applies it before first paint, so there is no flash.
+- The toggle switches to the opposite of what is on screen. Choosing the OS's own theme clears the pin, so the page follows the OS again.
+- No `.dark` classes or `dark:` utilities. Components use tokens only.
+
 ## Rules for new screens
 
 1. Use role utilities (`text-ink`, `bg-surface`, `border-line-strong`), never `zinc-*`, `red-*` or `dark:` pairs.

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { ApiError, fetchMe, type User } from "@/lib/api";
 import { logout } from "@/lib/auth-actions";
 import { ACCESS_COOKIE } from "@/lib/session-cookies";
+import ThemeToggle from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 const NAV_LINK =
@@ -28,7 +29,7 @@ async function HeaderAccount() {
   if (!user) return null;
 
   return (
-    <div className="ml-auto flex items-center gap-2">
+    <div className="flex items-center gap-2">
       <Link href="/organizations" className={NAV_LINK}>
         Organizations
       </Link>
@@ -55,9 +56,12 @@ export default function AppHeader() {
         >
           Connecta
         </Link>
-        <Suspense fallback={null}>
-          <HeaderAccount />
-        </Suspense>
+        <div className="ml-auto flex items-center gap-2">
+          <Suspense fallback={null}>
+            <HeaderAccount />
+          </Suspense>
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   );
