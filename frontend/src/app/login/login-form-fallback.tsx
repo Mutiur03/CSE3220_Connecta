@@ -6,7 +6,7 @@ export function LoginFormFallback() {
     <div aria-hidden="true" className="flex w-full flex-col gap-4">
       {["Email", "Password"].map((label) => (
         <div key={label} className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-ink">{label}</span>
+          <span className="text-sm font-medium text-primary">{label}</span>
           <div className={fieldClasses}>&nbsp;</div>
         </div>
       ))}

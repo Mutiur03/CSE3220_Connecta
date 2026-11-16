@@ -22,7 +22,7 @@ export function Field({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium text-ink">
+      <label htmlFor={id} className="text-sm font-medium text-primary">
         {label}
       </label>
       <input
@@ -33,7 +33,7 @@ export function Field({
         className={[fieldClasses, className].filter(Boolean).join(" ")}
       />
       {hint && (
-        <p id={hintId} className="text-caption text-ink-muted">
+        <p id={hintId} className="text-caption text-secondary">
           {hint}
         </p>
       )}

@@ -21,8 +21,10 @@ export default function LoginPage({
     <main className="flex flex-1 items-center justify-center p-8">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold tracking-tight">Connecta</h1>
-          <p className="text-ink-muted">Sign in to your inbox.</p>
+          <h1 className="text-display font-semibold tracking-tight">
+            Connecta
+          </h1>
+          <p className="text-secondary">Sign in to your inbox.</p>
         </div>
         {/* Reading searchParams makes the route dynamic, so it renders inside Suspense. */}
         <Suspense fallback={<LoginFormFallback />}>

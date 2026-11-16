@@ -206,8 +206,10 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 - Observability (bonus): Actuator health, info and metrics, a Micrometer Prometheus endpoint, and a Grafana dashboard JSON committed under `ops/`.
 
 ### Frontend design and quality (every UI change)
-Load these skills with the Skill tool **before** designing or writing UI, not after. They are part of the work, not optional polish.
-1. **`frontend-design:frontend-design`**: pick an aesthetic direction, typography, spacing and color for the product before coding. No templated defaults.
+**The design is fixed: read `docs/design-brief.md` (the source of truth) and `docs/frontend-design.md` (how it maps to code) before any UI work.** Calm, dense, ink-and-bone, one navy accent, brass highlight for unread/status dots only, rows and dividers instead of cards, Geist at 13px, 150ms ease-out, light and dark from one token scale, channel identity as small badges only. Use the tokens and base components, never raw colours, and run the brief's anti-slop checklist on every screen. A change that departs from the brief updates the brief in the same PR, with the human's agreement.
+
+Load these skills with the Skill tool **before** designing or writing UI, not after. They are part of the work, not optional polish. The brief decides the direction; the skills help execute it.
+1. **`frontend-design:frontend-design`**: work within the direction in `docs/design-brief.md`: do not pick a new aesthetic. Use it for layout, hierarchy and detail. No templated defaults.
 2. **`modern-web-guidance:modern-web-guidance`**: run it first for HTML, CSS and client-side JS (forms, dialogs, layout, motion, Core Web Vitals). Prefer native platform features over libraries.
 3. **Web design guidelines** (accessibility, forms, focus, contrast, touch targets, reduced motion, responsive layout): run `design:accessibility-review` (WCAG 2.1 AA) on every new or changed screen before the PR. If a dedicated web-design-guidelines skill is installed, load it too.
 4. **React and Next.js best practices:** first read the guide for the installed version in `frontend/node_modules/next/dist/docs/` (see `frontend/AGENTS.md`; this Next.js differs from older versions). Server Components by default, `"use client"` only where state or browser APIs need it, data access inside `<Suspense>` boundaries (Cache Components are on), no request waterfalls, server actions for mutations, `next/image` and `next/font`, no `any`. If a React/Next best-practices skill is installed, load it too.
@@ -235,7 +237,7 @@ Follow in order. Stop and ask the human at any "stop" line.
    - [ ] README updated if an endpoint, table or pipeline changed
    - [ ] Tenant data is scoped to the organization
    - [ ] `docker compose up --build` still works if the change affects running the app
-   - [ ] Frontend change: design, web-guidance, accessibility, React/Next and `unslop` skills used and listed in the PR, and the flow checked in a running app
+   - [ ] Frontend change: follows `docs/design-brief.md` (tokens only, anti-slop checklist run); design, web-guidance, accessibility, React/Next and `unslop` skills used and listed in the PR, and the flow checked in a running app
 8. **Push and open the PR** against `develop`: title is a conventional commit, body has `Closes #<n>` (it will not auto-close, see Branch model), the pattern, and what was run. Draft first, ready when the issue's "Done when" list is complete and CI is green.
 9. **Review.** A different collaborator approves with their own account. Never approve your own work or act as another account on its work. Wait for every required check to be green; do not merge on pending.
 10. **Merge.** Squash-merge into `develop` (merge commits are not allowed there), done by the author or `Mutiur03`. Then `git fetch --prune && git switch develop && git pull --ff-only && git branch -d <branch>`.

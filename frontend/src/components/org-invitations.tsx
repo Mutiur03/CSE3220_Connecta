@@ -53,25 +53,27 @@ export default function OrgInvitations({
       />
 
       {rows.length === 0 ? (
-        <p className="text-sm text-ink-muted">No invitations yet.</p>
+        <p className="text-sm text-secondary">No invitations yet.</p>
       ) : (
         <>
-          <ul className="flex flex-col gap-3 sm:hidden">
+          <ul className="flex flex-col divide-y divide-line-subtle border-y border-line sm:hidden">
             {rows.map(({ invitation, status }) => (
-              <li
-                key={invitation.id}
-                className="flex flex-col gap-3 rounded-card border border-line bg-surface p-4"
-              >
+              <li key={invitation.id} className="flex flex-col gap-3 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <p className="min-w-0 break-all font-medium">
                     {invitation.email}
                   </p>
-                  <Badge tone={invitationBadgeTone(status)}>{status}</Badge>
+                  <Badge
+                    tone={invitationBadgeTone(status)}
+                    dot={status === "Pending"}
+                  >
+                    {status}
+                  </Badge>
                 </div>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                  <dt className="text-ink-muted">Role</dt>
+                  <dt className="text-secondary">Role</dt>
                   <dd>{ROLE_LABELS[invitation.role]}</dd>
-                  <dt className="text-ink-muted">Expires</dt>
+                  <dt className="text-secondary">Expires</dt>
                   <dd>{formatDate(invitation.expiresAt)}</dd>
                 </dl>
                 {invitation.status === "PENDING" && (
@@ -83,7 +85,7 @@ export default function OrgInvitations({
 
           <TableScroll label="Invitations" className="hidden sm:block">
             <table className={tableClass}>
-              <thead className="border-b border-line text-ink-muted">
+              <thead className="border-b border-line text-secondary">
                 <tr>
                   <th scope="col" className="py-2 pr-4 font-medium">
                     Email
@@ -106,19 +108,24 @@ export default function OrgInvitations({
                 {rows.map(({ invitation, status }) => (
                   <tr
                     key={invitation.id}
-                    className="border-b border-line align-top"
+                    className="border-b border-line-subtle align-top hover:bg-hover"
                   >
-                    <td className="py-3 pr-4">{invitation.email}</td>
-                    <td className="py-3 pr-4">
+                    <td className="py-2.5 pr-4">{invitation.email}</td>
+                    <td className="py-2.5 pr-4">
                       {ROLE_LABELS[invitation.role]}
                     </td>
-                    <td className="py-3 pr-4">
-                      <Badge tone={invitationBadgeTone(status)}>{status}</Badge>
+                    <td className="py-2.5 pr-4">
+                      <Badge
+                        tone={invitationBadgeTone(status)}
+                        dot={status === "Pending"}
+                      >
+                        {status}
+                      </Badge>
                     </td>
-                    <td className="py-3 pr-4 text-ink-muted">
+                    <td className="py-2.5 pr-4 text-secondary">
                       {formatDate(invitation.expiresAt)}
                     </td>
-                    <td className="py-3">
+                    <td className="py-2.5">
                       {invitation.status === "PENDING" && (
                         <RevokeButton orgId={orgId} invitation={invitation} />
                       )}

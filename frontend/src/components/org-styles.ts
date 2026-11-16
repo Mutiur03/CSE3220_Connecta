@@ -8,4 +8,5 @@ export const buttonClass = (
   tone: "primary" | "neutral" | "danger" = "neutral",
 ) => buttonClasses(tone === "neutral" ? "secondary" : tone);
 
-export const tableClass = "w-full min-w-[32rem] text-left text-sm text-ink";
+export const tableClass =
+  "w-full min-w-[32rem] text-left text-sm tabular-nums text-primary";

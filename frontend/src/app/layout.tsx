@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import AppHeader from "@/components/app-header";
+import AppRail from "@/components/app-rail";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
@@ -32,9 +32,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="min-h-full flex flex-col">
-        <AppHeader />
-        {children}
+      <body className="min-h-dvh">
+        <div className="flex min-h-dvh flex-col min-[800px]:flex-row">
+          <AppRail />
+          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        </div>
       </body>
     </html>
   );

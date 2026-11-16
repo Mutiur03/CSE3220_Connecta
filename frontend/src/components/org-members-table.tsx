@@ -85,28 +85,28 @@ function RemoveControl({ orgId, member, rights }: RowProps) {
 function MemberCards({ orgId, members, callerRole, callerUserId }: Props) {
   const roleOptions = assignableRoles(callerRole);
   return (
-    <ul className="flex flex-col divide-y divide-line border-y border-line md:hidden">
+    <ul className="flex flex-col divide-y divide-line-subtle border-y border-line md:hidden">
       {members.map((member) => {
         const rights = rowRights(callerRole, callerUserId, member);
         const row = { orgId, member, roleOptions, rights };
         return (
-          <li key={member.membershipId} className="flex flex-col gap-3 py-4">
+          <li key={member.membershipId} className="flex flex-col gap-3 py-3">
             <div className="flex min-w-0 flex-col gap-0.5">
-              <p className="font-medium text-ink">
+              <p className="font-medium text-primary">
                 {member.name}
                 {rights.isSelf && (
-                  <span className="ml-2 text-caption text-ink-muted">
+                  <span className="ml-2 text-caption text-secondary">
                     (you)
                   </span>
                 )}
               </p>
-              <p className="break-all text-sm text-ink-muted">{member.email}</p>
+              <p className="break-all text-sm text-secondary">{member.email}</p>
             </div>
             <div className="flex flex-col items-start gap-3">
               <RoleControl {...row} />
               <RemoveControl {...row} />
             </div>
-            <p className="text-caption text-ink-muted">
+            <p className="text-caption text-secondary">
               Joined {formatDate(member.joinedAt)}
             </p>
           </li>
@@ -122,7 +122,7 @@ function MemberTable({ orgId, members, callerRole, callerUserId }: Props) {
   return (
     <TableScroll label="Members">
       <table className={tableClass}>
-        <thead className="border-b border-line text-ink-muted">
+        <thead className="border-b border-line text-secondary">
           <tr>
             <th scope="col" className="py-2 pr-4 font-medium">
               Name
@@ -148,24 +148,24 @@ function MemberTable({ orgId, members, callerRole, callerUserId }: Props) {
             return (
               <tr
                 key={member.membershipId}
-                className="border-b border-line align-top"
+                className="border-b border-line-subtle align-top hover:bg-hover"
               >
-                <td className="py-3 pr-4 font-medium">
+                <td className="py-2.5 pr-4 font-medium">
                   {member.name}
                   {rights.isSelf && (
-                    <span className="ml-2 text-caption text-ink-muted">
+                    <span className="ml-2 text-caption text-secondary">
                       (you)
                     </span>
                   )}
                 </td>
-                <td className="py-3 pr-4 text-ink-muted">{member.email}</td>
-                <td className="py-3 pr-4">
+                <td className="py-2.5 pr-4 text-secondary">{member.email}</td>
+                <td className="py-2.5 pr-4">
                   <RoleControl {...row} />
                 </td>
-                <td className="py-3 pr-4 text-ink-muted">
+                <td className="py-2.5 pr-4 text-secondary">
                   {formatDate(member.joinedAt)}
                 </td>
-                <td className="py-3">
+                <td className="py-2.5">
                   <RemoveControl {...row} />
                 </td>
               </tr>

@@ -40,22 +40,30 @@ const NON_TEXT = 3;
 
 // [foreground token, background token, minimum ratio]
 const PAIRS: Array<[string, string, number]> = [
-  ["ink", "canvas", TEXT],
-  ["ink", "surface", TEXT],
-  ["ink-muted", "canvas", TEXT],
-  ["ink-muted", "surface", TEXT],
-  ["ink-muted", "hover", TEXT],
+  ["primary", "app", TEXT],
+  ["primary", "surface", TEXT],
+  ["primary", "selected", TEXT],
+  ["secondary", "app", TEXT],
+  ["secondary", "surface", TEXT],
+  ["secondary", "hover", TEXT],
+  ["secondary", "selected", TEXT],
   ["danger", "surface", TEXT],
   ["danger", "hover", TEXT],
+  ["success", "hover", TEXT],
+  ["accent", "hover", TEXT],
+  ["primary", "hover", TEXT],
   ["success", "surface", TEXT],
   ["accent", "surface", TEXT],
+  ["accent", "selected", TEXT],
   ["accent-ink", "accent", TEXT],
   ["accent-ink", "accent-hover", TEXT],
   ["on-danger", "danger-solid", TEXT],
   ["line-strong", "surface", NON_TEXT],
-  ["line-strong", "canvas", NON_TEXT],
+  ["line-strong", "app", NON_TEXT],
   ["focus", "surface", NON_TEXT],
-  ["focus", "canvas", NON_TEXT],
+  ["focus", "app", NON_TEXT],
+  ["highlight", "surface", NON_TEXT],
+  ["highlight", "app", NON_TEXT],
 ];
 
 describe.each(Object.entries(palettes))("%s palette contrast", (_, tokens) => {

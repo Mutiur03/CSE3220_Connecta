@@ -17,7 +17,7 @@ export default function AppError({
         <h1 className="text-display font-semibold tracking-tight">
           Something went wrong
         </h1>
-        <p className="text-ink-muted">
+        <p className="text-secondary">
           This page could not load. Try again, or go to home if it keeps
           failing.
         </p>
