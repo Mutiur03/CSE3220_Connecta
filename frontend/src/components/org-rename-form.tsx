@@ -1,8 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import type { OrgActionState } from "@/lib/org-actions";
-import { buttonClass, fieldClass } from "./org-styles";
+import { alertText } from "@/lib/org-form-state";
+import { Alert } from "./ui/alert";
+import { Button } from "./ui/button";
+import { Field } from "./ui/field";
+import { useFocusInvalidField } from "./use-focus-invalid-field";
 
 type Props = {
   action: (
@@ -14,45 +18,32 @@ type Props = {
 
 export default function OrgRenameForm({ action, name }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  useFocusInvalidField(formRef, state.errors);
+  const alert = alertText(state);
 
   return (
     <form
+      ref={formRef}
       action={formAction}
       noValidate
       className="flex max-w-md flex-col gap-3"
     >
-      <div className="flex flex-col gap-1">
-        <label htmlFor="rename-org" className="text-sm font-medium">
-          Organization name
-        </label>
-        <input
-          id="rename-org"
-          name="name"
-          maxLength={100}
-          defaultValue={state.values?.name ?? name}
-          aria-invalid={state.errors?.name ? true : undefined}
-          aria-describedby={state.errors?.name ? "rename-org-error" : undefined}
-          className={fieldClass}
-        />
-        {state.errors?.name && (
-          <p id="rename-org-error" className="text-sm text-red-600">
-            {state.errors.name}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={pending} className={buttonClass()}>
+      <Field
+        id="rename-org"
+        name="name"
+        label="Organization name"
+        maxLength={100}
+        defaultValue={state.values?.name ?? name}
+        error={state.errors?.name}
+      />
+      <div>
+        <Button type="submit" disabled={pending}>
           {pending ? "Saving…" : "Save name"}
-        </button>
-        <p role="alert" className="text-sm text-red-600">
-          {state.message}
-        </p>
-        {state.notice && (
-          <p role="status" className="text-sm text-zinc-500">
-            {state.notice}
-          </p>
-        )}
+        </Button>
       </div>
+      {alert && <Alert tone="danger">{alert}</Alert>}
+      {state.notice && <Alert tone="success">{state.notice}</Alert>}
     </form>
   );
 }

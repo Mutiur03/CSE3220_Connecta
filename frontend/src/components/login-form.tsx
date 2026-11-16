@@ -1,75 +1,61 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { login, type LoginState } from "@/lib/auth-actions";
-
-const field =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 aria-invalid:border-red-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 
 export default function LoginForm({ next = "" }: { next?: string }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, action, pending] = useActionState<LoginState, FormData>(
     login,
     {},
   );
 
+  // A failed submit moves focus to the field to fix, so the error is announced. A wrong password
+  // is not a field error; the form clears the password, so focus goes there.
+  useEffect(() => {
+    if (!state.errors && !state.message) return;
+    const name = state.errors?.email ? "email" : "password";
+    const field = formRef.current?.elements.namedItem(name);
+    if (field instanceof HTMLInputElement) field.focus();
+  }, [state]);
+
   return (
-    <form action={action} noValidate className="flex w-full flex-col gap-4">
+    <form
+      ref={formRef}
+      action={action}
+      noValidate
+      aria-busy={pending || undefined}
+      className="flex w-full flex-col gap-4"
+    >
       {/* Validated by the login action (safeRedirectPath) before any redirect. */}
       <input type="hidden" name="next" value={next} />
-      <div className="flex flex-col gap-1">
-        <label htmlFor="email" className="text-sm font-medium">
-          Email
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          defaultValue={state.email}
-          aria-invalid={state.errors?.email ? true : undefined}
-          aria-describedby={state.errors?.email ? "email-error" : undefined}
-          className={field}
-        />
-        {state.errors?.email && (
-          <p id="email-error" className="text-sm text-red-600">
-            {state.errors.email}
-          </p>
-        )}
-      </div>
+      <Field
+        id="email"
+        name="email"
+        type="email"
+        label="Email"
+        autoComplete="email"
+        defaultValue={state.email}
+        error={state.errors?.email}
+      />
+      <Field
+        id="password"
+        name="password"
+        type="password"
+        label="Password"
+        autoComplete="current-password"
+        error={state.errors?.password}
+      />
 
-      <div className="flex flex-col gap-1">
-        <label htmlFor="password" className="text-sm font-medium">
-          Password
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          aria-invalid={state.errors?.password ? true : undefined}
-          aria-describedby={
-            state.errors?.password ? "password-error" : undefined
-          }
-          className={field}
-        />
-        {state.errors?.password && (
-          <p id="password-error" className="text-sm text-red-600">
-            {state.errors.password}
-          </p>
-        )}
-      </div>
-
-      <p role="alert" className="min-h-5 text-sm text-red-600">
+      <p role="alert" className="min-h-5 text-sm text-danger">
         {state.message}
       </p>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-md bg-zinc-900 px-4 py-2 font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-      >
+      <Button type="submit" variant="primary" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }

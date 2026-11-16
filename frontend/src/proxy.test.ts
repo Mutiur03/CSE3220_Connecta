@@ -42,6 +42,25 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBe(`${SIGNED_OUT}/`);
   });
 
+  it("sends a signed-in visitor on /login to their next path", () => {
+    const response = run("/login?next=%2Forganizations%3Fpage%3D2", SIGNED_IN);
+    expect(response.headers.get("location")).toBe(
+      `${SIGNED_OUT}/organizations?page=2`,
+    );
+  });
+
+  it("does not send a signed-in visitor back to /login from /login", () => {
+    const response = run("/login?next=%2Flogin%3Fnext%3D%2Finbox", SIGNED_IN);
+    expect(response.headers.get("location")).toBe(`${SIGNED_OUT}/`);
+  });
+
+  it("keeps a signed-in visitor on /login when the backend was unreachable", () => {
+    const response = run("/login?reason=unavailable", {
+      cookie: "refresh_token=r",
+    });
+    expect(response.headers.get("location")).toBeNull();
+  });
+
   it("passes a signed-in visitor through", () => {
     expect(run("/inbox", SIGNED_IN).headers.get("location")).toBeNull();
   });
