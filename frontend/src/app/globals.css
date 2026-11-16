@@ -3,47 +3,37 @@
 /*
  * Design tokens (see docs/frontend-design.md). Components use roles
  * (bg-surface, text-ink, border-line-strong), never raw zinc or red literals.
- * Light values are the default; the prefers-color-scheme block swaps them.
+ * Each token holds a light and a dark value (see light-dark() below).
  * Every text/background and boundary pair is checked in
  * src/lib/design-tokens.test.ts.
  */
+/* light-dark() picks the first value in a light scheme, the second in a dark one. The scheme
+ * follows the OS unless the theme toggle pins data-theme on <html>. */
 :root {
   color-scheme: light dark;
-  --canvas: #f6f7f5;
-  --surface: #ffffff;
-  --hover: #eef0ed;
-  --ink: #1d2321;
-  --ink-muted: #56605c;
-  --line: #e1e5e2;
-  --line-strong: #6f7873;
-  --accent: #0d6b66;
-  --accent-hover: #0a5752;
-  --accent-ink: #ffffff;
-  --focus: #0d6b66;
-  --danger: #b42318;
-  --danger-solid: #b42318;
-  --on-danger: #ffffff;
-  --success: #1f7a45;
+  --canvas: light-dark(#f6f7f5, #0f1312);
+  --surface: light-dark(#ffffff, #161c1a);
+  --hover: light-dark(#eef0ed, #1e2624);
+  --ink: light-dark(#1d2321, #e6ebe8);
+  --ink-muted: light-dark(#56605c, #a3aca8);
+  --line: light-dark(#e1e5e2, #27302d);
+  --line-strong: light-dark(#6f7873, #85908b);
+  --accent: light-dark(#0d6b66, #6cc3bb);
+  --accent-hover: light-dark(#0a5752, #9ddbd5);
+  --accent-ink: light-dark(#ffffff, #0b1412);
+  --focus: light-dark(#0d6b66, #6cc3bb);
+  --danger: light-dark(#b42318, #ff8a80);
+  --danger-solid: light-dark(#b42318, #c2362f);
+  --on-danger: light-dark(#ffffff, #ffffff);
+  --success: light-dark(#1f7a45, #6fd29a);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #0f1312;
-    --surface: #161c1a;
-    --hover: #1e2624;
-    --ink: #e6ebe8;
-    --ink-muted: #a3aca8;
-    --line: #27302d;
-    --line-strong: #85908b;
-    --accent: #6cc3bb;
-    --accent-hover: #9ddbd5;
-    --accent-ink: #0b1412;
-    --focus: #6cc3bb;
-    --danger: #ff8a80;
-    --danger-solid: #c2362f;
-    --on-danger: #ffffff;
-    --success: #6fd29a;
-  }
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -92,4 +82,26 @@
     color: var(--ink);
     font-family: var(--font-sans);
   }
+}
+
+/* The theme toggle shows the action for the scheme in use, and needs no JS to stay right when
+ * the OS scheme changes. Default (light) shows "switch to dark". */
+.theme-to-light {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-to-dark {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .theme-to-light {
+    display: inline-flex;
+  }
+}
+
+:root[data-theme="dark"] .theme-to-dark {
+  display: none;
+}
+:root[data-theme="dark"] .theme-to-light {
+  display: inline-flex;
 }

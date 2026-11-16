@@ -3,24 +3,22 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // Guards the WCAG 2.1 AA contrast of the token pairs in globals.css, in both
-// the light (default) and dark (prefers-color-scheme) palettes.
+// the light and dark halves of each light-dark() token.
 
 const css = readFileSync(
   fileURLToPath(new URL("../app/globals.css", import.meta.url)),
   "utf8",
 );
 
-const DARK_MARKER = "@media (prefers-color-scheme: dark)";
-const [lightSource, darkSource = ""] = css.split(DARK_MARKER);
-
-function readTokens(source: string): Record<string, string> {
-  const tokens: Record<string, string> = {};
-  for (const [, name, hex] of source.matchAll(
-    /--([a-z-]+):\s*(#[0-9a-f]{6})/gi,
-  )) {
-    tokens[name] = hex;
-  }
-  return tokens;
+const palettes: Record<"light" | "dark", Record<string, string>> = {
+  light: {},
+  dark: {},
+};
+for (const [, name, light, dark] of css.matchAll(
+  /--([a-z-]+):\s*light-dark\((#[0-9a-f]{6}),\s*(#[0-9a-f]{6})\)/gi,
+)) {
+  palettes.light[name] = light;
+  palettes.dark[name] = dark;
 }
 
 function luminance(hex: string): number {
@@ -59,11 +57,6 @@ const PAIRS: Array<[string, string, number]> = [
   ["focus", "surface", NON_TEXT],
   ["focus", "canvas", NON_TEXT],
 ];
-
-const palettes = {
-  light: readTokens(lightSource),
-  dark: readTokens(darkSource),
-};
 
 describe.each(Object.entries(palettes))("%s palette contrast", (_, tokens) => {
   it.each(PAIRS)("%s on %s meets %s:1", (fg, bg, min) => {
