@@ -82,14 +82,14 @@ async function OrganizationHeader({ params }: { params: RouteParams }) {
       <header className="flex flex-col gap-2">
         <Link
           href="/organizations"
-          className="text-sm text-ink-muted underline-offset-4 hover:underline"
+          className="text-sm text-secondary underline-offset-4 hover:underline"
         >
           All organizations
         </Link>
         <h1 className="text-display font-semibold tracking-tight">
           {organization.name}
         </h1>
-        <p className="text-sm text-ink-muted">
+        <p className="text-sm text-secondary">
           Slug <code>{organization.slug}</code> · Your role: {ROLE_LABELS[role]}
         </p>
       </header>
@@ -99,7 +99,7 @@ async function OrganizationHeader({ params }: { params: RouteParams }) {
           aria-labelledby="rename-heading"
           className="flex flex-col gap-3"
         >
-          <h2 id="rename-heading" className="text-lg font-medium">
+          <h2 id="rename-heading" className="text-lg font-semibold">
             Name
           </h2>
           <OrgRenameForm
@@ -142,7 +142,7 @@ async function MembersSection({
 
   return (
     <section aria-labelledby="members-heading" className="flex flex-col gap-3">
-      <h2 id="members-heading" className="text-lg font-medium">
+      <h2 id="members-heading" className="text-lg font-semibold">
         Members
       </h2>
       <OrgMembersTable
@@ -152,7 +152,7 @@ async function MembersSection({
         callerUserId={user.id}
       />
       {range && (
-        <p className="text-sm text-ink-muted tabular-nums">
+        <p className="text-sm text-secondary tabular-nums">
           Showing {range.from}–{range.to} of {members.totalElements} members
         </p>
       )}
@@ -202,7 +202,7 @@ async function InvitationsSection({
       aria-labelledby="invitations-heading"
       className="flex flex-col gap-3"
     >
-      <h2 id="invitations-heading" className="text-lg font-medium">
+      <h2 id="invitations-heading" className="text-lg font-semibold">
         Invitations
       </h2>
       <OrgInvitations
@@ -211,7 +211,7 @@ async function InvitationsSection({
         roleOptions={assignableRoles(role)}
       />
       {range && (
-        <p className="text-sm text-ink-muted tabular-nums">
+        <p className="text-sm text-secondary tabular-nums">
           Showing {range.from}–{range.to} of {invitations.totalElements}{" "}
           invitations
         </p>
@@ -237,10 +237,10 @@ async function DeleteSection({ params }: { params: RouteParams }) {
       aria-labelledby="delete-heading"
       className="flex flex-col gap-3 border-t border-line pt-6"
     >
-      <h2 id="delete-heading" className="text-lg font-medium">
+      <h2 id="delete-heading" className="text-lg font-semibold">
         Delete organization
       </h2>
-      <p className="text-sm text-ink-muted">
+      <p className="text-sm text-secondary">
         Deletes the organization and all its memberships and invitations.
       </p>
       <OrgActionButton

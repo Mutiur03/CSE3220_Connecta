@@ -29,7 +29,7 @@ export default function OrganizationsPage({
         <h1 className="text-display font-semibold tracking-tight">
           Organizations
         </h1>
-        <p className="text-ink-muted">Teams you belong to.</p>
+        <p className="text-secondary">Teams you belong to.</p>
       </header>
 
       <Suspense fallback={<OrgSectionSkeleton label="your organizations" />}>
@@ -40,10 +40,10 @@ export default function OrganizationsPage({
         aria-labelledby="create-org-heading"
         className="flex flex-col gap-3"
       >
-        <h2 id="create-org-heading" className="text-lg font-medium">
+        <h2 id="create-org-heading" className="text-lg font-semibold">
           Create an organization
         </h2>
-        <p className="text-sm text-ink-muted">You become its owner.</p>
+        <p className="text-sm text-secondary">You become its owner.</p>
         <OrgCreateForm />
       </section>
     </>
@@ -63,11 +63,11 @@ async function OrganizationList({
 
   return (
     <section aria-labelledby="org-list-heading" className="flex flex-col gap-3">
-      <h2 id="org-list-heading" className="text-lg font-medium">
+      <h2 id="org-list-heading" className="text-lg font-semibold">
         Your organizations
       </h2>
       {result.content.length === 0 ? (
-        <p className="text-ink-muted">
+        <p className="text-secondary">
           You are not in an organization yet. Create one below or{" "}
           <Link
             href="/invitations/accept"
@@ -78,19 +78,19 @@ async function OrganizationList({
           .
         </p>
       ) : (
-        <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+        <ul className="divide-y divide-line-subtle border-y border-line">
           {result.content.map((organization) => (
             <li
               key={organization.id}
-              className="flex flex-wrap items-center gap-x-4 gap-y-1 p-4"
+              className="relative flex flex-wrap items-center gap-x-4 gap-y-1 py-3 hover:bg-hover"
             >
               <Link
                 href={`/organizations/${organization.id}`}
-                className="font-medium underline-offset-4 hover:underline"
+                className="font-medium after:absolute after:inset-0"
               >
                 {organization.name}
               </Link>
-              <span className="text-sm text-ink-muted">
+              <span className="text-sm text-secondary">
                 {organization.slug}
               </span>
               <span className="ml-auto">

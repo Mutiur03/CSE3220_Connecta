@@ -33,12 +33,12 @@ export default function OrgPagination({
       ) : (
         <span
           aria-disabled="true"
-          className={`${buttonClasses("secondary")} text-ink-muted opacity-60`}
+          className={`${buttonClasses("secondary")} text-secondary opacity-60`}
         >
           Previous
         </span>
       )}
-      <p className="text-ink-muted tabular-nums">
+      <p className="text-secondary tabular-nums">
         Page {page + 1} of {pageCount}
       </p>
       {nextHref ? (
@@ -48,7 +48,7 @@ export default function OrgPagination({
       ) : (
         <span
           aria-disabled="true"
-          className={`${buttonClasses("secondary")} text-ink-muted opacity-60`}
+          className={`${buttonClasses("secondary")} text-secondary opacity-60`}
         >
           Next
         </span>

@@ -18,7 +18,7 @@ export default function GlobalError({
             <h1 className="text-display font-semibold tracking-tight">
               Connecta could not load
             </h1>
-            <p className="text-ink-muted">
+            <p className="text-secondary">
               Something stopped the app from starting. Try again in a moment.
             </p>
           </div>

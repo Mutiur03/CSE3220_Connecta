@@ -8,7 +8,7 @@ import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Field } from "./ui/field";
 import OrgTokenBox from "./org-token-box";
-import { fieldClass } from "./org-styles";
+import { Select } from "./ui/select";
 import { useFocusInvalidField } from "./use-focus-invalid-field";
 
 type Props = {
@@ -46,24 +46,26 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label htmlFor="invite-role" className="text-sm font-medium text-ink">
+          <label
+            htmlFor="invite-role"
+            className="text-sm font-medium text-primary"
+          >
             Role
           </label>
-          <select
+          <Select
             id="invite-role"
             name="role"
             defaultValue={
               state.values?.role ?? roleOptions[roleOptions.length - 1]
             }
             aria-invalid={state.errors?.role ? true : undefined}
-            className={fieldClass}
           >
             {roleOptions.map((role) => (
               <option key={role} value={role}>
                 {ROLE_LABELS[role]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <Button
           type="submit"

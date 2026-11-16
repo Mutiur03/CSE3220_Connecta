@@ -6,10 +6,10 @@ export const metadata: Metadata = { title: { absolute: "Home · Connecta" } };
 
 export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 p-6 sm:p-8">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-6 sm:p-8">
       <div className="flex flex-col gap-1">
         <h1 className="text-display font-semibold tracking-tight">Home</h1>
-        <p className="text-ink-muted">Your account in Connecta.</p>
+        <p className="text-secondary">Your account in Connecta.</p>
       </div>
       <Suspense fallback={<UserPanelSkeleton />}>
         <UserPanel />

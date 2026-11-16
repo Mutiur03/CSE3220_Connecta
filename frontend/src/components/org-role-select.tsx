@@ -5,7 +5,7 @@ import type { OrgActionState } from "@/lib/org-actions";
 import { isOrgRole, ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
-import { fieldClasses } from "./ui/classes";
+import { Select } from "./ui/select";
 
 type Props = {
   action: (
@@ -55,7 +55,7 @@ export default function OrgRoleSelect({
     <div className="flex flex-col gap-2">
       <form action={formAction} className="flex flex-wrap items-center gap-2">
         <div className="w-40 max-w-full">
-          <select
+          <Select
             name="role"
             value={picked}
             aria-label={label}
@@ -64,14 +64,13 @@ export default function OrgRoleSelect({
               const value = event.currentTarget.value;
               if (isOrgRole(value)) setPicked(value);
             }}
-            className={fieldClasses}
           >
             {options.map((role) => (
               <option key={role} value={role}>
                 {ROLE_LABELS[role]}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <Button
           type="submit"

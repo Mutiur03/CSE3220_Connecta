@@ -12,7 +12,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 
 import { ApiError } from "@/lib/api";
 import { ACCESS_COOKIE } from "@/lib/session-cookies";
-import { signedInUser } from "./app-header";
+import { signedInUser } from "./app-rail";
 
 const user = { id: "1", email: "a@b.co", fullName: "A", roles: ["AGENT"] };
 

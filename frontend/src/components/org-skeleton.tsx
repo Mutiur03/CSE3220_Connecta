@@ -6,9 +6,11 @@ const ROWS = [0, 1, 2];
 
 function SkeletonRows() {
   return (
-    <div className="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">
+    <div className="flex flex-col divide-y divide-line-subtle border-y border-line">
       {ROWS.map((row) => (
-        <div key={row} className={`h-9 w-full ${BAR}`} />
+        <div key={row} className="flex h-11 items-center">
+          <div className={`h-3 w-1/3 ${BAR}`} />
+        </div>
       ))}
     </div>
   );

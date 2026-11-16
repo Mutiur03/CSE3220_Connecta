@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { copyText } from "@/lib/copy-text";
 import { Button } from "./ui/button";
-import { Card } from "./ui/card";
+import { Panel } from "./ui/panel";
 import { Field } from "./ui/field";
 
 type CopyStatus = "idle" | "copied" | "failed";
@@ -23,7 +23,7 @@ export default function OrgTokenBox({ token }: { token: string }) {
   }
 
   return (
-    <Card className="flex max-w-xl flex-col gap-3 p-4">
+    <Panel className="flex max-w-xl flex-col gap-3">
       <p className="text-sm font-medium">
         Copy this token now. It is shown only once.
       </p>
@@ -48,10 +48,10 @@ export default function OrgTokenBox({ token }: { token: string }) {
       >
         {STATUS_TEXT[copyStatus]}
       </p>
-      <p className="text-caption text-ink-muted">
+      <p className="text-caption text-secondary">
         Nothing is emailed. Share the token with the invitee, who pastes it at
         /invitations/accept.
       </p>
-    </Card>
+    </Panel>
   );
 }
