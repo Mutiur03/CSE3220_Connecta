@@ -4,6 +4,7 @@ import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
 import com.connecta.backend.auth.dto.TokenResponse;
 import com.connecta.backend.auth.dto.UserResponse;
+import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
 import java.util.UUID;
@@ -32,14 +33,18 @@ public class AuthService {
         this.dummyHash = passwordEncoder.encode("not-a-real-password");
     }
 
+    /** Signup makes an ADMIN. Agents come only from invitations. Closed until the first-run setup is done. */
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        if (!users.ownerExists()) {
+            throw new SetupRequiredException();
+        }
         String email = User.normalizeEmail(request.email());
         if (users.emailExists(email)) {
             throw new EmailAlreadyUsedException();
         }
         try {
-            User user = users.createAgent(email, passwordEncoder.encode(request.password()), request.fullName());
+            User user = users.create(Roles.ADMIN, email, passwordEncoder.encode(request.password()), request.fullName());
             return UserResponse.from(user);
         } catch (DataIntegrityViolationException e) {
             // A concurrent duplicate surfaces here, as a 409, and not at commit.
@@ -87,6 +92,12 @@ public class AuthService {
     @Transactional
     public void logout(String refreshToken) {
         refreshTokens.revoke(refreshToken);
+    }
+
+    /** Signs a user in without a password check, for flows that already proved who they are (an invitation token). */
+    @Transactional
+    public TokenResponse startSession(User user) {
+        return tokensFor(user, refreshTokens.issue(user));
     }
 
     private TokenResponse tokensFor(User user, String refreshToken) {

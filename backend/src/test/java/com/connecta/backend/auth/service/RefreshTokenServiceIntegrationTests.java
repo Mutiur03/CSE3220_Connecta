@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
 import com.connecta.backend.auth.dto.TokenResponse;
+import com.connecta.backend.setup.service.SetupService;
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
 import com.connecta.backend.support.RandomJwtSecret;
 import com.connecta.backend.support.TestClock;
@@ -53,7 +54,13 @@ class RefreshTokenServiceIntegrationTests {
     @Autowired
     RefreshTokenRepository tokens;
 
+    @Autowired
+    SetupService setup;
+
     private TokenResponse registerAndLogin(String email) {
+        if (setup.status().setupRequired()) {
+            setup.completeSetup(new RegisterRequest("owner@example.com", "correct-password", "Owner"));
+        }
         auth.register(new RegisterRequest(email, "correct-password", "Jane"));
         return auth.login(new LoginRequest(email, "correct-password"));
     }

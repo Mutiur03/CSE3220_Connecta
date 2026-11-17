@@ -111,6 +111,17 @@ class SecurityConfigIntegrationTests {
         void publicEndpointsIgnoreABadToken() throws Exception {
             mvc.perform(get("/actuator/health").header("Authorization", "Bearer not.a.jwt"))
                     .andExpect(status().isOk());
+            mvc.perform(get("/api/setup/status").header("Authorization", "Bearer not.a.jwt"))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        void theOwnerOnlyOrganizationListRejectsAdminsAndAgents() throws Exception {
+            mvc.perform(get("/api/admin/organizations").header("Authorization",
+                            TestTokens.bearer(jwtProperties, TestUsers.user("a@example.com", Roles.ADMIN))))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get("/api/admin/organizations"))
+                    .andExpect(status().isUnauthorized());
         }
     }
 

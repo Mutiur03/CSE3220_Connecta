@@ -4,6 +4,7 @@ import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
+import com.connecta.backend.auth.service.SetupRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,8 +13,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice(basePackageClasses = AuthController.class)
 class AuthExceptionHandler {
 
-    @ExceptionHandler(EmailAlreadyUsedException.class)
-    ProblemDetail emailAlreadyUsed(EmailAlreadyUsedException e) {
+    @ExceptionHandler({EmailAlreadyUsedException.class, SetupRequiredException.class})
+    ProblemDetail conflict(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
     }
 
