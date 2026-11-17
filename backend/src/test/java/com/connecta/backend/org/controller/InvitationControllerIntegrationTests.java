@@ -171,10 +171,10 @@ class InvitationControllerIntegrationTests {
     class Create {
 
         @Test
-        void anOwnerInvitesAnAdminAndGetsTheTokenOnceWithALocation() throws Exception {
+        void anAdminInvitesAnAdminAndGetsTheTokenOnceWithALocation() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
             String invitee = "invitee" + UUID.randomUUID() + "@example.com";
 
             String body = mvc.perform(json(post(invitesPath(acme)).header(AUTH, bearer(owner)),
@@ -204,15 +204,16 @@ class InvitationControllerIntegrationTests {
         }
 
         @Test
-        void anAdminCannotInviteAnOwner() throws Exception {
+        void inviteeRoleOwnerIsABadRequest() throws Exception {
+            // OWNER is the system owner, never an organization role.
             User admin = newUser();
             Organization acme = organization("Acme");
             join(acme, admin, Roles.ADMIN);
 
             mvc.perform(json(post(invitesPath(acme)).header(AUTH, bearer(admin)),
-                            inviteBody("boss@example.com", Roles.OWNER)))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.status").value(403));
+                            inviteBody("boss@example.com", "OWNER")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.role").exists());
             assertTrue(invitations.findAll().stream()
                     .noneMatch(i -> i.getOrganization().getId().equals(acme.getId())));
         }
@@ -363,7 +364,7 @@ class InvitationControllerIntegrationTests {
             User owner = newUser();
             User agent = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
             join(acme, agent, Roles.AGENT);
             Invitation pending = storedPending(acme, owner, "x@example.com", "token-agent");
 
@@ -378,7 +379,7 @@ class InvitationControllerIntegrationTests {
             Organization mine = organization("Mine");
             Organization theirs = organization("Theirs");
             join(mine, admin, Roles.ADMIN);
-            join(theirs, newUser(), Roles.OWNER);
+            join(theirs, newUser(), Roles.ADMIN);
             Invitation foreign = storedPending(theirs, admin, "y@example.com", "token-foreign");
 
             mvc.perform(delete(invitesPath(mine) + "/" + foreign.getId()).header(AUTH, bearer(admin)))

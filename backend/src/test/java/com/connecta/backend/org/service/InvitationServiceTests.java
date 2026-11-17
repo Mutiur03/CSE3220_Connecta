@@ -1,6 +1,7 @@
 package com.connecta.backend.org.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -146,7 +147,7 @@ class InvitationServiceTests {
         }
 
         @Test
-        void publishesAnInvitationCreatedEventWithoutTheToken() {
+        void publishesAnInvitationCreatedEventForTheMailListener() {
             callerHoldsRole(Roles.ADMIN);
             when(tenants.hasAtLeast(any(Membership.class), any(String.class))).thenReturn(true);
             when(tokens.issue()).thenReturn(new InvitationTokenGenerator.Issued(RAW_TOKEN, TOKEN_HASH));
@@ -164,7 +165,11 @@ class InvitationServiceTests {
             assertEquals(organizationId, event.getValue().organizationId());
             assertEquals(EMAIL, event.getValue().email());
             assertEquals(Roles.AGENT, event.getValue().role());
+            assertEquals("Acme", event.getValue().organizationName());
+            assertEquals(admin.getFullName(), event.getValue().inviterName());
+            assertEquals(RAW_TOKEN, event.getValue().token());
             assertNotNull(event.getValue().invitationId());
+            assertFalse(event.getValue().toString().contains(RAW_TOKEN));
         }
 
         @Test

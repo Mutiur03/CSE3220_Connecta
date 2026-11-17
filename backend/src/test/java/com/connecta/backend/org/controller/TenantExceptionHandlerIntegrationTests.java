@@ -115,7 +115,7 @@ class TenantExceptionHandlerIntegrationTests {
         void higherRoleIsAllowedOnAPathThatNeedsAdmin() throws Exception {
             User user = newUser();
             Organization org = newOrganization();
-            join(user, org, Roles.OWNER);
+            join(user, org, Roles.ADMIN);
 
             mvc.perform(get(ADMIN_PATH.formatted(org.getId())).header("Authorization", bearer(user)))
                     .andExpect(status().isOk());
@@ -125,7 +125,7 @@ class TenantExceptionHandlerIntegrationTests {
         void nonMemberGets404WithTheSameBodyAsAnUnknownOrganization() throws Exception {
             User user = newUser();
             Organization someoneElses = newOrganization();
-            join(newUser(), someoneElses, Roles.OWNER);
+            join(newUser(), someoneElses, Roles.ADMIN);
 
             String otherTenant = mvc.perform(get(MEMBER_PATH.formatted(someoneElses.getId()))
                             .header("Authorization", bearer(user)))

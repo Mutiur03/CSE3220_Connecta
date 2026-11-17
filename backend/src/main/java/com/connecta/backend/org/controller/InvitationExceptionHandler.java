@@ -1,5 +1,6 @@
 package com.connecta.backend.org.controller;
 
+import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.org.domain.InvitationAlreadyAcceptedException;
 import com.connecta.backend.org.domain.InvitationNotAcceptableException;
 import com.connecta.backend.org.service.AlreadyMemberException;
@@ -23,7 +24,7 @@ class InvitationExceptionHandler {
     }
 
     @ExceptionHandler({DuplicateInvitationException.class, AlreadyMemberException.class,
-        InvitationAlreadyAcceptedException.class})
+        InvitationAlreadyAcceptedException.class, EmailAlreadyUsedException.class})
     ProblemDetail conflict(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
     }
