@@ -1,7 +1,8 @@
 package com.connecta.backend;
 
-import org.springframework.boot.SpringApplication;
+import me.paulschwarz.springdotenv.spring.DotenvApplicationInitializer;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 @SpringBootApplication
@@ -9,7 +10,10 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 public class BackendApplication {
 
     public static void main(String[] args) {
-    	SpringApplication.run(BackendApplication.class, args);
+        // spring-dotenv is not auto-registered in Spring Boot 4, so load ./.env explicitly.
+        new SpringApplicationBuilder(BackendApplication.class)
+                .initializers(new DotenvApplicationInitializer())
+                .run(args);
     }
 
 }
