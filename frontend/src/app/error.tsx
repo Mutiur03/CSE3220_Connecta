@@ -12,11 +12,9 @@ export default function AppError({
   retry: () => void;
 }) {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6 sm:p-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-display font-semibold tracking-tight">
-          Something went wrong
-        </h1>
+        <h1 className="text-display font-medium">Something went wrong</h1>
         <p className="text-secondary">
           This page could not load. Try again, or go to home if it keeps
           failing.

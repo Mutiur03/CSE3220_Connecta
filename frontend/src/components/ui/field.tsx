@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes } from "react";
+import type { InputHTMLAttributes, ReactNode } from "react";
 import { fieldClasses } from "./classes";
 
 type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
@@ -6,6 +6,8 @@ type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   hint?: string;
   error?: string;
+  /** A control that sits inside the right edge of the input (show or hide a password). */
+  trailing?: ReactNode;
 };
 
 export function Field({
@@ -13,6 +15,7 @@ export function Field({
   label,
   hint,
   error,
+  trailing,
   className,
   ...props
 }: FieldProps) {
@@ -25,13 +28,18 @@ export function Field({
       <label htmlFor={id} className="text-sm font-medium text-primary">
         {label}
       </label>
-      <input
-        {...props}
-        id={id}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy}
-        className={[fieldClasses, className].filter(Boolean).join(" ")}
-      />
+      <div className="relative">
+        <input
+          {...props}
+          id={id}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          className={[fieldClasses, trailing && "pr-16", className]
+            .filter(Boolean)
+            .join(" ")}
+        />
+        {trailing}
+      </div>
       {hint && (
         <p id={hintId} className="text-caption text-secondary">
           {hint}

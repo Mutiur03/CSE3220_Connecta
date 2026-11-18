@@ -1,35 +1,48 @@
 // Pure class-string builders for the base components. No React here, so the
 // org-styles helpers and server components can share them.
 
-export type ButtonTone = "primary" | "secondary" | "danger";
+export type ButtonTone = "primary" | "secondary" | "danger" | "destructive";
 export type BadgeTone = "neutral" | "accent" | "success" | "danger";
 export type AlertTone = "info" | "success" | "danger";
 
 const BUTTON_BASE =
-  "inline-flex items-center justify-center rounded-control px-3 py-1 text-sm font-medium transition-colors duration-150 ease-out disabled:opacity-60 motion-reduce:transition-none pointer-coarse:min-h-11";
+  "inline-flex items-center justify-center gap-2 rounded-control text-sm font-medium whitespace-nowrap transition-[background-color,color,scale] duration-150 ease-out active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100 pointer-coarse:min-h-11";
 
 const BUTTON_TONES: Record<ButtonTone, string> = {
-  primary: "bg-accent text-accent-ink hover:bg-accent-hover",
-  secondary: "border border-line-strong text-primary hover:bg-hover",
-  danger: "border border-line-strong text-danger hover:bg-hover",
+  primary: "bg-primary text-surface hover:bg-primary/85",
+  secondary: "border border-line bg-surface text-primary hover:bg-hover",
+  destructive: "bg-danger-solid text-on-danger hover:bg-danger-solid/85",
+  danger:
+    "border border-line bg-surface text-danger hover:border-danger/50 hover:bg-danger/8",
 };
 
-export const buttonClasses = (tone: ButtonTone = "secondary") =>
-  `${BUTTON_BASE} ${BUTTON_TONES[tone]}`;
+export type ButtonSize = "md" | "sm";
+
+// md lines up with a field (40px); sm is for buttons that sit inside a table row.
+const BUTTON_SIZES: Record<ButtonSize, string> = {
+  md: "min-h-10 px-4",
+  sm: "min-h-8 px-3",
+};
+
+export const buttonClasses = (
+  tone: ButtonTone = "secondary",
+  size: ButtonSize = "md",
+) => `${BUTTON_BASE} ${BUTTON_SIZES[size]} ${BUTTON_TONES[tone]}`;
 
 export const fieldClasses =
-  "w-full min-w-0 rounded-control border border-line-strong bg-surface px-3 py-1 text-sm text-primary placeholder:text-secondary aria-invalid:border-danger pointer-coarse:min-h-11";
+  "min-h-10 w-full min-w-0 rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-primary transition-colors duration-150 ease-out placeholder:text-secondary hover:border-secondary motion-reduce:transition-none aria-invalid:border-danger pointer-coarse:min-h-11";
 
-// Badges are full-radius tags on bg-hover; the tone only changes the text colour.
+// Badges are full-radius tags. Neutral sits on bg-hover; success and danger are a 12% tint of
+// their own colour, the way a change reads on a stat ("+38%", "-67%").
 const BADGE_TONES: Record<BadgeTone, string> = {
-  neutral: "text-secondary",
-  accent: "text-accent",
-  success: "text-success",
-  danger: "text-danger",
+  neutral: "bg-hover text-secondary",
+  accent: "bg-accent/12 text-accent",
+  success: "bg-success/12 text-success",
+  danger: "bg-danger/12 text-danger",
 };
 
 export const badgeClasses = (tone: BadgeTone = "neutral") =>
-  `inline-flex items-center rounded-full bg-hover px-2 py-0.5 text-caption font-medium ${BADGE_TONES[tone]}`;
+  `inline-flex items-center rounded-full px-2 py-0.5 text-caption font-medium ${BADGE_TONES[tone]}`;
 
 const ALERT_TONES: Record<AlertTone, string> = {
   info: "border-line-strong text-primary",
@@ -45,4 +58,6 @@ export const alertClasses = (tone: AlertTone = "info") =>
 export const panelClasses =
   "rounded-panel border border-line bg-surface p-4 text-primary";
 
-export const tableScrollClasses = "overflow-x-auto rounded-control";
+// A table sits in the same bordered panel as the list rows, so its edges are rounded and padded.
+export const tableScrollClasses =
+  "overflow-x-auto rounded-panel border border-line bg-surface";
