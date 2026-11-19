@@ -18,9 +18,11 @@ type Props = {
 function RevokeButton({
   orgId,
   invitation,
+  size = "md",
 }: {
   orgId: string;
   invitation: Invitation;
+  size?: "md" | "sm";
 }) {
   return (
     <OrgActionButton
@@ -30,6 +32,7 @@ function RevokeButton({
       ariaLabel={`Revoke invitation for ${invitation.email}`}
       confirm={`Revoke the invitation for ${invitation.email}? Its token will stop working.`}
       tone="danger"
+      size={size}
     />
   );
 }
@@ -87,19 +90,19 @@ export default function OrgInvitations({
             <table className={tableClass}>
               <thead className="border-b border-line text-secondary">
                 <tr>
-                  <th scope="col" className="py-2 pr-4 font-medium">
+                  <th scope="col" className="px-4 py-2 font-medium">
                     Email
                   </th>
-                  <th scope="col" className="py-2 pr-4 font-medium">
+                  <th scope="col" className="px-4 py-2 font-medium">
                     Role
                   </th>
-                  <th scope="col" className="py-2 pr-4 font-medium">
+                  <th scope="col" className="px-4 py-2 font-medium">
                     Status
                   </th>
-                  <th scope="col" className="py-2 pr-4 font-medium">
+                  <th scope="col" className="px-4 py-2 font-medium">
                     Expires
                   </th>
-                  <th scope="col" className="py-2 font-medium">
+                  <th scope="col" className="px-4 py-2 text-right font-medium">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
@@ -108,13 +111,15 @@ export default function OrgInvitations({
                 {rows.map(({ invitation, status }) => (
                   <tr
                     key={invitation.id}
-                    className="border-b border-line-subtle align-top hover:bg-hover"
+                    className="h-14 border-b border-line-subtle transition-colors last:border-b-0 hover:bg-hover/60"
                   >
-                    <td className="py-2.5 pr-4">{invitation.email}</td>
-                    <td className="py-2.5 pr-4">
+                    <td className="px-4 py-2 align-middle">
+                      {invitation.email}
+                    </td>
+                    <td className="px-4 py-2 align-middle">
                       {ROLE_LABELS[invitation.role]}
                     </td>
-                    <td className="py-2.5 pr-4">
+                    <td className="px-4 py-2 align-middle">
                       <Badge
                         tone={invitationBadgeTone(status)}
                         dot={status === "Pending"}
@@ -122,13 +127,19 @@ export default function OrgInvitations({
                         {status}
                       </Badge>
                     </td>
-                    <td className="py-2.5 pr-4 text-secondary">
+                    <td className="px-4 py-2 align-middle text-secondary">
                       {formatDate(invitation.expiresAt)}
                     </td>
-                    <td className="py-2.5">
-                      {invitation.status === "PENDING" && (
-                        <RevokeButton orgId={orgId} invitation={invitation} />
-                      )}
+                    <td className="px-4 py-2 align-middle">
+                      <div className="flex justify-end">
+                        {invitation.status === "PENDING" && (
+                          <RevokeButton
+                            orgId={orgId}
+                            invitation={invitation}
+                            size="sm"
+                          />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

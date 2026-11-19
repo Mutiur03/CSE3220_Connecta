@@ -42,39 +42,43 @@ beforeEach(() => {
 });
 
 describe("createOrganization", () => {
-  it("returns field errors without calling the API", async () => {
-    const state = await createOrganization(
-      {},
-      form({ name: "", slug: "Bad Slug" }),
-    );
+  it("returns a name error without calling the API", async () => {
+    const state = await createOrganization({}, form({ name: "" }));
     expect(state.errors?.name).toBeDefined();
-    expect(state.errors?.slug).toBeDefined();
     expect(api.createOrganization).not.toHaveBeenCalled();
   });
 
-  it("redirects to the new organization on success", async () => {
+  it("rejects a name with no letters or digits", async () => {
+    const state = await createOrganization({}, form({ name: "!!!" }));
+    expect(state.errors?.name).toBe("Use at least one letter or digit.");
+  });
+
+  it("derives the slug from the name and redirects on success", async () => {
     api.createOrganization.mockResolvedValue({ id: ORG_ID });
     await expect(
-      createOrganization({}, form({ name: "Acme", slug: "acme" })),
+      createOrganization({}, form({ name: "Acme Studio" })),
     ).rejects.toThrow(`NEXT_REDIRECT /organizations/${ORG_ID}`);
     expect(api.createOrganization).toHaveBeenCalledWith("access", {
-      name: "Acme",
-      slug: "acme",
+      name: "Acme Studio",
+      slug: "acme-studio",
     });
   });
 
-  it("shows the backend detail when the slug is taken", async () => {
-    api.createOrganization.mockRejectedValue(
-      new ApiError(409, "Slug is taken"),
-    );
-    const state = await createOrganization(
-      {},
-      form({ name: "Acme", slug: "acme" }),
-    );
-    expect(state).toEqual({
-      message: "Slug is taken",
-      values: { name: "Acme", slug: "acme" },
-    });
+  it("retries with a short suffix when the slug is taken", async () => {
+    api.createOrganization
+      .mockRejectedValueOnce(new ApiError(409, "Slug is taken"))
+      .mockResolvedValueOnce({ id: ORG_ID });
+    await expect(
+      createOrganization({}, form({ name: "Acme" })),
+    ).rejects.toThrow(`NEXT_REDIRECT /organizations/${ORG_ID}`);
+    const retry = api.createOrganization.mock.calls[1][1];
+    expect(retry.slug).toMatch(/^acme-[a-z0-9]{1,4}$/);
+  });
+
+  it("shows the backend detail for any other failure", async () => {
+    api.createOrganization.mockRejectedValue(new ApiError(422, "Not allowed"));
+    const state = await createOrganization({}, form({ name: "Acme" }));
+    expect(state).toEqual({ message: "Not allowed", values: { name: "Acme" } });
   });
 });
 

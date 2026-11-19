@@ -7,7 +7,7 @@ export default function OrganizationsLayout({
   children: ReactNode;
 }) {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-6 sm:p-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-6 sm:p-8">
       {children}
     </main>
   );

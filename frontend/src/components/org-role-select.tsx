@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import type { OrgActionState } from "@/lib/org-actions";
 import { isOrgRole, ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
 import { Alert } from "./ui/alert";
-import { Button } from "./ui/button";
+import { Button, PendingLabel } from "./ui/button";
 import { Select } from "./ui/select";
 
 type Props = {
@@ -77,7 +77,7 @@ export default function OrgRoleSelect({
           disabled={!canSaveRole(picked, currentRole, pending)}
           aria-label={saveLabel(label)}
         >
-          {pending ? "Saving…" : "Save"}
+          <PendingLabel pending={pending} busy={"Saving…"} idle={"Save"} />
         </Button>
       </form>
       {state.message && <Alert tone="danger">{state.message}</Alert>}

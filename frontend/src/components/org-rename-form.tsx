@@ -4,7 +4,7 @@ import { useActionState, useRef } from "react";
 import type { OrgActionState } from "@/lib/org-actions";
 import { alertText } from "@/lib/org-form-state";
 import { Alert } from "./ui/alert";
-import { Button } from "./ui/button";
+import { Button, PendingLabel } from "./ui/button";
 import { Field } from "./ui/field";
 import { useFocusInvalidField } from "./use-focus-invalid-field";
 
@@ -39,7 +39,7 @@ export default function OrgRenameForm({ action, name }: Props) {
       />
       <div>
         <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Save name"}
+          <PendingLabel pending={pending} busy={"Saving…"} idle={"Save name"} />
         </Button>
       </div>
       {alert && <Alert tone="danger">{alert}</Alert>}

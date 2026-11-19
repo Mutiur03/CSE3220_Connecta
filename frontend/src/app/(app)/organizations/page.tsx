@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
-import OrgCreateForm from "@/components/org-create-form";
+import { ChevronRightIcon } from "@/components/icons";
+import { PageHeader } from "@/components/ui/page-header";
 import OrgPagination from "@/components/org-pagination";
 import OrgRoleBadge from "@/components/org-role-badge";
-import { OrgSectionSkeleton } from "@/components/org-skeleton";
 import { listOrganizations } from "@/lib/org-api";
 import {
   ORG_PAGE_SIZE,
@@ -25,27 +24,9 @@ export default function OrganizationsPage({
 }) {
   return (
     <>
-      <header className="flex flex-col gap-1">
-        <h1 className="text-display font-semibold tracking-tight">
-          Organizations
-        </h1>
-        <p className="text-secondary">Teams you belong to.</p>
-      </header>
+      <PageHeader title="Organizations" description="Teams you belong to" />
 
-      <Suspense fallback={<OrgSectionSkeleton label="your organizations" />}>
-        <OrganizationList searchParams={searchParams} />
-      </Suspense>
-
-      <section
-        aria-labelledby="create-org-heading"
-        className="flex flex-col gap-3"
-      >
-        <h2 id="create-org-heading" className="text-lg font-semibold">
-          Create an organization
-        </h2>
-        <p className="text-sm text-secondary">You become its owner.</p>
-        <OrgCreateForm />
-      </section>
+      <OrganizationList searchParams={searchParams} />
     </>
   );
 }
@@ -63,12 +44,13 @@ async function OrganizationList({
 
   return (
     <section aria-labelledby="org-list-heading" className="flex flex-col gap-3">
-      <h2 id="org-list-heading" className="text-lg font-semibold">
+      <h2 id="org-list-heading" className="text-lg font-medium">
         Your organizations
       </h2>
       {result.content.length === 0 ? (
         <p className="text-secondary">
-          You are not in an organization yet. Create one below or{" "}
+          You are not in an organization yet. Create one from the organization
+          menu or{" "}
           <Link
             href="/invitations/accept"
             className="text-accent underline-offset-4 hover:underline"
@@ -78,24 +60,31 @@ async function OrganizationList({
           .
         </p>
       ) : (
-        <ul className="divide-y divide-line-subtle border-y border-line">
+        <ul className="divide-y divide-line-subtle overflow-hidden rounded-panel border border-line bg-surface">
           {result.content.map((organization) => (
             <li
               key={organization.id}
-              className="relative flex flex-wrap items-center gap-x-4 gap-y-1 py-3 hover:bg-hover"
+              className="group relative flex items-center gap-3 px-2 py-3 transition-colors duration-150 ease-out hover:bg-hover motion-reduce:transition-none"
             >
-              <Link
-                href={`/organizations/${organization.id}`}
-                className="font-medium after:absolute after:inset-0"
+              <span
+                aria-hidden="true"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-hover text-caption font-medium text-secondary transition-colors duration-150 group-hover:bg-surface"
               >
-                {organization.name}
-              </Link>
-              <span className="text-sm text-secondary">
-                {organization.slug}
+                {organization.name.slice(0, 2).toUpperCase()}
               </span>
-              <span className="ml-auto">
-                <OrgRoleBadge role={organization.callerRole} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <Link
+                  href={`/organizations/${organization.id}`}
+                  className="truncate font-medium after:absolute after:inset-0"
+                >
+                  {organization.name}
+                </Link>
+                <span className="truncate text-sm text-secondary">
+                  {organization.slug}
+                </span>
               </span>
+              <OrgRoleBadge role={organization.callerRole} />
+              <ChevronRightIcon />
             </li>
           ))}
         </ul>

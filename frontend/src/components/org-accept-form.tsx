@@ -4,7 +4,7 @@ import { useActionState, useRef } from "react";
 import { acceptInvitation, type OrgActionState } from "@/lib/org-actions";
 import { alertText } from "@/lib/org-form-state";
 import { Alert } from "./ui/alert";
-import { Button } from "./ui/button";
+import { Button, PendingLabel } from "./ui/button";
 import { Field } from "./ui/field";
 import { useFocusInvalidField } from "./use-focus-invalid-field";
 
@@ -38,8 +38,12 @@ export default function OrgAcceptForm({
         className="font-mono text-xs"
       />
       {alert && <Alert tone="danger">{alert}</Alert>}
-      <Button type="submit" variant="primary" disabled={pending}>
-        {pending ? "Accepting…" : "Accept invitation"}
+      <Button type="submit" variant="primary" block disabled={pending}>
+        <PendingLabel
+          pending={pending}
+          busy={"Accepting…"}
+          idle={"Accept invitation"}
+        />
       </Button>
     </form>
   );
