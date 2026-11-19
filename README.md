@@ -64,6 +64,23 @@ Backend layers per feature: `controller` (REST controllers + exception handlers)
 ## Roles
 Roles are `OWNER > ADMIN > AGENT` (a higher role inherits the lower ones). They map to the course roles as `OWNER` = ADMIN, `ADMIN` = SELLER, `AGENT` = BUYER, giving three-tier role-based access. Default is deny: every path needs a valid access token unless it is on the public list in `SecurityConfig`.
 
+| Role | Who | How they get it |
+|---|---|---|
+| `OWNER` | The system (SaaS) owner. Not tied to any organization; sees all of them through `/api/admin/organizations`. | The first-run setup on a fresh database. Exactly one. |
+| `ADMIN` | A customer who runs organizations: creates them, invites people, manages members. | Signs up at `/signup`, or is invited as an admin of an organization. |
+| `AGENT` | A team member who works in an organization's inbox. | Invitation only. There is no agent signup. |
+
+Inside an organization only `ADMIN` and `AGENT` exist (the `memberships` role). An organization always keeps at least one `ADMIN`.
+
+### First-run flow
+1. On a fresh database `GET /api/setup/status` answers `{"setupRequired": true}` and the web app sends every visitor to `/setup`.
+2. `POST /api/setup` creates the `OWNER` once. After that it answers `409` to everyone and the web app sends `/setup` visitors to `/signup`. Signup (`POST /api/auth/register`) is closed (`409`) until the owner exists.
+3. Anyone can then sign up; they become an `ADMIN`, create an organization and invite their team.
+4. An invitation is emailed over SMTP as a link to `/invitations/accept?token=...`. An invited person without an account chooses a name and password on that page (`POST /api/invitations/accept-new`) and joins with the invited role; someone with an account signs in and accepts (`POST /api/invitations/accept`). The invite response also returns the raw link token once, as a fallback for the admin to copy.
+
+### Invitation email (SMTP)
+Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_STARTTLS`, `MAIL_FROM` and `FRONTEND_URL` (see `.env.example`). With a blank `SMTP_HOST` nothing is sent and only a log line says so; the invitation is still created. A mail outage never undoes an invitation. For local work, `docker compose --profile dev up -d mailpit` starts Mailpit (SMTP `localhost:1025`, inbox <http://localhost:8025>), which the `dev` profile already points at.
+
 Tenant isolation: an organization's data is reached only through `org.service.TenantAccessService`. A user who is not a member of an organization gets `404` (the same answer as an unknown organization), and a member whose role is too low gets `403`.
 
 ## ER diagram
@@ -93,6 +110,10 @@ erDiagram
         uuid organization_id FK
         uuid user_id FK
         uuid role_id FK }
+    USERS ||--o| SYSTEM_SETUP : owner_of
+    SYSTEM_SETUP { smallint id PK "always 1"
+        uuid owner_id FK
+        timestamptz completed_at }
     ORGANIZATIONS ||--o{ INVITATIONS : receives
     ROLES ||--o{ INVITATIONS : offers
     USERS ||--o{ INVITATIONS : sends
@@ -104,28 +125,33 @@ erDiagram
         string token_hash UK
         string status }
 ```
-`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). More tables arrive with later milestones.
+`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 
 ## API endpoints
 | Method | Path | Access | Success | Description |
 |---|---|---|---|---|
-| POST | `/api/auth/register` | public | 201 | Create an `AGENT` account. |
+| GET | `/api/setup/status` | public | 200 | `{"setupRequired": boolean}`: true until the system `OWNER` exists. |
+| POST | `/api/setup` | public, once | 201 | Create the system `OWNER`. `409` after the first success. |
+| POST | `/api/auth/register` | public | 201 | Create an `ADMIN` account. `409` until the first-run setup is done. |
 | POST | `/api/auth/login` | public | 200 | Exchange email and password for access and refresh tokens. |
 | POST | `/api/auth/refresh` | public | 200 | Rotate the refresh token (single use). |
 | POST | `/api/auth/logout` | public | 204 | Revoke the refresh token. |
 | GET | `/api/auth/me` | authenticated | 200 | Current user. |
 | GET | `/api/organizations` | authenticated | 200 | Organizations the caller belongs to (`page`, `size` max 100). |
-| POST | `/api/organizations` | authenticated | 201 | Create an organization; the caller becomes its `OWNER`. |
+| POST | `/api/organizations` | authenticated | 201 | Create an organization; the caller becomes its `ADMIN`. |
 | GET | `/api/organizations/{id}` | member | 200 | One organization. Non-members get `404`. |
-| PATCH | `/api/organizations/{id}` | `OWNER` or `ADMIN` of it | 200 | Rename it. The slug is fixed. |
-| DELETE | `/api/organizations/{id}` | `OWNER` of it | 204 | Delete it and its memberships. |
-| POST | `/api/organizations/{id}/invitations` | `OWNER` or `ADMIN` of it | 201 | Invite an email with a role (not above the caller's own). Returns the raw token once. |
-| GET | `/api/organizations/{id}/invitations` | `OWNER` or `ADMIN` of it | 200 | List its invitations, newest first (`page`, `size` max 100). Never includes tokens. |
-| DELETE | `/api/organizations/{id}/invitations/{invitationId}` | `OWNER` or `ADMIN` of it | 204 | Revoke an invitation. An accepted one gets `409`. |
+| PATCH | `/api/organizations/{id}` | `ADMIN` of it | 200 | Rename it. The slug is fixed. |
+| DELETE | `/api/organizations/{id}` | `ADMIN` of it | 204 | Delete it and its memberships. |
+| POST | `/api/organizations/{id}/invitations` | `ADMIN` of it | 201 | Invite an email as `ADMIN` or `AGENT`. Emails the link; also returns the raw token once. |
+| GET | `/api/organizations/{id}/invitations` | `ADMIN` of it | 200 | List its invitations, newest first (`page`, `size` max 100). Never includes tokens. |
+| DELETE | `/api/organizations/{id}/invitations/{invitationId}` | `ADMIN` of it | 204 | Revoke an invitation. An accepted one gets `409`. |
+| POST | `/api/invitations/preview` | public (the token is the credential) | 200 | Invited email, organization, role, inviter and `accountExists`. Unknown, expired, revoked or used tokens all answer `404`. |
+| POST | `/api/invitations/accept-new` | public (the token is the credential) | 201 | Create the account for the invited email (global role = invited role), join, and sign in. `409` if the email has an account; `422` if expired or revoked. |
 | POST | `/api/invitations/accept` | authenticated; email must match the invitation | 200 | Accept with the token. Joins the organization with the invited role. |
 | GET | `/api/organizations/{id}/members` | any member of it | 200 | List its members with their role (`page`, `size` max 100). No password data. |
-| PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` or above of it | 200 | Change a member's role. Not above the caller's own role; the last `OWNER` cannot be demoted (`422`). |
-| DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. Same role ceiling as a change; the last `OWNER` cannot leave (`422`). |
+| PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` of it | 200 | Change a member's role (`ADMIN` or `AGENT`). The last `ADMIN` cannot be demoted (`422`). |
+| DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. The last `ADMIN` cannot leave (`422`). |
+| GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
 
@@ -133,12 +159,15 @@ Notes on the auth endpoints:
 - `/api/auth/refresh` and `/api/auth/logout` are verb-style paths by convention: they are auth actions, not resources.
 - `logout` is public by design. It revokes the refresh token in the request body, so it needs no access token.
 - Role rules: `register`, `login`, `refresh` and `logout` are public; `me` needs any authenticated role (`OWNER`, `ADMIN` or `AGENT`).
+- Error bodies for the `409`s: `{"status":409,"title":"Conflict","detail":"Setup is already complete"}`, `"Setup is required before accounts can be created"` and `"An account with this email already exists"`. The shape is always RFC 9457 `status`, `title`, `detail`.
 
 ## Run with Docker
 ```bash
 docker compose up --build
 ```
-Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. The frontend also reads `API_URL` (server-side backend address, set to `http://app:8080` in compose; defaults to `NEXT_PUBLIC_API_URL` outside Docker). Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
+Add `--profile dev` to also start Mailpit, a local mail catcher for invitation emails (inbox <http://localhost:8025>; set `SMTP_HOST=mailpit` and `SMTP_PORT=1025` in `.env`).
+
+Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. Invitation email uses `SMTP_*`, `MAIL_FROM` and `FRONTEND_URL` (non-secret defaults in compose; blank `SMTP_HOST` sends nothing). The frontend also reads `API_URL` (server-side backend address, set to `http://app:8080` in compose; defaults to `NEXT_PUBLIC_API_URL` outside Docker). Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
 
 ## Monitoring
 Actuator exposes `health` (public), and `info`, `metrics` and `prometheus` (ADMIN token required). Config lives in `ops/`:
