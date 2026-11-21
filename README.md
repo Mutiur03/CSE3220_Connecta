@@ -114,6 +114,18 @@ erDiagram
     SYSTEM_SETUP { smallint id PK "always 1"
         uuid owner_id FK
         timestamptz completed_at }
+    ORGANIZATIONS ||--o{ PRODUCT_CATEGORIES : owns
+    ORGANIZATIONS ||--o{ PRODUCTS : owns
+    PRODUCT_CATEGORIES ||--o{ PRODUCTS : groups
+    PRODUCT_CATEGORIES { uuid id PK
+        uuid organization_id FK
+        string name
+        string description }
+    PRODUCTS { uuid id PK
+        uuid organization_id FK
+        uuid category_id FK "nullable"
+        string name
+        string description }
     ORGANIZATIONS ||--o{ INVITATIONS : receives
     ROLES ||--o{ INVITATIONS : offers
     USERS ||--o{ INVITATIONS : sends
