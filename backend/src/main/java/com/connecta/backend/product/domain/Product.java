@@ -12,6 +12,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -27,6 +28,7 @@ public class Product {
 
     public static final int NAME_MAX_LENGTH = 150;
     public static final int DESCRIPTION_MAX_LENGTH = 1000;
+    public static final int SKU_MAX_LENGTH = 64;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -46,6 +48,19 @@ public class Product {
     @Column(length = DESCRIPTION_MAX_LENGTH)
     private String description;
 
+    @Column(length = SKU_MAX_LENGTH)
+    private String sku;
+
+    @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
+    private BigDecimal unitPrice;
+
+    /** Read only here: stock moves only through recorded stock movements. */
+    @Column(name = "stock_quantity", nullable = false)
+    private int stockQuantity;
+
+    @Column(name = "reorder_level", nullable = false)
+    private int reorderLevel;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -53,10 +68,27 @@ public class Product {
     private Instant updatedAt;
 
     public Product(Organization organization, ProductCategory category, String name, String description) {
+        this(organization, category, name, description, null, BigDecimal.ZERO, 0);
+    }
+
+    public Product(Organization organization, ProductCategory category, String name, String description,
+            String sku, BigDecimal unitPrice, int reorderLevel) {
         this.organization = organization;
         this.category = category;
         this.name = name.trim();
         this.description = description;
+        this.sku = normalizeSku(sku);
+        this.unitPrice = unitPrice;
+        this.reorderLevel = reorderLevel;
+    }
+
+    /** Trims a SKU; blank or null means no SKU. */
+    public static String normalizeSku(String sku) {
+        return sku == null || sku.isBlank() ? null : sku.trim();
+    }
+
+    public StockStatus stockStatus() {
+        return StockStatus.of(stockQuantity, reorderLevel);
     }
 
     /** Moves the product to a category, or removes it from its category when null. */
@@ -64,9 +96,13 @@ public class Product {
         this.category = newCategory;
     }
 
-    public void update(String newName, String newDescription) {
+    public void update(String newName, String newDescription, String newSku, BigDecimal newUnitPrice,
+            int newReorderLevel) {
         this.name = newName.trim();
         this.description = newDescription;
+        this.sku = normalizeSku(newSku);
+        this.unitPrice = newUnitPrice;
+        this.reorderLevel = newReorderLevel;
     }
 
     @PrePersist

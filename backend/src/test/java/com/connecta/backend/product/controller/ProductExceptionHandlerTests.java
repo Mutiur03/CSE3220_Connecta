@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.connecta.backend.product.service.ProductCategoryNameTakenException;
 import com.connecta.backend.product.service.ProductCategoryNotFoundException;
+import com.connecta.backend.product.service.ProductSkuTakenException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -39,6 +40,19 @@ class ProductExceptionHandlerTests {
             ProblemDetail problem = handler.nameTaken(new ProductCategoryNameTakenException());
 
             assertEquals(HttpStatus.CONFLICT.value(), problem.getStatus());
+            assertCleanBody(problem);
+        }
+    }
+
+    @Nested
+    class SkuErrors {
+
+        @Test
+        void skuTakenIsAConflictWithoutInternals() {
+            ProblemDetail problem = handler.nameTaken(new ProductSkuTakenException());
+
+            assertEquals(HttpStatus.CONFLICT.value(), problem.getStatus());
+            assertEquals("A product with this SKU already exists", problem.getDetail());
             assertCleanBody(problem);
         }
     }

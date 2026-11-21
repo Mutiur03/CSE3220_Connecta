@@ -128,7 +128,11 @@ erDiagram
         uuid organization_id FK
         uuid category_id FK "nullable"
         string name
-        string description }
+        string description
+        string sku "nullable, unique per organization ignoring case"
+        decimal unit_price
+        int stock_quantity
+        int reorder_level }
     ORGANIZATIONS ||--o{ INVITATIONS : receives
     ROLES ||--o{ INVITATIONS : offers
     USERS ||--o{ INVITATIONS : sends
@@ -166,10 +170,10 @@ erDiagram
 | GET | `/api/organizations/{id}/members` | any member of it | 200 | List its members with their role (`page`, `size` max 100). No password data. |
 | PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` of it | 200 | Change a member's role (`ADMIN` or `AGENT`). The last `ADMIN` cannot be demoted (`422`). |
 | DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. The last `ADMIN` cannot leave (`422`). |
-| GET | `/api/organizations/{id}/products` | any member | 200 | List products by name (`page`, `size` max 100). |
-| POST | `/api/organizations/{id}/products` | `ADMIN` of it | 201 | Create a product. `categoryId` is optional and must be this organization's (`404` otherwise). Duplicate name `409`. |
+| GET | `/api/organizations/{id}/products` | any member | 200 | List products by name (`page`, `size` max 100). Optional filters, combined with AND: `q` (name or SKU contains, ignoring case), `categoryId` (must be this organization's, else `404`), `stockStatus` (`IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`, else `400`). Each product shows `sku`, `unitPrice`, `stockQuantity` (read only), `reorderLevel` and `stockStatus`. |
+| POST | `/api/organizations/{id}/products` | `ADMIN` of it | 201 | Create a product. `categoryId` is optional and must be this organization's (`404` otherwise). Duplicate name or SKU (ignoring case) `409`. Optional `sku` (max 64), `unitPrice` (>= 0, 2 decimals, default 0), `reorderLevel` (>= 0, default 0). |
 | GET | `/api/organizations/{id}/products/{productId}` | any member | 200 | One product. Another organization's id gets `404`. |
-| PUT | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 200 | Replace a product. A `null` `categoryId` clears its category. |
+| PUT | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 200 | Replace a product, including `sku`, `unitPrice` and `reorderLevel`. A `null` `categoryId` clears its category. `409` on a name or SKU clash. |
 | DELETE | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 204 | Delete a product. |
 | GET | `/api/organizations/{id}/product-categories` | any member of it | 200 | List its product categories, by name (`page`, `size` max 100). |
 | POST | `/api/organizations/{id}/product-categories` | `ADMIN` of it | 201 | Create a category. `409` if the name is already used in the organization. |
