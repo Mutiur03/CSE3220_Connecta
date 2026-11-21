@@ -1,11 +1,14 @@
 package com.connecta.backend.product.service;
 
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
@@ -41,6 +44,21 @@ public class S3ProductImageStorage implements ProductImageStorage {
         DeleteObjectRequest request = DeleteObjectRequest.builder().bucket(bucket).key(key).build();
         try {
             s3.deleteObject(request);
+        } catch (SdkException e) {
+            throw new ProductImageStorageException(e);
+        }
+    }
+
+    @Override
+    public Optional<byte[]> read(UUID organizationId, String key) {
+        if (key == null || !key.startsWith(ProductImageKeys.organizationPrefix(organizationId))) {
+            return Optional.empty();
+        }
+        GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).build();
+        try {
+            return Optional.of(s3.getObjectAsBytes(request).asByteArray());
+        } catch (NoSuchKeyException e) {
+            return Optional.empty();
         } catch (SdkException e) {
             throw new ProductImageStorageException(e);
         }

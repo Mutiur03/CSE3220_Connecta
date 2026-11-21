@@ -1,5 +1,6 @@
 package com.connecta.backend.product.service;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -18,10 +19,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @ExtendWith(MockitoExtension.class)
@@ -112,6 +117,52 @@ class S3ProductImageStorageTests {
 
             ProductImageStorageException thrown = assertThrows(ProductImageStorageException.class,
                     () -> storage.delete("organizations/x/products/y/z.png"));
+
+            assertFalse(thrown.getMessage().contains(SECRET));
+        }
+    }
+
+    @Nested
+    class Read {
+
+        private final String key = "organizations/" + ORGANIZATION + "/products/" + PRODUCT + "/a.png";
+
+        @Test
+        void returnsTheObjectBytesOfAKeyInTheOrganization() {
+            when(s3.getObjectAsBytes(any(GetObjectRequest.class)))
+                    .thenReturn(ResponseBytes.fromByteArray(GetObjectResponse.builder().build(), CONTENT));
+
+            assertArrayEquals(CONTENT, storage.read(ORGANIZATION, key).orElseThrow());
+
+            ArgumentCaptor<GetObjectRequest> request = ArgumentCaptor.forClass(GetObjectRequest.class);
+            verify(s3).getObjectAsBytes(request.capture());
+            assertEquals(BUCKET, request.getValue().bucket());
+            assertEquals(key, request.getValue().key());
+        }
+
+        @Test
+        void aMissingObjectReadsAsEmpty() {
+            when(s3.getObjectAsBytes(any(GetObjectRequest.class)))
+                    .thenThrow(NoSuchKeyException.builder().message("gone").build());
+
+            assertTrue(storage.read(ORGANIZATION, key).isEmpty());
+        }
+
+        @Test
+        void anotherOrganizationsKeyReadsAsEmptyWithoutCallingS3() {
+            assertTrue(storage.read(UUID.randomUUID(), key).isEmpty());
+            assertTrue(storage.read(ORGANIZATION, null).isEmpty());
+
+            verify(s3, never()).getObjectAsBytes(any(GetObjectRequest.class));
+        }
+
+        @Test
+        void anSdkFailureBecomesADomainExceptionWithoutSecrets() {
+            when(s3.getObjectAsBytes(any(GetObjectRequest.class)))
+                    .thenThrow(SdkClientException.create("boom " + SECRET));
+
+            ProductImageStorageException thrown = assertThrows(ProductImageStorageException.class,
+                    () -> storage.read(ORGANIZATION, key));
 
             assertFalse(thrown.getMessage().contains(SECRET));
         }

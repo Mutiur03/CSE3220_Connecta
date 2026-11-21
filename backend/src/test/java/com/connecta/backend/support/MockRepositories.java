@@ -5,6 +5,7 @@ import com.connecta.backend.org.repository.InvitationRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
 import com.connecta.backend.product.repository.ProductCategoryRepository;
+import com.connecta.backend.product.repository.ProductImageRepository;
 import com.connecta.backend.product.repository.ProductRepository;
 import com.connecta.backend.product.repository.StockMovementRepository;
 import com.connecta.backend.user.repository.RoleRepository;
@@ -31,6 +32,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @MockitoBean(types = {UserRepository.class, RoleRepository.class, RefreshTokenRepository.class,
         OrganizationRepository.class, MembershipRepository.class, InvitationRepository.class,
         SystemSetupRepository.class, ProductRepository.class, ProductCategoryRepository.class,
-        StockMovementRepository.class})
+        StockMovementRepository.class,
+        ProductImageRepository.class})
 public @interface MockRepositories {
 }
