@@ -5,7 +5,7 @@ import type { OrgActionState } from "@/lib/org-actions";
 import { alertText } from "@/lib/org-form-state";
 import { ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
 import { Alert } from "./ui/alert";
-import { Button } from "./ui/button";
+import { Button, PendingLabel } from "./ui/button";
 import { Field } from "./ui/field";
 import OrgTokenBox from "./org-token-box";
 import { Select } from "./ui/select";
@@ -73,7 +73,11 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
           disabled={pending}
           className="sm:mt-6"
         >
-          {pending ? "Creating…" : "Create invitation"}
+          <PendingLabel
+            pending={pending}
+            busy={"Creating…"}
+            idle={"Create invitation"}
+          />
         </Button>
       </form>
 

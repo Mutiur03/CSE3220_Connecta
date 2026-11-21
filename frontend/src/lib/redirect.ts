@@ -11,6 +11,9 @@ export function safeRedirectPath(next: string | null | undefined): string {
 /** `reason` value on /login when the backend could not be reached during a refresh. */
 export const UNAVAILABLE_REASON = "unavailable";
 
+/** Pages for signed-out visitors; a signed-in visitor on one of them is sent on. */
+export const AUTH_PATHS = new Set(["/login", "/signup", "/setup", "/welcome"]);
+
 /**
  * Where a signed-in visitor who opens /login goes: their safe `next`, never /login itself,
  * which would bounce them back to /login forever.
@@ -18,5 +21,5 @@ export const UNAVAILABLE_REASON = "unavailable";
 export function signedInLoginTarget(next: string | null | undefined): string {
   const path = safeRedirectPath(next);
   const pathname = new URL(path, "http://localhost").pathname;
-  return pathname.replace(/\/+$/, "") === "/login" ? "/" : path;
+  return AUTH_PATHS.has(pathname.replace(/\/+$/, "")) ? "/" : path;
 }

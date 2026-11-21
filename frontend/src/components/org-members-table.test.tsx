@@ -22,18 +22,18 @@ const member = (userId: string, role: Member["role"], name = userId): Member =>
 
 describe("rowRights", () => {
   it("never offers a role change on your own row, but offers Leave", () => {
-    expect(rowRights("OWNER", "me", member("me", "OWNER"))).toEqual({
+    expect(rowRights("ADMIN", "me", member("me", "ADMIN"))).toEqual({
       isSelf: true,
       canChangeRole: false,
       canRemove: true,
     });
   });
 
-  it("lets an admin change and remove agents, not owners", () => {
+  it("lets an admin change and remove agents and other admins", () => {
     const agent = rowRights("ADMIN", "me", member("a", "AGENT"));
     expect(agent).toMatchObject({ canChangeRole: true, canRemove: true });
-    const owner = rowRights("ADMIN", "me", member("o", "OWNER"));
-    expect(owner).toMatchObject({ canChangeRole: false, canRemove: false });
+    const admin = rowRights("ADMIN", "me", member("o", "ADMIN"));
+    expect(admin).toMatchObject({ canChangeRole: true, canRemove: true });
   });
 
   it("gives an agent no controls on other rows", () => {
@@ -46,10 +46,10 @@ describe("rowRights", () => {
 
 describe("OrgMembersTable markup", () => {
   const members = [
-    member("me", "OWNER", "Mina"),
+    member("me", "ADMIN", "Mina"),
     member("ana", "AGENT", "Ana"),
   ];
-  const html = (role: "OWNER" | "AGENT") =>
+  const html = (role: "ADMIN" | "AGENT") =>
     renderToStaticMarkup(
       <OrgMembersTable
         orgId="org-1"
@@ -61,7 +61,7 @@ describe("OrgMembersTable markup", () => {
 
   it("renders one select per layout for the changeable row (card list and table)", () => {
     // CSS (md:hidden / hidden md:block) shows one copy; the other is out of the a11y tree.
-    const markup = html("OWNER");
+    const markup = html("ADMIN");
     expect(markup.match(/<select/g)).toHaveLength(2);
     expect(markup).not.toContain('aria-label="Remove Mina"');
   });
@@ -75,7 +75,7 @@ describe("OrgMembersTable markup", () => {
   });
 
   it("shows the card list below md and the table from md up", () => {
-    const markup = html("OWNER");
+    const markup = html("ADMIN");
     expect(markup).toContain("md:hidden");
     expect(markup).toContain("hidden md:block");
     expect(markup).toContain('aria-label="Members"');

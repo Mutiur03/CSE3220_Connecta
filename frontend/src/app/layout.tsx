@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import AppRail from "@/components/app-rail";
-import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { cookies } from "next/headers";
+import { parseTheme, THEME_KEY } from "@/lib/theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,23 +21,17 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { colorScheme: "light dark" };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = parseTheme((await cookies()).get(THEME_KEY)?.value);
   return (
-    // suppressHydrationWarning: the init script sets data-theme before React hydrates.
+    // suppressHydrationWarning: the theme toggle changes data-theme on the client.
     <html
       lang="en"
+      data-theme={theme}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-      </head>
-      <body className="min-h-dvh">
-        <div className="flex min-h-dvh flex-col min-[800px]:flex-row">
-          <AppRail />
-          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
-        </div>
-      </body>
+      <body className="min-h-dvh">{children}</body>
     </html>
   );
 }

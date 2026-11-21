@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   renderedTheme,
   syncTheme,
-  THEME_INIT_SCRIPT,
+  parseTheme,
   THEME_KEY,
   toggleTheme,
 } from "./theme";
@@ -88,10 +88,12 @@ describe("syncTheme", () => {
   });
 });
 
-describe("THEME_INIT_SCRIPT", () => {
-  it("reads the storage key and only accepts light or dark", () => {
-    expect(THEME_INIT_SCRIPT).toContain(`"${THEME_KEY}"`);
-    expect(THEME_INIT_SCRIPT).toContain('"light"');
-    expect(THEME_INIT_SCRIPT).toContain('"dark"');
+describe("parseTheme", () => {
+  it("accepts light and dark and nothing else", () => {
+    expect(parseTheme("light")).toBe("light");
+    expect(parseTheme("dark")).toBe("dark");
+    expect(parseTheme("sepia")).toBeUndefined();
+    expect(parseTheme(undefined)).toBeUndefined();
+    expect(parseTheme(null)).toBeUndefined();
   });
 });

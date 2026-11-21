@@ -11,14 +11,14 @@ function run(path: string, headers: Record<string, string> = {}) {
 
 describe("proxy", () => {
   it("sends a signed-out visitor to login with next = path and query", () => {
-    const response = run("/invitations/accept?token=abc_-123");
+    const response = run("/organizations/abc?tab=members");
     const location = new URL(response.headers.get("location") ?? "");
     expect(location.pathname).toBe("/login");
     expect(location.searchParams.get("next")).toBe(
-      "/invitations/accept?token=abc_-123",
+      "/organizations/abc?tab=members",
     );
     expect(response.headers.get("location")).toBe(
-      `${SIGNED_OUT}/login?next=%2Finvitations%2Faccept%3Ftoken%3Dabc_-123`,
+      `${SIGNED_OUT}/login?next=%2Forganizations%2Fabc%3Ftab%3Dmembers`,
     );
   });
 
@@ -29,8 +29,18 @@ describe("proxy", () => {
     expect(location.searchParams.get("next")).toBe("/inbox?tab=open&sort=a=b");
   });
 
-  it("does not add next for the home page", () => {
-    expect(run("/").headers.get("location")).toBe(`${SIGNED_OUT}/login`);
+  it("shows the landing page at / to a signed-out visitor, without a redirect", () => {
+    const response = run("/");
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-rewrite")).toBe(
+      `${SIGNED_OUT}/welcome`,
+    );
+  });
+
+  it("sends a signed-in visitor on /welcome home", () => {
+    expect(run("/welcome", SIGNED_IN).headers.get("location")).toBe(
+      `${SIGNED_OUT}/`,
+    );
   });
 
   it("lets a signed-out visitor load login without a redirect loop", () => {
@@ -59,6 +69,29 @@ describe("proxy", () => {
       cookie: "refresh_token=r",
     });
     expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("lets a signed-out visitor open an invitation link", () => {
+    expect(
+      run("/invitations/accept?token=abc_-123").headers.get("location"),
+    ).toBeNull();
+  });
+
+  it("lets a signed-out visitor load setup, and sends a signed-in one home", () => {
+    expect(run("/setup").headers.get("location")).toBeNull();
+    expect(run("/setup", SIGNED_IN).headers.get("location")).toBe(
+      `${SIGNED_OUT}/`,
+    );
+  });
+
+  it("lets a signed-out visitor load signup", () => {
+    expect(run("/signup").headers.get("location")).toBeNull();
+  });
+
+  it("sends a signed-in visitor on /signup to home", () => {
+    expect(run("/signup", SIGNED_IN).headers.get("location")).toBe(
+      `${SIGNED_OUT}/`,
+    );
   });
 
   it("passes a signed-in visitor through", () => {

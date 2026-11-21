@@ -5,6 +5,7 @@ const fetchMe = vi.hoisted(() => vi.fn());
 
 vi.mock("next/headers", () => ({ cookies: async () => store }));
 vi.mock("@/lib/auth-actions", () => ({ logout: vi.fn() }));
+vi.mock("@/lib/org-actions", () => ({ createOrganization: vi.fn() }));
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   fetchMe,

@@ -4,7 +4,7 @@ import { useActionState, useRef } from "react";
 import { createOrganization, type OrgActionState } from "@/lib/org-actions";
 import { alertText } from "@/lib/org-form-state";
 import { Alert } from "./ui/alert";
-import { Button } from "./ui/button";
+import { Button, PendingLabel } from "./ui/button";
 import { Field } from "./ui/field";
 import { useFocusInvalidField } from "./use-focus-invalid-field";
 
@@ -30,20 +30,16 @@ export default function OrgCreateForm() {
         label="Organization name"
         maxLength={100}
         defaultValue={state.values?.name}
+        hint="Its web address is made from the name."
         error={state.errors?.name}
       />
-      <Field
-        id="org-slug"
-        name="slug"
-        label="Slug"
-        maxLength={60}
-        defaultValue={state.values?.slug}
-        hint="Lowercase letters, digits and hyphens. It cannot be changed later."
-        error={state.errors?.slug}
-      />
       {alert && <Alert tone="danger">{alert}</Alert>}
-      <Button type="submit" variant="primary" disabled={pending}>
-        {pending ? "Creating…" : "Create organization"}
+      <Button type="submit" variant="primary" block disabled={pending}>
+        <PendingLabel
+          pending={pending}
+          busy={"Creating…"}
+          idle={"Create organization"}
+        />
       </Button>
     </form>
   );

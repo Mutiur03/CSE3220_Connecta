@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { syncTheme, THEME_KEY, toggleTheme } from "@/lib/theme";
 import { MoonIcon, SunIcon } from "./icons";
-import { RAIL_CONTROL } from "./rail-button";
+import { RAIL_CONTROL, RAIL_LABEL } from "./rail-button";
 
 // Both labelled icons are in the markup; globals.css hides the one that does not apply, so the
 // button is right on first paint and when the OS scheme changes, with no state to hydrate.
@@ -25,13 +25,13 @@ export default function ThemeToggle() {
       title="Switch theme"
       className={RAIL_CONTROL}
     >
-      <span className="theme-to-dark inline-flex">
+      <span className="theme-to-dark inline-flex items-center gap-2.5">
         <MoonIcon />
-        <span className="sr-only">Switch to dark theme</span>
+        <span className={RAIL_LABEL}>Dark theme</span>
       </span>
-      <span className="theme-to-light inline-flex">
+      <span className="theme-to-light inline-flex items-center gap-2.5">
         <SunIcon />
-        <span className="sr-only">Switch to light theme</span>
+        <span className={RAIL_LABEL}>Light theme</span>
       </span>
     </button>
   );

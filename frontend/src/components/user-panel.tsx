@@ -1,21 +1,43 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/session";
-import { ROLE_LABELS, isOrgRole } from "@/lib/org-permissions";
-import { buttonClasses } from "@/components/ui/classes";
+import { getAccessToken, getCurrentUser } from "@/lib/session";
+import { listOrganizations } from "@/lib/org-api";
+import { roleLabel } from "@/lib/org-permissions";
+import { buttonClasses, panelClasses } from "@/components/ui/classes";
 
-const ROW = "flex gap-4 py-2.5";
+const STAT = `${panelClasses} flex flex-col gap-4 p-5`;
+const ROW = "flex gap-4 px-5 py-3";
 const LABEL = "w-20 shrink-0 text-secondary";
 
-// Reads the session cookie, so it renders per request; render it inside <Suspense>.
 export default async function UserPanel() {
   const user = await getCurrentUser();
-  const roles = user.roles.map((role) =>
-    isOrgRole(role) ? ROLE_LABELS[role] : role,
-  );
+  const organizations = await listOrganizations(await getAccessToken(), 0, 1);
+  const roles = user.roles.map(roleLabel);
 
   return (
-    <div className="flex flex-col gap-6">
-      <dl className="divide-y divide-line-subtle border-y border-line">
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className={STAT}>
+          <span className="text-secondary">Organizations</span>
+          <span className="figure text-[2rem] leading-none">
+            {organizations.totalElements}
+          </span>
+          <Link
+            href="/organizations"
+            className="text-sm text-accent underline-offset-4 hover:underline"
+          >
+            View organizations
+          </Link>
+        </div>
+        <div className={STAT}>
+          <span className="text-secondary">Your role</span>
+          <span className="text-[2rem] leading-none">
+            {roles.length > 0 ? roles.join(", ") : "None"}
+          </span>
+          <span className="text-sm text-secondary">Across your account</span>
+        </div>
+      </div>
+
+      <dl className="divide-y divide-line-subtle overflow-hidden rounded-panel border border-line bg-surface">
         <div className={ROW}>
           <dt className={LABEL}>Name</dt>
           <dd className="font-medium">{user.fullName}</dd>
@@ -24,11 +46,8 @@ export default async function UserPanel() {
           <dt className={LABEL}>Email</dt>
           <dd className="min-w-0 break-all">{user.email}</dd>
         </div>
-        <div className={ROW}>
-          <dt className={LABEL}>Role</dt>
-          <dd>{roles.length > 0 ? roles.join(", ") : "None"}</dd>
-        </div>
       </dl>
+
       <div>
         <Link
           href="/organizations"
@@ -36,26 +55,6 @@ export default async function UserPanel() {
         >
           Open organizations
         </Link>
-      </div>
-    </div>
-  );
-}
-
-// Same rows as the panel, so the content does not jump when it arrives.
-export function UserPanelSkeleton() {
-  return (
-    <div role="status" className="flex flex-col">
-      <span className="sr-only">Loading your account</span>
-      <div aria-hidden="true" className="flex flex-col gap-6">
-        <div className="divide-y divide-line-subtle border-y border-line">
-          {[0, 1, 2].map((row) => (
-            <div key={row} className={`${ROW} h-[2.75rem] items-center`}>
-              <div className="h-3 w-16 rounded-control bg-hover" />
-              <div className="h-3 w-40 rounded-control bg-hover" />
-            </div>
-          ))}
-        </div>
-        <div className="h-8 w-40 rounded-control bg-hover pointer-coarse:h-11" />
       </div>
     </div>
   );

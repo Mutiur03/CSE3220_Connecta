@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import LoginForm from "@/components/login-form";
 import { Alert } from "@/components/ui/alert";
 import { UNAVAILABLE_REASON } from "@/lib/redirect";
-import { LoginFormFallback } from "./login-form-fallback";
+import { isSetupRequired } from "@/lib/setup";
+import AuthShell, { AuthSwitch } from "../auth-shell";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -18,20 +19,12 @@ export default function LoginPage({
   searchParams: Promise<LoginSearchParams>;
 }) {
   return (
-    <main className="flex flex-1 items-center justify-center p-8">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-display font-semibold tracking-tight">
-            Connecta
-          </h1>
-          <p className="text-secondary">Sign in to your inbox.</p>
-        </div>
-        {/* Reading searchParams makes the route dynamic, so it renders inside Suspense. */}
-        <Suspense fallback={<LoginFormFallback />}>
-          <LoginFormWithNext searchParams={searchParams} />
-        </Suspense>
-      </div>
-    </main>
+    <AuthShell
+      title="Sign in to Connecta"
+      description="Pick up your team's conversations where you left them"
+    >
+      <LoginFormWithNext searchParams={searchParams} />
+    </AuthShell>
   );
 }
 
@@ -40,16 +33,24 @@ async function LoginFormWithNext({
 }: {
   searchParams: Promise<LoginSearchParams>;
 }) {
+  // A system with no owner yet must be set up first.
+  if (await isSetupRequired()) redirect("/setup");
   const { next, reason } = await searchParams;
+  const target = typeof next === "string" ? next : "";
   return (
-    <>
+    <div className="flex flex-col gap-4">
       {reason === UNAVAILABLE_REASON && (
         <Alert tone="danger">
           Connecta cannot reach the server right now. Try again in a few
           minutes.
         </Alert>
       )}
-      <LoginForm next={typeof next === "string" ? next : ""} />
-    </>
+      <LoginForm next={target} />
+      <AuthSwitch
+        question="New to Connecta?"
+        href={target ? `/signup?next=${encodeURIComponent(target)}` : "/signup"}
+        action="Create an account"
+      />
+    </div>
   );
 }

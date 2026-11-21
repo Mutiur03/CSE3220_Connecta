@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import OrgActionButton from "@/components/org-action-button";
 import OrgInvitations from "@/components/org-invitations";
 import OrgMembersTable from "@/components/org-members-table";
 import OrgPagination from "@/components/org-pagination";
 import OrgRenameForm from "@/components/org-rename-form";
-import { OrgSectionSkeleton } from "@/components/org-skeleton";
 import { deleteOrganization, renameOrganization } from "@/lib/org-actions";
 import { listInvitations, listMembers } from "@/lib/org-api";
 import {
@@ -56,18 +54,10 @@ export default function OrganizationPage({
 }) {
   return (
     <>
-      <Suspense fallback={<OrgSectionSkeleton label="organization" />}>
-        <OrganizationHeader params={params} />
-      </Suspense>
-      <Suspense fallback={<OrgSectionSkeleton label="members" />}>
-        <MembersSection params={params} searchParams={searchParams} />
-      </Suspense>
-      <Suspense fallback={<OrgSectionSkeleton label="invitations" />}>
-        <InvitationsSection params={params} searchParams={searchParams} />
-      </Suspense>
-      <Suspense fallback={null}>
-        <DeleteSection params={params} />
-      </Suspense>
+      <OrganizationHeader params={params} />
+      <MembersSection params={params} searchParams={searchParams} />
+      <InvitationsSection params={params} searchParams={searchParams} />
+      <DeleteSection params={params} />
     </>
   );
 }
@@ -86,9 +76,7 @@ async function OrganizationHeader({ params }: { params: RouteParams }) {
         >
           All organizations
         </Link>
-        <h1 className="text-display font-semibold tracking-tight">
-          {organization.name}
-        </h1>
+        <h1 className="text-display font-medium">{organization.name}</h1>
         <p className="text-sm text-secondary">
           Slug <code>{organization.slug}</code> · Your role: {ROLE_LABELS[role]}
         </p>
@@ -99,7 +87,7 @@ async function OrganizationHeader({ params }: { params: RouteParams }) {
           aria-labelledby="rename-heading"
           className="flex flex-col gap-3"
         >
-          <h2 id="rename-heading" className="text-lg font-semibold">
+          <h2 id="rename-heading" className="text-lg font-medium">
             Name
           </h2>
           <OrgRenameForm
@@ -142,7 +130,7 @@ async function MembersSection({
 
   return (
     <section aria-labelledby="members-heading" className="flex flex-col gap-3">
-      <h2 id="members-heading" className="text-lg font-semibold">
+      <h2 id="members-heading" className="text-lg font-medium">
         Members
       </h2>
       <OrgMembersTable
@@ -202,7 +190,7 @@ async function InvitationsSection({
       aria-labelledby="invitations-heading"
       className="flex flex-col gap-3"
     >
-      <h2 id="invitations-heading" className="text-lg font-semibold">
+      <h2 id="invitations-heading" className="text-lg font-medium">
         Invitations
       </h2>
       <OrgInvitations
@@ -237,7 +225,7 @@ async function DeleteSection({ params }: { params: RouteParams }) {
       aria-labelledby="delete-heading"
       className="flex flex-col gap-3 border-t border-line pt-6"
     >
-      <h2 id="delete-heading" className="text-lg font-semibold">
+      <h2 id="delete-heading" className="text-lg font-medium">
         Delete organization
       </h2>
       <p className="text-sm text-secondary">

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { RAIL_CONTROL } from "./rail-button";
+import { RAIL_CONTROL, RAIL_LABEL } from "./rail-button";
 
 const ACTIVE =
-  "bg-selected text-primary before:absolute before:-left-2 before:top-2.5 before:h-5 before:w-0.5 before:rounded-full before:bg-accent max-[799px]:before:hidden";
+  "bg-selected text-primary before:absolute before:-left-3 before:top-2 before:h-5 before:w-0.5 before:rounded-full before:bg-accent max-[799px]:before:hidden";
 
 type RailLinkProps = {
   href: string;
@@ -33,7 +33,7 @@ export default function RailLink({
       className={`${RAIL_CONTROL} ${active ? ACTIVE : ""}`}
     >
       {children}
-      <span className="sr-only">{label}</span>
+      <span className={RAIL_LABEL}>{label}</span>
     </Link>
   );
 }

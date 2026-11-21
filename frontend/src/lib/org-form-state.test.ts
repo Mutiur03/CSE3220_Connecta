@@ -21,10 +21,10 @@ describe("alertText", () => {
     ).toBe("Already used.");
   });
 
-  it("falls back to the first field error so screen readers hear it", () => {
+  it("leaves field errors to their field", () => {
     expect(
       alertText({ errors: { token: "Enter the invitation token." } }),
-    ).toBe("Enter the invitation token.");
+    ).toBeUndefined();
   });
 
   it("is empty when nothing failed", () => {

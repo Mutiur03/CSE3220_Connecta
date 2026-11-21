@@ -2,17 +2,23 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { ApiError } from "./api";
 import * as orgApi from "./org-api";
 import { actionErrorMessage } from "./org-errors";
 import { isOrgRole, type OrgRole } from "./org-permissions";
 import { getAccessToken } from "./session";
 import {
   validateInviteEmail,
+  SLUG_MAX_LENGTH,
+  slugify,
   validateOrganizationName,
-  validateSlug,
 } from "./org-validation";
 
 const DASHBOARD = "/organizations";
+const SLUG_TAKEN = 409;
+
+/** The sidebar lists the caller's organizations: re-read it after one is created, left, joined or renamed. */
+const refreshSidebar = () => revalidatePath("/", "layout");
 
 /** What every organization form renders. Field errors and echoed values never carry a token. */
 export type OrgActionState = {
@@ -27,7 +33,8 @@ export type OrgActionState = {
   token?: string;
 };
 
-type Outcome<T> = { ok: true; value: T } | { ok: false; message: string };
+type Outcome<T> =
+  { ok: true; value: T } | { ok: false; message: string; status?: number };
 
 const field = (formData: FormData, name: string) =>
   String(formData.get(name) ?? "").trim();
@@ -40,7 +47,11 @@ async function attempt<T>(call: () => Promise<T>): Promise<Outcome<T>> {
   try {
     return { ok: true, value: await call() };
   } catch (error) {
-    return { ok: false, message: actionErrorMessage(error) };
+    return {
+      ok: false,
+      message: actionErrorMessage(error),
+      status: error instanceof ApiError ? error.status : undefined,
+    };
   }
 }
 
@@ -51,19 +62,29 @@ export async function createOrganization(
   formData: FormData,
 ): Promise<OrgActionState> {
   const name = field(formData, "name");
-  const slug = field(formData, "slug");
-  const values = { name, slug };
+  const values = { name };
+  const slug = slugify(name);
   const errors = {
-    name: validateOrganizationName(name),
-    slug: validateSlug(slug),
+    name:
+      validateOrganizationName(name) ??
+      (slug ? undefined : "Use at least one letter or digit."),
   };
   if (hasErrors(errors)) return { errors, values };
 
   const accessToken = await getAccessToken(DASHBOARD);
-  const result = await attempt(() =>
+  let result = await attempt(() =>
     orgApi.createOrganization(accessToken, { name, slug }),
   );
+  if (!result.ok && result.status === SLUG_TAKEN) {
+    // Another organization has this slug: keep the name, add a short suffix.
+    const suffix = Math.random().toString(36).slice(2, 6);
+    const unique = `${slug.slice(0, SLUG_MAX_LENGTH - 5)}-${suffix}`;
+    result = await attempt(() =>
+      orgApi.createOrganization(accessToken, { name, slug: unique }),
+    );
+  }
   if (!result.ok) return { message: result.message, values };
+  refreshSidebar();
   redirect(orgPath(result.value.id));
 }
 
@@ -81,7 +102,7 @@ export async function renameOrganization(
     orgApi.renameOrganization(accessToken, orgId, name),
   );
   if (!result.ok) return { message: result.message, values: { name } };
-  revalidatePath(orgPath(orgId));
+  refreshSidebar();
   return { notice: "Name saved." };
 }
 
@@ -93,6 +114,7 @@ export async function deleteOrganization(
     orgApi.deleteOrganization(accessToken, orgId),
   );
   if (!result.ok) return { message: result.message };
+  refreshSidebar();
   redirect(DASHBOARD);
 }
 
@@ -125,7 +147,10 @@ export async function removeMember(
     orgApi.removeMember(accessToken, orgId, membershipId),
   );
   if (!result.ok) return { message: result.message };
-  if (self) redirect(DASHBOARD);
+  if (self) {
+    refreshSidebar();
+    redirect(DASHBOARD);
+  }
   revalidatePath(orgPath(orgId));
   return {};
 }
@@ -189,5 +214,6 @@ export async function acceptInvitation(
     orgApi.acceptInvitation(accessToken, token),
   );
   if (!result.ok) return { message: result.message, values: { token } };
+  refreshSidebar();
   redirect(orgPath(result.value.id));
 }

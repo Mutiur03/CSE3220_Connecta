@@ -68,6 +68,49 @@ export const login = (email: string, password: string) =>
     body: { email, password },
   });
 
+export const register = (email: string, password: string, fullName: string) =>
+  request<User>("/api/auth/register", {
+    method: "POST",
+    body: { email, password, fullName },
+  });
+
+export type SetupStatus = { setupRequired: boolean };
+
+export const getSetupStatus = () => request<SetupStatus>("/api/setup/status");
+
+/** Creates the system owner. Only works once, on a fresh system. */
+export const setupOwner = (email: string, password: string, fullName: string) =>
+  request<User>("/api/setup", {
+    method: "POST",
+    body: { email, password, fullName },
+  });
+
+export type InvitationPreview = {
+  email: string;
+  organizationName: string;
+  role: string;
+  inviterName: string;
+  /** True when the invited email already has an account, so the person signs in instead. */
+  accountExists: boolean;
+};
+
+export const previewInvitation = (token: string) =>
+  request<InvitationPreview>("/api/invitations/preview", {
+    method: "POST",
+    body: { token },
+  });
+
+/** Creates the account for an invited email and joins the organization; returns a session. */
+export const acceptInvitationAsNewUser = (
+  token: string,
+  fullName: string,
+  password: string,
+) =>
+  request<Tokens>("/api/invitations/accept-new", {
+    method: "POST",
+    body: { token, fullName, password },
+  });
+
 export const refresh = (refreshToken: string) =>
   request<Tokens>("/api/auth/refresh", {
     method: "POST",

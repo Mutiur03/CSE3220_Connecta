@@ -5,7 +5,7 @@ import { getOrganization } from "@/lib/org-api";
 import { isUuid } from "@/lib/org-validation";
 import { getAccessToken, getCurrentUser } from "@/lib/session";
 
-// Each Suspense section of the organization page calls these. React's cache() runs each one once per
+// Each section of the organization page calls these. React's cache() runs each one once per
 // request, so the sections share a single /api/me and organization request.
 
 const isNotFound = (error: unknown) =>
