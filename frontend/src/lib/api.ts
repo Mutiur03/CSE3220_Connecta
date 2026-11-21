@@ -37,19 +37,29 @@ export class ApiError extends Error {
 
 export async function request<T>(
   path: string,
-  init: { method?: string; body?: unknown; accessToken?: string } = {},
+  init: {
+    method?: string;
+    body?: unknown;
+    /** A multipart body. The browser sets its Content-Type and boundary. */
+    form?: FormData;
+    accessToken?: string;
+  } = {},
 ): Promise<T> {
   const res = await fetch(`${apiBaseUrl()}${path}`, {
     method: init.method ?? "GET",
     headers: {
-      ...(init.body === undefined
+      ...(init.body === undefined || init.form
         ? {}
         : { "Content-Type": "application/json" }),
       ...(init.accessToken
         ? { Authorization: `Bearer ${init.accessToken}` }
         : {}),
     },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body),
+    body: init.form
+      ? init.form
+      : init.body === undefined
+        ? undefined
+        : JSON.stringify(init.body),
     cache: "no-store",
   });
   if (!res.ok) {

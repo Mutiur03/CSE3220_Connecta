@@ -54,7 +54,12 @@ export default function ProductTable({ orgId, products, canManage }: Props) {
               className="h-14 border-b border-line-subtle transition-colors last:border-b-0 hover:bg-hover/60"
             >
               <td className="px-4 py-2 align-middle">
-                <p className="font-medium">{product.name}</p>
+                <Link
+                  href={`/organizations/${orgId}/products/${product.id}`}
+                  className="font-medium underline-offset-4 hover:underline"
+                >
+                  {product.name}
+                </Link>
                 {product.description && (
                   <p className="max-w-md truncate text-caption text-secondary">
                     {product.description}
