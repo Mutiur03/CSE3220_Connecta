@@ -11,7 +11,7 @@ Put every file in its proper place from the first commit. A misplaced file is a 
 - `src/main/resources/`: properties and `db/migration/`. Test-only resources go in `src/test/resources/`.
 
 **Frontend** (`frontend/src/`)
-- `app/`: routes only (`page`, `layout`, route handlers, route-private pieces).
+- `app/`: routes only (`page`, `layout`, route handlers, route-private pieces). Two route groups: `(app)` is the signed-in shell with the sidebar, `(auth)` is login, signup, setup and invitation acceptance with no sidebar. A new signed-in page goes in `(app)`, a new public page in `(auth)`.
 - `components/`: shared UI components. `lib/`: non-UI code (API client, helpers).
 - Tests sit next to the file they test: `name.test.ts(x)`. End-to-end tests go in `frontend/e2e/`.
 
@@ -70,10 +70,18 @@ Commits made before this change use `<id>+<login>@users.noreply.github.com` (Mut
 - Release: when `develop` is green and demo-ready, open a PR `develop` -> `main` titled `chore: release <date or version>`, 1 approval, merged with a **merge commit** (not squash), so `main` keeps each feature commit from `develop` and shows every release as one merge point. Nobody pushes to either branch directly.
 - Both branches require a PR, 1 approval, no force push, no deletion. Merge method differs per branch (enforced by the rulesets `protect-develop` and `protect-main`): `develop` accepts squash only, `main` accepts merge commit only.
 
+## Roles and onboarding (how people get an account)
+- **OWNER** is the system owner of the SaaS: global, tied to no organization, sees every organization (`/admin/**`, `/admin/organizations` in the UI). There is exactly one owner path: `/setup` on a system that has none. It is guarded by the single-row `system_setup` table, so two simultaneous first visits cannot both win. After an owner exists `/setup` redirects to `/signup`, and `/login` and `/signup` redirect to `/setup` until then.
+- **ADMIN** is made by public `/signup`. An admin creates organizations and becomes their admin.
+- **AGENT** is never made by signup. Agents join only through an emailed invitation (`/invitations/accept?token=`). A new person creates their account on that page, an existing one signs in first.
+- **Organization roles** (`memberships`, `invitations`) are only `ADMIN` and `AGENT`. There is no org-level owner. An admin may invite another admin or an agent. The last admin of an organization cannot leave or be demoted (`LastAdminException`, 422).
+- Invitation email goes through the `InvitationMailer` interface: SMTP when `SMTP_HOST` is set, otherwise a no-op that logs "not sent" (the admin can still copy the link). Dev uses Mailpit (`docker compose --profile dev up`, inbox at `localhost:8025`). Settings: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_STARTTLS`, `MAIL_FROM`, `FRONTEND_URL` (all in `.env.example`; `prod` has no defaults for `MAIL_FROM` and `FRONTEND_URL`).
+- Dev seed data does not exist. The database starts empty; roles are the only seeded rows.
+
 ## Course requirements (graded, read before coding)
 Source: CSE 3220 lab guidelines. These are marks, and the starred items are automatic failures if missing.
 - Design patterns*: every feature uses a named pattern (Strategy, Factory, Adapter, Observer, Builder, Repository, Template Method, ...). The PR description names it. Keep `docs/design-patterns.md` listing pattern -> class -> why.
-- Role-based access*: every endpoint states its role rule (`SecurityConfig` or `@PreAuthorize`), with one allowed-role and one denied-role test. Roles are `OWNER > ADMIN > AGENT`.
+- Role-based access*: every endpoint states its role rule (`SecurityConfig` or `@PreAuthorize`), with one allowed-role and one denied-role test. Roles are `OWNER > ADMIN > AGENT` (see "Roles and onboarding").
 - Tests*: at least 20 service-layer unit tests (JUnit, Mockito) and 10 controller-layer integration tests (`@SpringBootTest`, MockMvc). Every PR with logic ships tests. They must pass in CI.
 - Docker*: `docker compose up --build` must keep working (app + PostgreSQL, configuration from environment variables only, no hardcoded credentials, `.env.example` current).
 - Deployment*: the app stays deployable to Render from `main`, with CI/CD deploying automatically.
@@ -145,10 +153,10 @@ Use a pattern only where it removes a real problem; do not wrap code in a patter
 |---|---|
 | Repository | every persistence access goes through a Spring Data repository |
 | DTO + mapper | request/response `record`s with a static `from(entity)` factory (see `auth/dto`) |
-| Strategy | conversation assignment: an `AssignmentStrategy` with round-robin, least-loaded and manual variants |
+| Strategy | invitation delivery: `InvitationMailer` with `SmtpInvitationMailer` and `NoopInvitationMailer` (built); conversation assignment: an `AssignmentStrategy` with round-robin, least-loaded and manual variants |
 | Adapter | channel providers: one `ChannelClient` interface, one adapter each for Instagram and Messenger, so the inbox never knows Meta's API |
 | Factory | picks the `ChannelClient` / `AssignmentStrategy` for an organization's settings |
-| Observer | Spring `ApplicationEventPublisher`: a new message publishes an event; assignment, notifications and live updates listen |
+| Observer | Spring `ApplicationEventPublisher`: `InvitationCreatedEvent` is sent after commit (`@TransactionalEventListener`) and the mail listener reacts (built); a new message publishes an event; assignment, notifications and live updates listen |
 | Template Method | webhook intake: shared verify -> parse -> dedupe -> persist skeleton, per-channel parsing step |
 | Chain of Responsibility | the Spring Security filter chain (already in place) |
 | Builder | test data and complex immutable objects |
@@ -191,6 +199,15 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 - Lombok is allowed (`@Getter`, `@RequiredArgsConstructor`, `@NoArgsConstructor`, `@Slf4j`, `@Builder`); keep it `optional` in the pom. Not on DTOs: use `record`.
 - Prefer `record` for DTOs and immutability. `Optional` only as a return type.
 - Frontend: TypeScript strict, no `any`, API calls only through `src/lib`, server actions for mutations, no secrets in client code.
+- Frontend UI building blocks (use them, do not re-style per page):
+  - Buttons: `Button` in `components/ui/button.tsx`. Default height 40px to match fields, `size="sm"` (32px) only inside table rows, `block` only for sign-in style forms, never a full-width bar elsewhere. Variants: `primary`, `secondary`, `danger`, `destructive` (solid red, confirm dialogs only).
+  - A label that swaps while pending uses `PendingLabel`, so the button never changes width.
+  - Never `window.confirm`, `alert` or `prompt`. A confirmation is the native `<dialog>` in `OrgActionButton` (`confirm` prop).
+  - Tables sit in `TableScroll`, which is the rounded, bordered panel. Cells have 16px side padding, rows are 56px, cells are vertically centred, row actions are right-aligned.
+  - Field errors show on the field only. The form alert line (`alertText`) shows only a failure from the action itself, never a copy of a field error.
+  - Do not ask for what can be derived: an organization slug is generated from its name on the server (`slugify`, retried with a suffix on a 409).
+  - Theme: the pinned theme is a `theme` cookie that `app/layout.tsx` turns into `<html data-theme>`, so the first paint is right. Do not add a script to apply a theme.
+  - The sidebar (`components/app-rail.tsx`) holds the organization switcher (`org-switcher.tsx`); the current organization is the one in the URL, else the `connecta_org` cookie, else the first. Actions that change the organization list call `refreshSidebar()` in `lib/org-actions.ts`.
 
 ### Testing
 - Unit tests (service layer): JUnit 5 and Mockito, no Spring context, `@Nested` per behavior. One happy path and every failure path for each public service method. Each pattern variant (every strategy, every adapter) has its own test.
@@ -200,7 +217,7 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 
 ### Docker, configuration and CI/CD
 - `backend/Dockerfile` is multi-stage: build with Maven, run on a slim JRE image as a non-root user, with a `HEALTHCHECK` on `/actuator/health`. A frontend Dockerfile follows the same idea.
-- `docker-compose.yml` runs the app, PostgreSQL and the frontend with named volumes and a `depends_on` healthcheck, and takes every credential from `.env` (documented in `.env.example`). `docker compose up --build` from a clean clone must work.
+- `docker-compose.yml` runs the app, PostgreSQL and the frontend (plus Mailpit under the `dev` profile) with named volumes and a `depends_on` healthcheck, and takes every credential from `.env` (documented in `.env.example`). `docker compose up --build` from a clean clone must work.
 - Spring profiles: `dev` (defaults, Swagger on) and `prod` (no defaults for secrets, docs off). Configuration only through environment variables or `application-*.properties`.
 - Workflows in `.github/workflows`: build and test on every PR; on push to `main` build, test and deploy to Render automatically. Maven and pnpm caches are enabled. A red build blocks the merge.
 - Observability (bonus): Actuator health, info and metrics, a Micrometer Prometheus endpoint, and a Grafana dashboard JSON committed under `ops/`.
@@ -212,7 +229,7 @@ Load these skills with the Skill tool **before** designing or writing UI, not af
 1. **`frontend-design:frontend-design`**: work within the direction in `docs/design-brief.md`: do not pick a new aesthetic. Use it for layout, hierarchy and detail. No templated defaults.
 2. **`modern-web-guidance:modern-web-guidance`**: run it first for HTML, CSS and client-side JS (forms, dialogs, layout, motion, Core Web Vitals). Prefer native platform features over libraries.
 3. **Web design guidelines** (accessibility, forms, focus, contrast, touch targets, reduced motion, responsive layout): run `design:accessibility-review` (WCAG 2.1 AA) on every new or changed screen before the PR. If a dedicated web-design-guidelines skill is installed, load it too.
-4. **React and Next.js best practices:** first read the guide for the installed version in `frontend/node_modules/next/dist/docs/` (see `frontend/AGENTS.md`; this Next.js differs from older versions). Server Components by default, `"use client"` only where state or browser APIs need it, data access inside `<Suspense>` boundaries (Cache Components are on), no request waterfalls, server actions for mutations, `next/image` and `next/font`, no `any`. If a React/Next best-practices skill is installed, load it too.
+4. **React and Next.js best practices:** first read the guide for the installed version in `frontend/node_modules/next/dist/docs/` (see `frontend/AGENTS.md`; this Next.js differs from older versions). Server Components by default, `"use client"` only where state or browser APIs need it, data fetched on the server in the page or in a Server Component, with no loading skeletons or `loading.tsx` (Cache Components are off on purpose, so pages render complete; do not turn `cacheComponents` back on without the human's agreement), no request waterfalls (use `Promise.all`), server actions for mutations, `next/image` and `next/font`, no `any`. If a React/Next best-practices skill is installed, load it too.
 5. **`unslop`:** run it on each finished screen to remove AI-looking defaults (gradients, glows, emoji labels, uneven spacing).
 6. **Prove it in the running app.** Unit tests are not enough for UI: start the stack (`docker compose up --build`, only when the human has asked for migrations to run), drive the changed flow in a browser, and check the console for errors. Say in the PR what you clicked through.
 - The PR description lists which of these skills were used and what they changed. A subagent brief for frontend work must name them so the agent loads them too.
