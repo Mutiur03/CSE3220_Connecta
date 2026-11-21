@@ -168,6 +168,11 @@ erDiagram
 | GET | `/api/organizations/{id}/products/{productId}` | any member | 200 | One product. Another organization's id gets `404`. |
 | PUT | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 200 | Replace a product. A `null` `categoryId` clears its category. |
 | DELETE | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 204 | Delete a product. |
+| GET | `/api/organizations/{id}/product-categories` | any member of it | 200 | List its product categories, by name (`page`, `size` max 100). |
+| POST | `/api/organizations/{id}/product-categories` | `ADMIN` of it | 201 | Create a category. `409` if the name is already used in the organization. |
+| GET | `/api/organizations/{id}/product-categories/{categoryId}` | any member of it | 200 | One category. Another organization's id gets `404`. |
+| PUT | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 200 | Replace a category's name and description. `409` on a name clash. |
+| DELETE | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 204 | Delete a category. Its products stay, uncategorized. |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
