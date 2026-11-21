@@ -2,6 +2,7 @@ package com.connecta.backend.product.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.support.TestUsers;
@@ -115,6 +116,104 @@ class ProductTests {
 
             TestUsers.set(product, "stockQuantity", 6);
             assertEquals(StockStatus.IN_STOCK, product.stockStatus());
+        }
+    }
+
+    @Nested
+    class ApplyMovement {
+
+        private Product withStock(int stock) {
+            Product product = new Product(ORG, null, "Shoe", null);
+            TestUsers.set(product, "stockQuantity", stock);
+            return product;
+        }
+
+        @Test
+        void receiveAddsTheQuantityAndReturnsThePositiveChange() {
+            Product product = withStock(4);
+
+            int change = product.applyMovement(StockMovementType.RECEIVE, 6);
+
+            assertEquals(10, product.getStockQuantity());
+            assertEquals(6, change);
+        }
+
+        @Test
+        void issueTakesTheQuantityAndReturnsTheNegativeChange() {
+            Product product = withStock(10);
+
+            int change = product.applyMovement(StockMovementType.ISSUE, 3);
+
+            assertEquals(7, product.getStockQuantity());
+            assertEquals(-3, change);
+        }
+
+        @Test
+        void issueCanEmptyTheStockExactly() {
+            Product product = withStock(5);
+
+            product.applyMovement(StockMovementType.ISSUE, 5);
+
+            assertEquals(0, product.getStockQuantity());
+            assertEquals(StockStatus.OUT_OF_STOCK, product.stockStatus());
+        }
+
+        @Test
+        void issueBeyondTheStockIsRefusedAndLeavesStockUnchanged() {
+            Product product = withStock(2);
+
+            assertThrows(InsufficientStockException.class,
+                    () -> product.applyMovement(StockMovementType.ISSUE, 3));
+            assertEquals(2, product.getStockQuantity());
+        }
+
+        @Test
+        void adjustSetsTheAbsoluteLevelAndReturnsTheDifference() {
+            Product product = withStock(8);
+
+            int change = product.applyMovement(StockMovementType.ADJUST, 3);
+
+            assertEquals(3, product.getStockQuantity());
+            assertEquals(-5, change);
+        }
+
+        @Test
+        void adjustToZeroIsAllowedAndAdjustToTheSameLevelChangesNothing() {
+            Product product = withStock(4);
+
+            assertEquals(0, product.applyMovement(StockMovementType.ADJUST, 4));
+            assertEquals(-4, product.applyMovement(StockMovementType.ADJUST, 0));
+            assertEquals(0, product.getStockQuantity());
+        }
+
+        @Test
+        void receiveAndIssueNeedAtLeastOneUnit() {
+            Product product = withStock(4);
+
+            assertThrows(InvalidStockQuantityException.class,
+                    () -> product.applyMovement(StockMovementType.RECEIVE, 0));
+            assertThrows(InvalidStockQuantityException.class,
+                    () -> product.applyMovement(StockMovementType.ISSUE, 0));
+            assertEquals(4, product.getStockQuantity());
+        }
+
+        @Test
+        void aNegativeQuantityIsRefusedForEveryType() {
+            Product product = withStock(4);
+
+            for (StockMovementType type : StockMovementType.values()) {
+                assertThrows(InvalidStockQuantityException.class, () -> product.applyMovement(type, -1));
+            }
+            assertEquals(4, product.getStockQuantity());
+        }
+
+        @Test
+        void receiveThatWouldPassTheIntegerLimitIsRefused() {
+            Product product = withStock(Integer.MAX_VALUE - 1);
+
+            assertThrows(InvalidStockQuantityException.class,
+                    () -> product.applyMovement(StockMovementType.RECEIVE, 2));
+            assertEquals(Integer.MAX_VALUE - 1, product.getStockQuantity());
         }
     }
 }

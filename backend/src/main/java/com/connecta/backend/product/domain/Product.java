@@ -54,7 +54,7 @@ public class Product {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
-    /** Read only here: stock moves only through recorded stock movements. */
+    /** Changed only by {@link #applyMovement}, so every change has a recorded stock movement. */
     @Column(name = "stock_quantity", nullable = false)
     private int stockQuantity;
 
@@ -94,6 +94,38 @@ public class Product {
     /** Moves the product to a category, or removes it from its category when null. */
     public void changeCategory(ProductCategory newCategory) {
         this.category = newCategory;
+    }
+
+    /**
+     * Applies one stock movement and returns the change it made (negative for an ISSUE). The only place
+     * stock changes. The caller must hold the row lock (ProductRepository.findForUpdateByIdAndOrganizationId).
+     */
+    public int applyMovement(StockMovementType type, int quantity) {
+        if (quantity < type.minimumQuantity()) {
+            throw new InvalidStockQuantityException(type + " needs a quantity of at least " + type.minimumQuantity());
+        }
+        int before = stockQuantity;
+        stockQuantity = switch (type) {
+            case RECEIVE -> addStock(before, quantity);
+            case ISSUE -> removeStock(before, quantity);
+            case ADJUST -> quantity;
+        };
+        return stockQuantity - before;
+    }
+
+    private static int addStock(int before, int quantity) {
+        long total = (long) before + quantity;
+        if (total > Integer.MAX_VALUE) {
+            throw new InvalidStockQuantityException("Stock cannot exceed " + Integer.MAX_VALUE);
+        }
+        return (int) total;
+    }
+
+    private static int removeStock(int before, int quantity) {
+        if (quantity > before) {
+            throw new InsufficientStockException();
+        }
+        return before - quantity;
     }
 
     public void update(String newName, String newDescription, String newSku, BigDecimal newUnitPrice,
