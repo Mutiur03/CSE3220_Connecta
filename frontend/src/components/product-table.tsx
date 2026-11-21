@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { deleteProduct } from "@/lib/product-actions";
 import type { Product } from "@/lib/product-api";
-import { formatDate } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { buttonClasses } from "./ui/classes";
 import OrgActionButton from "./org-action-button";
 import { tableClass } from "./org-styles";
+import { StockStatusBadge } from "./stock-status-badge";
 import { TableScroll } from "./ui/table-scroll";
 
 type Props = {
@@ -27,10 +28,19 @@ export default function ProductTable({ orgId, products, canManage }: Props) {
               Name
             </th>
             <th scope="col" className="px-4 py-2 font-medium">
-              Category
+              SKU
             </th>
             <th scope="col" className="px-4 py-2 font-medium">
-              Updated
+              Category
+            </th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">
+              Unit price
+            </th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">
+              Stock
+            </th>
+            <th scope="col" className="px-4 py-2 font-medium">
+              Status
             </th>
             <th scope="col" className="px-4 py-2 text-right font-medium">
               <span className="sr-only">Actions</span>
@@ -52,10 +62,19 @@ export default function ProductTable({ orgId, products, canManage }: Props) {
                 )}
               </td>
               <td className="px-4 py-2 align-middle text-secondary">
-                {product.categoryName ?? DASH}
+                {product.sku ?? DASH}
               </td>
               <td className="px-4 py-2 align-middle text-secondary">
-                {formatDate(product.updatedAt)}
+                {product.categoryName ?? DASH}
+              </td>
+              <td className="px-4 py-2 text-right align-middle">
+                {formatPrice(product.unitPrice)}
+              </td>
+              <td className="px-4 py-2 text-right align-middle">
+                {product.stockQuantity}
+              </td>
+              <td className="px-4 py-2 align-middle">
+                <StockStatusBadge status={product.stockStatus} />
               </td>
               <td className="px-4 py-2 align-middle">
                 {canManage && (

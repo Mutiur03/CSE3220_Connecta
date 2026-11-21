@@ -3,8 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import ProductForm from "@/components/product-form";
 import { updateProduct } from "@/lib/product-actions";
-import { getProduct } from "@/lib/product-api";
+import { getProduct, listCategoryOptions } from "@/lib/product-api";
 import { canManageProducts } from "@/lib/product-permissions";
+import { formatPrice } from "@/lib/format";
 import { isUuid } from "@/lib/org-validation";
 import { loadOrganization, loadSession, notFoundOnMissing } from "../../../data";
 
@@ -20,7 +21,10 @@ export default async function EditProductPage({ params }: { params: RouteParams 
   if (!canManageProducts(organization.callerRole)) redirect(productsHref);
 
   const { accessToken } = await loadSession(id);
-  const product = await notFoundOnMissing(getProduct(accessToken, id, productId));
+  const [product, categories] = await Promise.all([
+    notFoundOnMissing(getProduct(accessToken, id, productId)),
+    notFoundOnMissing(listCategoryOptions(accessToken, id)),
+  ]);
 
   return (
     <>
@@ -32,8 +36,16 @@ export default async function EditProductPage({ params }: { params: RouteParams 
       </header>
       <ProductForm
         action={updateProduct.bind(null, id, productId)}
-        defaultName={product.name}
-        defaultDescription={product.description ?? ""}
+        defaults={{
+          name: product.name,
+          description: product.description ?? "",
+          sku: product.sku ?? "",
+          unitPrice: formatPrice(product.unitPrice),
+          reorderLevel: String(product.reorderLevel),
+          categoryId: product.categoryId ?? "",
+        }}
+        categories={categories}
+        stockQuantity={product.stockQuantity}
         submitLabel="Save product"
         busyLabel="Saving…"
         cancelHref={productsHref}

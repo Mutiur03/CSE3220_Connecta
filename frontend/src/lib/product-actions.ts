@@ -7,8 +7,13 @@ import { actionErrorMessage } from "./org-errors";
 import type { OrgActionState } from "./org-actions";
 import { getAccessToken } from "./session";
 import {
+  parseReorderLevel,
+  parseUnitPrice,
   validateProductDescription,
   validateProductName,
+  validateProductSku,
+  validateReorderLevel,
+  validateUnitPrice,
 } from "./product-validation";
 
 const productsPath = (orgId: string) => `/organizations/${orgId}/products`;
@@ -29,17 +34,36 @@ async function attempt<T>(
 
 /** Reads the form, or returns the field errors to show on the form. */
 function readProductForm(formData: FormData) {
-  const name = field(formData, "name");
-  const description = field(formData, "description");
-  const values = { name, description };
+  const values = {
+    name: field(formData, "name"),
+    description: field(formData, "description"),
+    sku: field(formData, "sku"),
+    unitPrice: field(formData, "unitPrice"),
+    reorderLevel: field(formData, "reorderLevel"),
+    categoryId: field(formData, "categoryId"),
+  };
   const errors = {
-    name: validateProductName(name),
-    description: validateProductDescription(description),
+    name: validateProductName(values.name),
+    description: validateProductDescription(values.description),
+    sku: validateProductSku(values.sku),
+    unitPrice: validateUnitPrice(values.unitPrice),
+    reorderLevel: validateReorderLevel(values.reorderLevel),
   };
   const hasError = Object.values(errors).some((error) => error !== undefined);
   return hasError
     ? { ok: false as const, state: { errors, values } }
-    : { ok: true as const, input: { name, description: description || null }, values };
+    : {
+        ok: true as const,
+        values,
+        input: {
+          name: values.name,
+          description: values.description || null,
+          categoryId: values.categoryId || null,
+          sku: values.sku || null,
+          unitPrice: parseUnitPrice(values.unitPrice),
+          reorderLevel: parseReorderLevel(values.reorderLevel),
+        },
+      };
 }
 
 export async function createProduct(

@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import OrgPagination from "@/components/org-pagination";
+import ProductFilterBar from "@/components/product-filter-bar";
 import ProductTable from "@/components/product-table";
 import { buttonClasses } from "@/components/ui/classes";
-import { listProducts } from "@/lib/product-api";
+import { listCategoryOptions, listProducts } from "@/lib/product-api";
 import { canManageProducts } from "@/lib/product-permissions";
+import {
+  parseProductFilters,
+  hasProductFilters,
+  productsHref,
+} from "@/lib/product-validation";
 import {
   ORG_PAGE_SIZE,
   pageCount,
-  pageHref,
   pageRange,
   parsePageParam,
 } from "@/lib/org-pagination";
@@ -33,17 +38,27 @@ export default async function ProductsPage({
   searchParams: SearchParams;
 }) {
   const { id } = await params;
-  const page = parsePageParam((await searchParams)[PAGE_KEY]);
+  const query = await searchParams;
+  const page = parsePageParam(query[PAGE_KEY]);
   const { accessToken } = await loadSession(id);
-  const [organization, products] = await Promise.all([
+  const [organization, categories] = await Promise.all([
     loadOrganization(id),
-    notFoundOnMissing(listProducts(accessToken, id, page, ORG_PAGE_SIZE)),
+    notFoundOnMissing(listCategoryOptions(accessToken, id)),
   ]);
+  const filters = parseProductFilters(
+    query,
+    categories.map((category) => category.id),
+  );
+  const products = await notFoundOnMissing(
+    listProducts(accessToken, id, filters, page, ORG_PAGE_SIZE),
+  );
+
+  const listPath = `/organizations/${id}/products`;
   const canManage = canManageProducts(organization.callerRole);
+  const filtered = hasProductFilters(filters);
   const range = pageRange(page, products.size, products.totalElements);
   const count = pageCount(products.totalElements, products.size);
-  const href = (target: number) =>
-    pageHref(`/organizations/${id}/products`, { [PAGE_KEY]: page }, PAGE_KEY, target);
+  const pageLink = (target: number) => productsHref(listPath, filters, target);
 
   return (
     <>
@@ -67,7 +82,7 @@ export default async function ProductsPage({
         )}
       </header>
 
-      {products.totalElements === 0 ? (
+      {products.totalElements === 0 && !filtered ? (
         <div className="flex flex-col items-start gap-2 border-t border-line-subtle pt-8">
           <p className="font-medium">No products yet</p>
           <p className="text-secondary">
@@ -89,19 +104,42 @@ export default async function ProductsPage({
           <h2 id="products-heading" className="sr-only">
             Product list
           </h2>
-          <ProductTable orgId={id} products={products.content} canManage={canManage} />
-          {range && (
-            <p className="text-sm text-secondary tabular-nums">
-              Showing {range.from}–{range.to} of {products.totalElements} products
-            </p>
-          )}
-          <OrgPagination
-            label="Products pages"
-            page={page}
-            pageCount={count}
-            previousHref={page > 0 ? href(page - 1) : undefined}
-            nextHref={page + 1 < count ? href(page + 1) : undefined}
+          <ProductFilterBar
+            listPath={listPath}
+            filters={filters}
+            categories={categories}
           />
+          {products.totalElements === 0 ? (
+            <div className="flex flex-col items-start gap-2 border-t border-line-subtle pt-8">
+              <p className="font-medium">No products match these filters</p>
+              <p className="text-secondary">
+                Try a different search, category or stock status.
+              </p>
+              <Link href={listPath} className={buttonClasses("secondary")}>
+                Reset filters
+              </Link>
+            </div>
+          ) : (
+            <>
+              <ProductTable
+                orgId={id}
+                products={products.content}
+                canManage={canManage}
+              />
+              {range && (
+                <p className="text-sm text-secondary tabular-nums">
+                  Showing {range.from}–{range.to} of {products.totalElements} products
+                </p>
+              )}
+              <OrgPagination
+                label="Products pages"
+                page={page}
+                pageCount={count}
+                previousHref={page > 0 ? pageLink(page - 1) : undefined}
+                nextHref={page + 1 < count ? pageLink(page + 1) : undefined}
+              />
+            </>
+          )}
         </section>
       )}
     </>
