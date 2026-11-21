@@ -1,17 +1,40 @@
 import { request } from "./api";
-import type { Page } from "./org-api";
+import { listCategories } from "./category-api";
+import { MAX_PAGE_SIZE, type Page } from "./org-api";
+import {
+  productListQuery,
+  type ProductFilters,
+  type StockStatus,
+} from "./product-validation";
 
 export type Product = {
   id: string;
   name: string;
   description: string | null;
   /** Null when the product has no category. */
+  categoryId: string | null;
   categoryName: string | null;
+  sku: string | null;
+  unitPrice: number;
+  /** Read only here; stock moves through recorded stock movements. */
+  stockQuantity: number;
+  reorderLevel: number;
+  stockStatus: StockStatus;
   createdAt: string;
   updatedAt: string;
 };
 
-export type ProductInput = { name: string; description: string | null };
+export type ProductInput = {
+  name: string;
+  description: string | null;
+  categoryId: string | null;
+  sku: string | null;
+  unitPrice: number;
+  reorderLevel: number;
+};
+
+/** A category as the product pickers show it. */
+export type CategoryOption = { id: string; name: string };
 
 const productsPath = (orgId: string) =>
   `/api/organizations/${encodeURIComponent(orgId)}/products`;
@@ -19,12 +42,19 @@ const productsPath = (orgId: string) =>
 export const listProducts = (
   accessToken: string,
   orgId: string,
+  filters: ProductFilters,
   page: number,
   size: number,
 ) =>
   request<Page<Product>>(
-    `${productsPath(orgId)}?page=${page}&size=${size}`,
+    `${productsPath(orgId)}?${productListQuery(filters, page, size)}`,
     { accessToken },
+  );
+
+/** The organization's categories for a picker: the first page of up to 100, in the backend's order. */
+export const listCategoryOptions = (accessToken: string, orgId: string) =>
+  listCategories(accessToken, orgId, 0, MAX_PAGE_SIZE).then((page) =>
+    page.content.map(({ id, name }): CategoryOption => ({ id, name })),
   );
 
 export const getProduct = (

@@ -3,12 +3,22 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import ProductForm from "@/components/product-form";
 import { createProduct } from "@/lib/product-actions";
+import { listCategoryOptions } from "@/lib/product-api";
 import { canManageProducts } from "@/lib/product-permissions";
-import { loadOrganization } from "../../data";
+import { loadOrganization, loadSession, notFoundOnMissing } from "../../data";
 
 type RouteParams = Promise<{ id: string }>;
 
 export const metadata: Metadata = { title: "New product" };
+
+const EMPTY_FORM = {
+  name: "",
+  description: "",
+  sku: "",
+  unitPrice: "0.00",
+  reorderLevel: "0",
+  categoryId: "",
+};
 
 export default async function NewProductPage({ params }: { params: RouteParams }) {
   const { id } = await params;
@@ -16,6 +26,9 @@ export default async function NewProductPage({ params }: { params: RouteParams }
   const productsHref = `/organizations/${id}/products`;
   // Only an ADMIN may create products. An AGENT is sent back to the read-only list.
   if (!canManageProducts(organization.callerRole)) redirect(productsHref);
+
+  const { accessToken } = await loadSession(id);
+  const categories = await notFoundOnMissing(listCategoryOptions(accessToken, id));
 
   return (
     <>
@@ -27,8 +40,8 @@ export default async function NewProductPage({ params }: { params: RouteParams }
       </header>
       <ProductForm
         action={createProduct.bind(null, id)}
-        defaultName=""
-        defaultDescription=""
+        defaults={EMPTY_FORM}
+        categories={categories}
         submitLabel="Create product"
         busyLabel="Creating…"
         cancelHref={productsHref}
