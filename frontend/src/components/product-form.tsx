@@ -50,6 +50,7 @@ export default function ProductForm({
         name="name"
         label="Name"
         maxLength={150}
+        autoComplete="off"
         defaultValue={state.values?.name ?? defaultName}
         error={state.errors?.name}
       />
@@ -62,6 +63,7 @@ export default function ProductForm({
           name="description"
           rows={4}
           maxLength={1000}
+          autoComplete="off"
           defaultValue={state.values?.description ?? defaultDescription}
           aria-invalid={descriptionError ? true : undefined}
           aria-describedby={descriptionError ? `${descriptionId}-error` : undefined}
