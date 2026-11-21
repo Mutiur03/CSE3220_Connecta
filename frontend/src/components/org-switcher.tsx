@@ -4,14 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Organization } from "@/lib/org-api";
+import { CURRENT_ORG_COOKIE, selectCurrentOrganization } from "@/lib/current-org";
 import { ROLE_LABELS } from "@/lib/org-permissions";
 import { BuildingIcon, CheckIcon, ChevronUpDownIcon, PlusIcon } from "./icons";
 import { Button } from "./ui/button";
 import OrgCreateForm from "./org-create-form";
 
-export const CURRENT_ORG_COOKIE = "connecta_org";
 const ONE_YEAR = 60 * 60 * 24 * 365;
-const ORG_PATH = /^\/organizations\/([^/]+)/;
 
 const MENU_ROW =
   "flex min-h-7 items-center gap-2 rounded-control px-2 py-1 text-sm hover:bg-hover";
@@ -38,11 +37,7 @@ export default function OrgSwitcher({
   const root = useRef<HTMLDivElement>(null);
   const createDialog = useRef<HTMLDialogElement>(null);
 
-  const fromPath = ORG_PATH.exec(pathname)?.[1];
-  const current =
-    organizations.find((org) => org.id === fromPath) ??
-    organizations.find((org) => org.id === remembered) ??
-    organizations[0];
+  const current = selectCurrentOrganization(organizations, pathname, remembered);
   const currentId = current?.id;
 
   useEffect(() => {

@@ -4,56 +4,58 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const pathname = vi.hoisted(() => ({ current: "/" }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathname.current }));
 
-import RailOrgSection, { orgIdFromPath } from "./rail-org-section";
+import RailOrgSection from "./rail-org-section";
 
-const ORG_ID = "11111111-2222-3333-4444-555555555555";
-const organizations = [{ id: ORG_ID, name: "Northwind Coffee" }];
+const FIRST_ID = "11111111-2222-3333-4444-555555555555";
+const SECOND_ID = "66666666-7777-8888-9999-000000000000";
+const organizations = [
+  { id: FIRST_ID, name: "Northwind Coffee" },
+  { id: SECOND_ID, name: "Contoso Books" },
+];
 
-const render = () => renderToStaticMarkup(<RailOrgSection organizations={organizations} />);
+const render = (remembered?: string, orgs = organizations) =>
+  renderToStaticMarkup(<RailOrgSection organizations={orgs} remembered={remembered} />);
 
 beforeEach(() => {
   pathname.current = "/";
 });
 
 describe("RailOrgSection", () => {
-  it("renders nothing outside an organization route", () => {
+  it("shows the first organization's Products link on Home and the organizations page", () => {
     for (const path of ["/", "/organizations", "/admin/organizations"]) {
       pathname.current = path;
-      expect(render()).toBe("");
+      const markup = render();
+      expect(markup).toContain("Northwind Coffee");
+      expect(markup).toContain(`href="/organizations/${FIRST_ID}/products"`);
+      expect(markup).toContain(">Products<");
     }
   });
 
-  it("shows the organization's name and a Products link inside its route", () => {
-    pathname.current = `/organizations/${ORG_ID}`;
-    const markup = render();
-    expect(markup).toContain("Northwind Coffee");
-    expect(markup).toContain(`href="/organizations/${ORG_ID}/products"`);
-    expect(markup).toContain(">Products<");
+  it("uses the remembered organization outside org routes", () => {
+    const markup = render(SECOND_ID);
+    expect(markup).toContain("Contoso Books");
+    expect(markup).toContain(`href="/organizations/${SECOND_ID}/products"`);
+    expect(markup).not.toContain(FIRST_ID);
+  });
+
+  it("uses the organization in the URL over the remembered one", () => {
+    pathname.current = `/organizations/${FIRST_ID}`;
+    const markup = render(SECOND_ID);
+    expect(markup).toContain(`href="/organizations/${FIRST_ID}/products"`);
+  });
+
+  it("renders nothing when the person belongs to no organization", () => {
+    pathname.current = "/";
+    expect(render(undefined, [])).toBe("");
   });
 
   it("marks the Products link as the current page on the products route", () => {
-    pathname.current = `/organizations/${ORG_ID}/products`;
+    pathname.current = `/organizations/${FIRST_ID}/products`;
     expect(render()).toMatch(/aria-current="page"[^>]*>|href="[^"]*\/products"[^>]*aria-current="page"/);
   });
 
   it("does not mark Products active on the organization overview", () => {
-    pathname.current = `/organizations/${ORG_ID}`;
+    pathname.current = `/organizations/${FIRST_ID}`;
     expect(render()).not.toContain('aria-current="page"');
-  });
-
-  it("falls back to a generic name when the organization is not in the list", () => {
-    pathname.current = `/organizations/${ORG_ID}/products`;
-    expect(renderToStaticMarkup(<RailOrgSection organizations={[]} />)).toContain(
-      "Organization",
-    );
-  });
-});
-
-describe("orgIdFromPath", () => {
-  it("reads the id from organization paths only", () => {
-    expect(orgIdFromPath(`/organizations/${ORG_ID}/products/new`)).toBe(ORG_ID);
-    expect(orgIdFromPath(`/organizations/${ORG_ID}`)).toBe(ORG_ID);
-    expect(orgIdFromPath("/organizations")).toBeUndefined();
-    expect(orgIdFromPath("/organizations/not-a-uuid/products")).toBeUndefined();
   });
 });

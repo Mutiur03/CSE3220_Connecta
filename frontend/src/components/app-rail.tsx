@@ -8,7 +8,8 @@ import { ACCESS_COOKIE } from "@/lib/session-cookies";
 import { BuildingIcon, HomeIcon, LogOutIcon, UsersIcon } from "./icons";
 import { RAIL_CONTROL, RAIL_LABEL } from "./rail-button";
 import BrandMark from "./brand-mark";
-import OrgSwitcher, { CURRENT_ORG_COOKIE } from "./org-switcher";
+import { CURRENT_ORG_COOKIE } from "@/lib/current-org";
+import OrgSwitcher from "./org-switcher";
 import RailLink from "./rail-link";
 import RailOrgSection from "./rail-org-section";
 import ThemeToggle from "./theme-toggle";
@@ -73,6 +74,7 @@ async function RailAccount() {
       </div>
       <RailOrgSection
         organizations={organizations.map(({ id, name }) => ({ id, name }))}
+        remembered={remembered}
       />
       <div className="mt-auto flex flex-col gap-0.5 max-[799px]:contents">
         <ThemeToggle />

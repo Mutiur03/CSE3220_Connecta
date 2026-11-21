@@ -1,37 +1,32 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { selectCurrentOrganization } from "@/lib/current-org";
 import { PackageIcon } from "./icons";
 import RailLink from "./rail-link";
-
-/** The organization id in an /organizations/<uuid>/... path, or undefined outside one. */
-export function orgIdFromPath(pathname: string): string | undefined {
-  return /^\/organizations\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\/|$)/i.exec(
-    pathname,
-  )?.[1];
-}
 
 type RailOrganization = { id: string; name: string };
 
 /**
- * The current organization's section in the sidebar. It shows only inside an organization route;
- * the organization's own links live here, so they follow the URL.
+ * The selected organization's section in the sidebar, on every signed-in page. The selection is
+ * the same one the organization switcher shows (see selectCurrentOrganization), so the two agree.
  */
 export default function RailOrgSection({
   organizations,
+  remembered,
 }: {
   organizations: RailOrganization[];
+  remembered?: string;
 }) {
-  const orgId = orgIdFromPath(usePathname());
-  if (!orgId) return null;
-  const name = organizations.find((org) => org.id === orgId)?.name ?? "Organization";
+  const current = selectCurrentOrganization(organizations, usePathname(), remembered);
+  if (!current) return null;
 
   return (
-    <div role="group" aria-label={name} className="flex flex-col gap-0.5 max-[799px]:contents">
+    <div role="group" aria-label={current.name} className="flex flex-col gap-0.5 max-[799px]:contents">
       <p className="truncate px-2.5 pt-2 text-caption text-secondary max-[799px]:sr-only">
-        {name}
+        {current.name}
       </p>
-      <RailLink href={`/organizations/${orgId}/products`} label="Products">
+      <RailLink href={`/organizations/${current.id}/products`} label="Products">
         <PackageIcon />
       </RailLink>
     </div>
