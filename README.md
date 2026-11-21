@@ -82,7 +82,7 @@ Inside an organization only `ADMIN` and `AGENT` exist (the `memberships` role). 
 Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_STARTTLS`, `MAIL_FROM` and `FRONTEND_URL` (see `.env.example`). With a blank `SMTP_HOST` nothing is sent and only a log line says so; the invitation is still created. A mail outage never undoes an invitation. For local work, `docker compose --profile dev up -d mailpit` starts Mailpit (SMTP `localhost:1025`, inbox <http://localhost:8025>), which the `dev` profile already points at.
 
 ### Product image storage (any S3-compatible service)
-Product images go through `product.service.ProductImageStorage`, with one S3 adapter (`S3ProductImageStorage`) for any S3 API service: AWS S3, Cloudflare R2, MinIO, Backblaze B2, Wasabi, DigitalOcean Spaces. There is no service-specific code path. Set `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_PUBLIC_BASE_URL` (see `.env.example`) to use it. `S3_ENDPOINT` is blank for AWS and set for other services, `S3_REGION` defaults to `us-east-1` (R2 uses `auto`), and `S3_PATH_STYLE_ACCESS=true` is needed by MinIO. Local MinIO example (backend run on the host): `S3_ENDPOINT=http://localhost:9000`, `S3_PATH_STYLE_ACCESS=true`, `S3_PUBLIC_BASE_URL=http://localhost:9000/<bucket>`, with the bucket created beforehand. Compose has no MinIO service; it only passes these variables through. Without the four required values, dev keeps images in memory; the `prod` profile refuses to start. Keys are `organizations/{orgId}/products/{productId}/{uuid}.{ext}`, so the client filename is never used. No upload endpoint exists yet.
+Product images go through `product.service.ProductImageStorage`, with one S3 adapter (`S3ProductImageStorage`) for any S3 API service: AWS S3, Cloudflare R2, MinIO, Backblaze B2, Wasabi, DigitalOcean Spaces. There is no service-specific code path. Set `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_PUBLIC_BASE_URL` (see `.env.example`) to use it. `S3_ENDPOINT` is blank for AWS and set for other services, `S3_REGION` defaults to `us-east-1` (R2 uses `auto`), and `S3_PATH_STYLE_ACCESS=true` is needed by MinIO. Local MinIO example (backend run on the host): `S3_ENDPOINT=http://localhost:9000`, `S3_PATH_STYLE_ACCESS=true`, `S3_PUBLIC_BASE_URL=http://localhost:9000/<bucket>`, with the bucket created beforehand. Compose has no MinIO service; it only passes these variables through. Without the four required values, dev keeps images in memory; the `prod` profile refuses to start. Keys are `organizations/{orgId}/products/{productId}/{uuid}.{ext}`, so the client filename is never used. Uploads, listing, streaming and deletes go through `ProductImageController` (see the endpoint table); the content endpoint streams the bytes through the backend, so it works for private buckets and the in-memory store. Limits come from `APP_PRODUCT_IMAGES_MAX_SIZE_BYTES` (default 5 MB) and `APP_PRODUCT_IMAGES_MAX_PER_PRODUCT` (default 8), i.e. `app.product-images.max-size-bytes` and `app.product-images.max-per-product`.
 
 Tenant isolation: an organization's data is reached only through `org.service.TenantAccessService`. A user who is not a member of an organization gets `404` (the same answer as an unknown organization), and a member whose role is too low gets `403`.
 
@@ -145,6 +145,15 @@ erDiagram
         string reason "nullable"
         uuid created_by FK "nullable"
         timestamp created_at }
+    PRODUCTS ||--o{ PRODUCT_IMAGES : shows
+    ORGANIZATIONS ||--o{ PRODUCT_IMAGES : owns
+    PRODUCT_IMAGES { uuid id PK
+        uuid organization_id FK
+        uuid product_id FK
+        string object_key UK
+        string content_type
+        bigint size_bytes
+        int position }
     ORGANIZATIONS ||--o{ INVITATIONS : receives
     ROLES ||--o{ INVITATIONS : offers
     USERS ||--o{ INVITATIONS : sends
@@ -186,7 +195,11 @@ erDiagram
 | POST | `/api/organizations/{id}/products` | `ADMIN` of it | 201 | Create a product. `categoryId` is optional and must be this organization's (`404` otherwise). Duplicate name or SKU (ignoring case) `409`. Optional `sku` (max 64), `unitPrice` (>= 0, 2 decimals, default 0), `reorderLevel` (>= 0, default 0). |
 | GET | `/api/organizations/{id}/products/{productId}` | any member | 200 | One product. Another organization's id gets `404`. |
 | PUT | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 200 | Replace a product, including `sku`, `unitPrice` and `reorderLevel`. A `null` `categoryId` clears its category. `409` on a name or SKU clash. |
-| DELETE | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 204 | Delete a product. |
+| DELETE | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 204 | Delete a product and its stored images. |
+| POST | `/api/organizations/{id}/products/{productId}/images` | `ADMIN` of it | 201 | Upload an image (multipart field `file`; JPEG, PNG or WebP checked by magic bytes). `415` bad type, `413` over 5 MB, `422` over 8 images. |
+| GET | `/api/organizations/{id}/products/{productId}/images` | any member | 200 | List the product's images in display order. |
+| GET | `/api/organizations/{id}/products/{productId}/images/{imageId}/content` | any member | 200 | Stream the image bytes (stored `Content-Type`, `inline`, `Cache-Control: private`, `nosniff`). Another organization's id gets `404`. |
+| DELETE | `/api/organizations/{id}/products/{productId}/images/{imageId}` | `ADMIN` of it | 204 | Delete an image and its stored object. |
 | POST | `/api/organizations/{id}/products/{productId}/stock-movements` | any member | 201 | Record a stock movement: `RECEIVE` or `ISSUE` a `quantity` (>= 1), or `ADJUST` to an absolute level (`quantity` >= 0). Optional `reason` (max 255). The product row is locked while the stock changes. An `ISSUE` beyond stock is `422`; a quantity below its type's minimum is `400`. `Location` points to the movement. |
 | GET | `/api/organizations/{id}/products/{productId}/stock-movements` | any member | 200 | One product's movements, newest first (`page`, `size` max 100). |
 | GET | `/api/organizations/{id}/stock-movements` | any member | 200 | The organization's movements, newest first. Optional `productId` narrows to one product (must be this organization's, else `404`). |

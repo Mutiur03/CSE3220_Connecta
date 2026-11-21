@@ -6,6 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import com.connecta.backend.product.service.ProductCategoryNameTakenException;
 import com.connecta.backend.product.service.ProductCategoryNotFoundException;
 import com.connecta.backend.product.service.ProductSkuTakenException;
+import com.connecta.backend.product.service.ProductImageLimitReachedException;
+import com.connecta.backend.product.service.ProductImageNotFoundException;
+import com.connecta.backend.product.service.ProductImageTooLargeException;
+import com.connecta.backend.product.service.UnsupportedProductImageTypeException;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -53,6 +57,42 @@ class ProductExceptionHandlerTests {
 
             assertEquals(HttpStatus.CONFLICT.value(), problem.getStatus());
             assertEquals("A product with this SKU already exists", problem.getDetail());
+            assertCleanBody(problem);
+        }
+    }
+
+    @Nested
+    class ImageErrors {
+
+        @Test
+        void notFoundIs404() {
+            ProblemDetail problem = handler.notFound(new ProductImageNotFoundException());
+
+            assertEquals(HttpStatus.NOT_FOUND.value(), problem.getStatus());
+            assertCleanBody(problem);
+        }
+
+        @Test
+        void tooLargeIs413() {
+            ProblemDetail problem = handler.imageTooLarge(new ProductImageTooLargeException());
+
+            assertEquals(413, problem.getStatus());
+            assertCleanBody(problem);
+        }
+
+        @Test
+        void unsupportedTypeIs415() {
+            ProblemDetail problem = handler.unsupportedImageType(new UnsupportedProductImageTypeException());
+
+            assertEquals(415, problem.getStatus());
+            assertCleanBody(problem);
+        }
+
+        @Test
+        void limitReachedIs422() {
+            ProblemDetail problem = handler.imageLimitReached(new ProductImageLimitReachedException());
+
+            assertEquals(422, problem.getStatus());
             assertCleanBody(problem);
         }
     }

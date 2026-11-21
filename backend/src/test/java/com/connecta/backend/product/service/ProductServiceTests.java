@@ -43,6 +43,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -66,6 +67,9 @@ class ProductServiceTests {
     @Mock
     UserService users;
 
+    @Mock
+    ApplicationEventPublisher events;
+
     ProductService service;
 
     private final UUID organizationId = UUID.randomUUID();
@@ -77,7 +81,7 @@ class ProductServiceTests {
     void setUp() {
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
-        service = new ProductService(products, categories, tenants, new ActiveCaller(users));
+        service = new ProductService(products, categories, tenants, new ActiveCaller(users), events);
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
     }
 
@@ -471,6 +475,7 @@ class ProductServiceTests {
             service.delete(subject, organizationId, shoes.getId());
 
             verify(products).delete(shoes);
+            verify(events).publishEvent(new ProductDeletedEvent(organizationId, shoes.getId()));
         }
 
         @Test

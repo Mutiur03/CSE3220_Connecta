@@ -1,5 +1,6 @@
 package com.connecta.backend.product.service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -13,6 +14,12 @@ public interface ProductImageStorage {
 
     /** Removes the object. Deleting a key that is already gone is not an error. */
     void delete(String key);
+
+    /**
+     * Loads the bytes of a key. Empty when the object is gone or the key does not belong to the organization, so
+     * another tenant's key never reads.
+     */
+    Optional<byte[]> read(UUID organizationId, String key);
 
     /** The address the object can be loaded from. */
     String publicUrl(String key);

@@ -32,7 +32,7 @@ public class LocalProductImageStorage implements ProductImageStorage {
         return LOCAL_URL_PREFIX + key;
     }
 
-    /** Reads an object only when its key belongs to the given organization; another tenant's key reads as empty. */
+    @Override
     public Optional<byte[]> read(UUID organizationId, String key) {
         if (key == null || !key.startsWith(ProductImageKeys.organizationPrefix(organizationId))) {
             return Optional.empty();

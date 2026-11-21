@@ -15,6 +15,7 @@ import com.connecta.backend.product.repository.ProductSpecifications;
 import com.connecta.backend.user.domain.Roles;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -38,6 +39,7 @@ public class ProductService {
     private final ProductCategoryRepository categories;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
+    private final ApplicationEventPublisher events;
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> list(String subject, UUID organizationId, ProductFilter filter,
@@ -87,7 +89,9 @@ public class ProductService {
     @Transactional
     public void delete(String subject, UUID organizationId, UUID productId) {
         tenants.requireRole(organizationId, callerId(subject), Roles.ADMIN);
-        products.delete(findProduct(organizationId, productId));
+        Product product = findProduct(organizationId, productId);
+        events.publishEvent(new ProductDeletedEvent(organizationId, productId));
+        products.delete(product);
     }
 
     private UUID callerId(String subject) {
