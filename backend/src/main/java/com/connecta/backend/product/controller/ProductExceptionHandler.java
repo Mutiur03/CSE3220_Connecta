@@ -1,5 +1,7 @@
 package com.connecta.backend.product.controller;
 
+import com.connecta.backend.auth.service.AccountNotAvailableException;
+import com.connecta.backend.product.service.ProductCategoryNameTakenException;
 import com.connecta.backend.product.service.ProductCategoryNotFoundException;
 import com.connecta.backend.product.service.ProductNameTakenException;
 import com.connecta.backend.product.service.ProductNotFoundException;
@@ -10,7 +12,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** Runs before GlobalExceptionHandler, whose catch-all would otherwise answer these with a 500. */
+/** Product and category failures as problem details. Runs before GlobalExceptionHandler, whose catch-all would give a 500. */
 @RestControllerAdvice(basePackageClasses = ProductController.class)
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class ProductExceptionHandler {
@@ -20,8 +22,13 @@ class ProductExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
-    @ExceptionHandler(ProductNameTakenException.class)
-    ProblemDetail nameTaken(ProductNameTakenException e) {
+    @ExceptionHandler({ProductNameTakenException.class, ProductCategoryNameTakenException.class})
+    ProblemDetail nameTaken(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    @ExceptionHandler(AccountNotAvailableException.class)
+    ProblemDetail accountNotAvailable(AccountNotAvailableException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
     }
 }
