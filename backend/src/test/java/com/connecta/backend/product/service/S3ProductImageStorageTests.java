@@ -25,7 +25,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @ExtendWith(MockitoExtension.class)
-class R2ProductImageStorageTests {
+class S3ProductImageStorageTests {
 
     private static final String BUCKET = "test-bucket";
     private static final String PUBLIC_BASE_URL = "https://images.example.test";
@@ -37,11 +37,11 @@ class R2ProductImageStorageTests {
     @Mock
     private S3Client s3;
 
-    private R2ProductImageStorage storage;
+    private S3ProductImageStorage storage;
 
     @BeforeEach
     void setUp() {
-        storage = new R2ProductImageStorage(s3, BUCKET, PUBLIC_BASE_URL);
+        storage = new S3ProductImageStorage(s3, BUCKET, PUBLIC_BASE_URL);
     }
 
     @Nested

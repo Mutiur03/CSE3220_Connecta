@@ -9,11 +9,11 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
- * Adapter from {@link ProductImageStorage} to Cloudflare R2, which speaks the S3 API. The S3 client is built in
- * {@code config.ProductImageStorageConfig}; this class only translates calls and SDK failures.
+ * Adapter from {@link ProductImageStorage} to any S3-compatible service (AWS S3, Cloudflare R2, MinIO, ...). The S3
+ * client is built in {@code config.ProductImageStorageConfig}; this class only translates calls and SDK failures.
  */
 @RequiredArgsConstructor
-public class R2ProductImageStorage implements ProductImageStorage {
+public class S3ProductImageStorage implements ProductImageStorage {
 
     private final S3Client s3;
     private final String bucket;

@@ -3,8 +3,8 @@ package com.connecta.backend.product.service;
 import java.util.UUID;
 
 /**
- * Keeps product image bytes outside the database. Two variants: Cloudflare R2 (production) and an in-memory
- * store (dev and tests). The keys are tenant-scoped, see {@link ProductImageKeys}.
+ * Keeps product image bytes outside the database. Two variants: an S3-compatible store (production) and an
+ * in-memory store (dev and tests). The keys are tenant-scoped, see {@link ProductImageKeys}.
  */
 public interface ProductImageStorage {
 
