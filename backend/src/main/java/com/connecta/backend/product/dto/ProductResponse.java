@@ -2,6 +2,8 @@ package com.connecta.backend.product.dto;
 
 import com.connecta.backend.product.domain.Product;
 import com.connecta.backend.product.domain.ProductCategory;
+import com.connecta.backend.product.domain.StockStatus;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -12,6 +14,11 @@ public record ProductResponse(
         String description,
         UUID categoryId,
         String categoryName,
+        String sku,
+        BigDecimal unitPrice,
+        int stockQuantity,
+        int reorderLevel,
+        StockStatus stockStatus,
         Instant createdAt,
         Instant updatedAt) {
 
@@ -23,6 +30,11 @@ public record ProductResponse(
                 product.getDescription(),
                 category == null ? null : category.getId(),
                 category == null ? null : category.getName(),
+                product.getSku(),
+                product.getUnitPrice(),
+                product.getStockQuantity(),
+                product.getReorderLevel(),
+                product.stockStatus(),
                 product.getCreatedAt(),
                 product.getUpdatedAt());
     }

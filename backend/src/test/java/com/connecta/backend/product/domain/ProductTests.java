@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.connecta.backend.org.domain.Organization;
+import com.connecta.backend.support.TestUsers;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -57,10 +59,62 @@ class ProductTests {
         void replacesNameAndDescriptionAndTrimsTheName() {
             Product product = new Product(ORG, null, "Shoe", null);
 
-            product.update("  Trail shoe ", "Waterproof");
+            product.update("  Trail shoe ", "Waterproof", null, BigDecimal.ZERO, 0);
 
             assertEquals("Trail shoe", product.getName());
             assertEquals("Waterproof", product.getDescription());
+        }
+
+        @Test
+        void replacesSkuPriceAndReorderLevelAndTrimsTheSku() {
+            Product product = new Product(ORG, null, "Shoe", null, "OLD-1", new BigDecimal("5.00"), 2);
+
+            product.update("Shoe", null, "  NEW-2 ", new BigDecimal("19.99"), 7);
+
+            assertEquals("NEW-2", product.getSku());
+            assertEquals(new BigDecimal("19.99"), product.getUnitPrice());
+            assertEquals(7, product.getReorderLevel());
+        }
+
+        @Test
+        void aBlankSkuClearsIt() {
+            Product product = new Product(ORG, null, "Shoe", null, "OLD-1", BigDecimal.ONE, 0);
+
+            product.update("Shoe", null, "   ", BigDecimal.ONE, 0);
+
+            assertNull(product.getSku());
+        }
+    }
+
+    @Nested
+    class InventoryFields {
+
+        @Test
+        void theShortConstructorStartsWithNoSkuZeroPriceAndNoStock() {
+            Product product = new Product(ORG, null, "Shoe", null);
+
+            assertNull(product.getSku());
+            assertEquals(BigDecimal.ZERO, product.getUnitPrice());
+            assertEquals(0, product.getStockQuantity());
+            assertEquals(0, product.getReorderLevel());
+            assertEquals(StockStatus.OUT_OF_STOCK, product.stockStatus());
+        }
+
+        @Test
+        void aBlankSkuIsStoredAsNullAndAnotherIsTrimmed() {
+            assertNull(new Product(ORG, null, "A", null, "  ", BigDecimal.ZERO, 0).getSku());
+            assertEquals("SKU-1", new Product(ORG, null, "B", null, " SKU-1 ", BigDecimal.ZERO, 0).getSku());
+        }
+
+        @Test
+        void stockStatusUsesTheStockAndTheReorderLevel() {
+            Product product = new Product(ORG, null, "Shoe", null, null, BigDecimal.ZERO, 5);
+
+            TestUsers.set(product, "stockQuantity", 5);
+            assertEquals(StockStatus.LOW_STOCK, product.stockStatus());
+
+            TestUsers.set(product, "stockQuantity", 6);
+            assertEquals(StockStatus.IN_STOCK, product.stockStatus());
         }
     }
 }

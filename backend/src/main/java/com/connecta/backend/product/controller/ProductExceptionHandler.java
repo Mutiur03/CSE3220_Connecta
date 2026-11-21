@@ -5,6 +5,7 @@ import com.connecta.backend.product.service.ProductCategoryNameTakenException;
 import com.connecta.backend.product.service.ProductCategoryNotFoundException;
 import com.connecta.backend.product.service.ProductNameTakenException;
 import com.connecta.backend.product.service.ProductNotFoundException;
+import com.connecta.backend.product.service.ProductSkuTakenException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -22,7 +23,8 @@ class ProductExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
-    @ExceptionHandler({ProductNameTakenException.class, ProductCategoryNameTakenException.class})
+    @ExceptionHandler({ProductNameTakenException.class, ProductSkuTakenException.class,
+            ProductCategoryNameTakenException.class})
     ProblemDetail nameTaken(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
     }

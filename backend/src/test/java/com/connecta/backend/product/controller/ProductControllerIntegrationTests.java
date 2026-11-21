@@ -34,6 +34,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -93,6 +94,16 @@ class ProductControllerIntegrationTests {
 
     @Autowired
     ProductCategoryRepository categories;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    private Product stocked(Organization organization, String name, String sku, int stock, int reorderLevel) {
+        Product product = products.saveAndFlush(new Product(organization, null, name, null, sku,
+                new java.math.BigDecimal("2.50"), reorderLevel));
+        jdbc.update("UPDATE products SET stock_quantity = ? WHERE id = ?", stock, product.getId());
+        return product;
+    }
 
     private static String productsPath(Organization organization) {
         return "/api/organizations/" + organization.getId() + "/products";
@@ -298,6 +309,267 @@ class ProductControllerIntegrationTests {
 
             mvc.perform(delete(path).header(AUTH, bearer(admin))).andExpect(status().isNoContent());
             mvc.perform(get(path).header(AUTH, bearer(admin))).andExpect(status().isNotFound());
+        }
+    }
+
+    @Nested
+    class InventoryFields {
+
+        @Test
+        void createReturnsSkuPriceStockAndStatus() throws Exception {
+            User admin = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+
+            mvc.perform(json(post(productsPath(acme)),
+                            "{\"name\":\"Shoes\",\"sku\":\"  SH-1 \",\"unitPrice\":19.99,\"reorderLevel\":5}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.sku").value("SH-1"))
+                    .andExpect(jsonPath("$.unitPrice").value(19.99))
+                    .andExpect(jsonPath("$.stockQuantity").value(0))
+                    .andExpect(jsonPath("$.reorderLevel").value(5))
+                    .andExpect(jsonPath("$.stockStatus").value("OUT_OF_STOCK"));
+        }
+
+        @Test
+        void missingPriceAndReorderLevelDefaultToZeroAndABlankSkuToNull() throws Exception {
+            User admin = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+
+            mvc.perform(json(post(productsPath(acme)), "{\"name\":\"Shoes\",\"sku\":\"   \"}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.sku").doesNotExist())
+                    .andExpect(jsonPath("$.unitPrice").value(0))
+                    .andExpect(jsonPath("$.reorderLevel").value(0));
+        }
+
+        @Test
+        void aDuplicateSkuIgnoringCaseIsA409ButAnotherTenantMayReuseIt() throws Exception {
+            User admin = newUser();
+            Organization acme = organization("Acme");
+            Organization globex = organization("Globex");
+            join(acme, admin, Roles.ADMIN);
+            join(globex, admin, Roles.ADMIN);
+            stocked(acme, "Existing", "SH-1", 0, 0);
+
+            mvc.perform(json(post(productsPath(acme)), "{\"name\":\"Shoes\",\"sku\":\"sh-1\"}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isConflict());
+            mvc.perform(json(post(productsPath(globex)), "{\"name\":\"Shoes\",\"sku\":\"sh-1\"}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isCreated());
+        }
+
+        @Test
+        void updatingToAnotherProductsSkuIsA409AndKeepingYourOwnIsFine() throws Exception {
+            User admin = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+            stocked(acme, "Other", "TAKEN", 0, 0);
+            Product mine = stocked(acme, "Mine", "MINE", 0, 0);
+            String path = productsPath(acme) + "/" + mine.getId();
+
+            mvc.perform(json(put(path), "{\"name\":\"Mine\",\"sku\":\"taken\"}").header(AUTH, bearer(admin)))
+                    .andExpect(status().isConflict());
+            mvc.perform(json(put(path), "{\"name\":\"Mine\",\"sku\":\"mine\",\"unitPrice\":3}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.sku").value("mine"))
+                    .andExpect(jsonPath("$.unitPrice").value(3));
+        }
+
+        @Test
+        void invalidInventoryValuesAreValidationErrorsOnTheField() throws Exception {
+            User admin = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+            String longSku = "x".repeat(65);
+
+            mvc.perform(json(post(productsPath(acme)), "{\"name\":\"A\",\"unitPrice\":-1}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.unitPrice").exists());
+            mvc.perform(json(post(productsPath(acme)), "{\"name\":\"A\",\"unitPrice\":1.234}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.unitPrice").exists());
+            mvc.perform(json(post(productsPath(acme)), "{\"name\":\"A\",\"reorderLevel\":-1}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.reorderLevel").exists());
+            mvc.perform(json(post(productsPath(acme)), "{\"name\":\"A\",\"sku\":\"" + longSku + "\"}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.sku").exists());
+        }
+
+        @Test
+        void anAgentCannotWriteInventoryFields() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            Product shoes = stocked(acme, "Shoes", null, 0, 0);
+
+            mvc.perform(json(put(productsPath(acme) + "/" + shoes.getId()),
+                            "{\"name\":\"Shoes\",\"unitPrice\":9}").header(AUTH, bearer(agent)))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void aClientCannotSetTheStockQuantity() throws Exception {
+            User admin = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+
+            mvc.perform(json(post(productsPath(acme)), "{\"name\":\"Shoes\",\"stockQuantity\":99}")
+                            .header(AUTH, bearer(admin)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.stockQuantity").value(0));
+        }
+
+        @Test
+        void getShowsTheComputedStatus() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            Product low = stocked(acme, "Low", null, 2, 5);
+
+            mvc.perform(get(productsPath(acme) + "/" + low.getId()).header(AUTH, bearer(agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.stockQuantity").value(2))
+                    .andExpect(jsonPath("$.stockStatus").value("LOW_STOCK"));
+        }
+    }
+
+    @Nested
+    class ListFilters {
+
+        @Test
+        void qMatchesNameOrSkuIgnoringCase() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            stocked(acme, "Running shoe", "RS-1", 0, 0);
+            stocked(acme, "Tote", "SHOE-BAG", 0, 0);
+            stocked(acme, "Hat", null, 0, 0);
+
+            mvc.perform(get(productsPath(acme)).param("q", "SHOE").header(AUTH, bearer(agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.content[0].name").value("Running shoe"))
+                    .andExpect(jsonPath("$.content[1].name").value("Tote"));
+        }
+
+        @Test
+        void aPercentSignInQIsLiteral() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            stocked(acme, "100% cotton", null, 0, 0);
+            stocked(acme, "Hat", null, 0, 0);
+
+            mvc.perform(get(productsPath(acme)).param("q", "%").header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].name").value("100% cotton"));
+        }
+
+        @Test
+        void categoryIdKeepsOnlyThatCategory() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            ProductCategory shoes = category(acme, "Shoes");
+            products.saveAndFlush(new Product(acme, shoes, "Runner", null));
+            product(acme, "Loose item");
+
+            mvc.perform(get(productsPath(acme)).param("categoryId", shoes.getId().toString())
+                            .header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].name").value("Runner"));
+        }
+
+        @Test
+        void anotherOrganizationsCategoryIsA404() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            Organization globex = organization("Globex");
+            join(acme, agent, Roles.AGENT);
+            ProductCategory theirs = category(globex, "Shoes");
+
+            mvc.perform(get(productsPath(acme)).param("categoryId", theirs.getId().toString())
+                            .header(AUTH, bearer(agent)))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void stockStatusKeepsOnlyThatStatus() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            stocked(acme, "A out", null, 0, 5);
+            stocked(acme, "B low", null, 3, 5);
+            stocked(acme, "C in", null, 30, 5);
+            stocked(acme, "D in no level", null, 1, 0);
+
+            mvc.perform(get(productsPath(acme)).param("stockStatus", "OUT_OF_STOCK").header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].name").value("A out"));
+            mvc.perform(get(productsPath(acme)).param("stockStatus", "LOW_STOCK").header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].name").value("B low"));
+            mvc.perform(get(productsPath(acme)).param("stockStatus", "IN_STOCK").header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.content[0].name").value("C in"))
+                    .andExpect(jsonPath("$.content[1].name").value("D in no level"));
+        }
+
+        @Test
+        void anUnknownStockStatusIsA400() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+
+            mvc.perform(get(productsPath(acme)).param("stockStatus", "PLENTY").header(AUTH, bearer(agent)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void filtersCombineAndNeverShowAnotherTenantsProducts() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            Organization globex = organization("Globex");
+            join(acme, agent, Roles.AGENT);
+            stocked(acme, "Low shoe", "S-1", 1, 5);
+            stocked(acme, "Fine shoe", "S-2", 50, 5);
+            stocked(globex, "Their low shoe", "S-3", 1, 5);
+
+            mvc.perform(get(productsPath(acme)).param("q", "shoe").param("stockStatus", "LOW_STOCK")
+                            .header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].name").value("Low shoe"));
+        }
+
+        @Test
+        void filteredListsStayPaged() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            stocked(acme, "Shoe A", null, 0, 0);
+            stocked(acme, "Shoe B", null, 0, 0);
+
+            mvc.perform(get(productsPath(acme)).param("q", "shoe").param("size", "1").param("page", "1")
+                            .header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.content[0].name").value("Shoe B"))
+                    .andExpect(jsonPath("$.totalElements").value(2));
+        }
+
+        @Test
+        void anAnonymousCallerIsUnauthorizedAndANonMemberGetsA404() throws Exception {
+            User outsider = newUser();
+            Organization acme = organization("Acme");
+
+            mvc.perform(get(productsPath(acme)).param("q", "x")).andExpect(status().isUnauthorized());
+            mvc.perform(get(productsPath(acme)).param("q", "x").header(AUTH, bearer(outsider)))
+                    .andExpect(status().isNotFound());
         }
     }
 }

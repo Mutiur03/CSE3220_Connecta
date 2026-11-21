@@ -21,6 +21,7 @@ import com.connecta.backend.org.service.NotAMemberException;
 import com.connecta.backend.org.service.TenantAccessService;
 import com.connecta.backend.product.domain.Product;
 import com.connecta.backend.product.domain.ProductCategory;
+import com.connecta.backend.product.domain.StockStatus;
 import com.connecta.backend.product.dto.CreateProductRequest;
 import com.connecta.backend.product.dto.ProductResponse;
 import com.connecta.backend.product.dto.UpdateProductRequest;
@@ -31,6 +32,7 @@ import com.connecta.backend.user.domain.Role;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,6 +47,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 
 /** Built by hand so the real TenantAccessService and its role order run under the rules being tested. */
@@ -103,6 +106,11 @@ class ProductServiceTests {
         return product;
     }
 
+    @SuppressWarnings("unchecked")
+    private static Specification<Product> anySpec() {
+        return any(Specification.class);
+    }
+
     private ProductCategory category(String name) {
         ProductCategory category = new ProductCategory(organization, name, null);
         TestUsers.set(category, "id", UUID.randomUUID());
@@ -112,14 +120,16 @@ class ProductServiceTests {
     @Nested
     class ListProducts {
 
+        private final ProductFilter noFilter = new ProductFilter(null, null, null);
+
         @Test
         void aMemberSeesAPageOfTheOrganizationsProducts() {
             callerIs(Roles.AGENT);
             Product shoes = product("Shoes", null);
-            when(products.findByOrganizationId(eq(organizationId), any(Pageable.class)))
+            when(products.findAll(anySpec(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(shoes), PageRequest.of(0, 20), 1));
 
-            PageResponse<ProductResponse> page = service.list(subject, organizationId, 0, 20);
+            PageResponse<ProductResponse> page = service.list(subject, organizationId, noFilter, 0, 20);
 
             assertEquals(1, page.content().size());
             assertEquals("Shoes", page.content().get(0).name());
@@ -129,13 +139,12 @@ class ProductServiceTests {
         @Test
         void sortsByNameThenIdSoPagesStayStable() {
             callerIs(Roles.AGENT);
-            when(products.findByOrganizationId(eq(organizationId), any(Pageable.class)))
-                    .thenReturn(new PageImpl<>(List.of()));
+            when(products.findAll(anySpec(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
 
-            service.list(subject, organizationId, 2, 50);
+            service.list(subject, organizationId, noFilter, 2, 50);
 
             ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-            verify(products).findByOrganizationId(eq(organizationId), pageable.capture());
+            verify(products).findAll(anySpec(), pageable.capture());
             assertEquals(2, pageable.getValue().getPageNumber());
             assertEquals(50, pageable.getValue().getPageSize());
             assertEquals(Sort.by("name").ascending().and(Sort.by("id")), pageable.getValue().getSort());
@@ -145,8 +154,33 @@ class ProductServiceTests {
         void aNonMemberGetsNotAMember() {
             callerIsNotAMember();
 
-            assertThrows(NotAMemberException.class, () -> service.list(subject, organizationId, 0, 20));
-            verify(products, never()).findByOrganizationId(any(), any(Pageable.class));
+            assertThrows(NotAMemberException.class, () -> service.list(subject, organizationId, noFilter, 0, 20));
+            verify(products, never()).findAll(anySpec(), any(Pageable.class));
+        }
+
+        @Test
+        void aCategoryFilterMustBelongToTheOrganization() {
+            callerIs(Roles.AGENT);
+            UUID foreignCategory = UUID.randomUUID();
+            when(categories.findByIdAndOrganizationId(foreignCategory, organizationId)).thenReturn(Optional.empty());
+
+            assertThrows(ProductCategoryNotFoundException.class, () -> service.list(subject, organizationId,
+                    new ProductFilter(null, foreignCategory, null), 0, 20));
+            verify(products, never()).findAll(anySpec(), any(Pageable.class));
+        }
+
+        @Test
+        void allFiltersTogetherQueryOnce() {
+            callerIs(Roles.AGENT);
+            ProductCategory footwear = category("Footwear");
+            when(categories.findByIdAndOrganizationId(footwear.getId(), organizationId))
+                    .thenReturn(Optional.of(footwear));
+            when(products.findAll(anySpec(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+
+            service.list(subject, organizationId, new ProductFilter(" shoe ", footwear.getId(), StockStatus.LOW_STOCK),
+                    0, 20);
+
+            verify(products).findAll(anySpec(), any(Pageable.class));
         }
     }
 
@@ -193,13 +227,53 @@ class ProductServiceTests {
             when(products.save(any(Product.class))).thenAnswer(call -> call.getArgument(0));
 
             ProductResponse response = service.create(subject, organizationId,
-                    new CreateProductRequest("  Shoes  ", "Running", null));
+                    new CreateProductRequest("  Shoes  ", "Running", null, null, null, null));
 
             ArgumentCaptor<Product> saved = ArgumentCaptor.forClass(Product.class);
             verify(products).save(saved.capture());
             assertEquals("Shoes", saved.getValue().getName());
             assertEquals(organization, saved.getValue().getOrganization());
             assertNull(response.categoryId());
+        }
+
+        @Test
+        void missingPriceReorderLevelAndSkuDefaultToZeroZeroAndNone() {
+            callerIs(Roles.ADMIN);
+            when(products.save(any(Product.class))).thenAnswer(call -> call.getArgument(0));
+
+            ProductResponse response = service.create(subject, organizationId,
+                    new CreateProductRequest("Shoes", null, null, "  ", null, null));
+
+            assertNull(response.sku());
+            assertEquals(BigDecimal.ZERO, response.unitPrice());
+            assertEquals(0, response.reorderLevel());
+            assertEquals(0, response.stockQuantity());
+            assertEquals(StockStatus.OUT_OF_STOCK, response.stockStatus());
+            verify(products, never()).existsByOrganizationIdAndSkuIgnoreCase(any(), anyString());
+        }
+
+        @Test
+        void skuPriceAndReorderLevelAreStored() {
+            callerIs(Roles.ADMIN);
+            when(products.existsByOrganizationIdAndSkuIgnoreCase(organizationId, "SH-1")).thenReturn(false);
+            when(products.save(any(Product.class))).thenAnswer(call -> call.getArgument(0));
+
+            ProductResponse response = service.create(subject, organizationId,
+                    new CreateProductRequest("Shoes", null, null, " SH-1 ", new BigDecimal("19.99"), 4));
+
+            assertEquals("SH-1", response.sku());
+            assertEquals(new BigDecimal("19.99"), response.unitPrice());
+            assertEquals(4, response.reorderLevel());
+        }
+
+        @Test
+        void aDuplicateSkuIsAConflictAndNothingIsSaved() {
+            callerIs(Roles.ADMIN);
+            when(products.existsByOrganizationIdAndSkuIgnoreCase(organizationId, "SH-1")).thenReturn(true);
+
+            assertThrows(ProductSkuTakenException.class, () -> service.create(subject, organizationId,
+                    new CreateProductRequest("Shoes", null, null, "SH-1", null, null)));
+            verify(products, never()).save(any(Product.class));
         }
 
         @Test
@@ -212,7 +286,7 @@ class ProductServiceTests {
             when(products.save(any(Product.class))).thenAnswer(call -> call.getArgument(0));
 
             ProductResponse response = service.create(subject, organizationId,
-                    new CreateProductRequest("Shoes", null, footwear.getId()));
+                    new CreateProductRequest("Shoes", null, footwear.getId(), null, null, null));
 
             assertEquals(footwear.getId(), response.categoryId());
             assertEquals("Footwear", response.categoryName());
@@ -224,7 +298,7 @@ class ProductServiceTests {
             when(products.existsByOrganizationIdAndName(organizationId, "Shoes")).thenReturn(true);
 
             assertThrows(ProductNameTakenException.class, () -> service.create(subject, organizationId,
-                    new CreateProductRequest("Shoes", null, null)));
+                    new CreateProductRequest("Shoes", null, null, null, null, null)));
             verify(products, never()).save(any(Product.class));
         }
 
@@ -237,7 +311,7 @@ class ProductServiceTests {
                     .thenReturn(Optional.empty());
 
             assertThrows(ProductCategoryNotFoundException.class, () -> service.create(subject, organizationId,
-                    new CreateProductRequest("Shoes", null, otherTenantsCategory)));
+                    new CreateProductRequest("Shoes", null, otherTenantsCategory, null, null, null)));
             verify(products, never()).save(any(Product.class));
         }
 
@@ -246,7 +320,7 @@ class ProductServiceTests {
             callerIs(Roles.AGENT);
 
             assertThrows(InsufficientOrganizationRoleException.class, () -> service.create(subject, organizationId,
-                    new CreateProductRequest("Shoes", null, null)));
+                    new CreateProductRequest("Shoes", null, null, null, null, null)));
             verify(products, never()).save(any(Product.class));
         }
 
@@ -255,7 +329,7 @@ class ProductServiceTests {
             callerIsNotAMember();
 
             assertThrows(NotAMemberException.class, () -> service.create(subject, organizationId,
-                    new CreateProductRequest("Shoes", null, null)));
+                    new CreateProductRequest("Shoes", null, null, null, null, null)));
         }
     }
 
@@ -273,7 +347,7 @@ class ProductServiceTests {
                     .thenReturn(Optional.of(footwear));
 
             ProductResponse response = service.update(subject, organizationId, shoes.getId(),
-                    new UpdateProductRequest("Running shoes", "Light", footwear.getId()));
+                    new UpdateProductRequest("Running shoes", "Light", footwear.getId(), null, null, null));
 
             assertEquals("Running shoes", response.name());
             assertEquals(footwear.getId(), response.categoryId());
@@ -285,9 +359,49 @@ class ProductServiceTests {
             Product shoes = product("Shoes", null);
             when(products.findByIdAndOrganizationId(shoes.getId(), organizationId)).thenReturn(Optional.of(shoes));
 
-            service.update(subject, organizationId, shoes.getId(), new UpdateProductRequest("Shoes", "New text", null));
+            service.update(subject, organizationId, shoes.getId(), new UpdateProductRequest("Shoes", "New text", null, null, null, null));
 
             verify(products, never()).existsByOrganizationIdAndName(any(), anyString());
+        }
+
+        @Test
+        void changingTheSkuToAnotherProductsSkuIsAConflict() {
+            callerIs(Roles.ADMIN);
+            Product shoes = product("Shoes", null);
+            when(products.findByIdAndOrganizationId(shoes.getId(), organizationId)).thenReturn(Optional.of(shoes));
+            when(products.existsByOrganizationIdAndSkuIgnoreCase(organizationId, "TAKEN")).thenReturn(true);
+
+            assertThrows(ProductSkuTakenException.class, () -> service.update(subject, organizationId,
+                    shoes.getId(), new UpdateProductRequest("Shoes", null, null, "TAKEN", null, null)));
+        }
+
+        @Test
+        void keepingTheSameSkuInAnotherCaseDoesNotCheckForDuplicates() {
+            callerIs(Roles.ADMIN);
+            Product shoes = new Product(organization, null, "Shoes", null, "SH-1", BigDecimal.ONE, 0);
+            TestUsers.set(shoes, "id", UUID.randomUUID());
+            when(products.findByIdAndOrganizationId(shoes.getId(), organizationId)).thenReturn(Optional.of(shoes));
+
+            ProductResponse response = service.update(subject, organizationId, shoes.getId(),
+                    new UpdateProductRequest("Shoes", null, null, "sh-1", new BigDecimal("3.50"), 2));
+
+            assertEquals("sh-1", response.sku());
+            assertEquals(new BigDecimal("3.50"), response.unitPrice());
+            assertEquals(2, response.reorderLevel());
+            verify(products, never()).existsByOrganizationIdAndSkuIgnoreCase(any(), anyString());
+        }
+
+        @Test
+        void aBlankSkuClearsTheSku() {
+            callerIs(Roles.ADMIN);
+            Product shoes = new Product(organization, null, "Shoes", null, "SH-1", BigDecimal.ONE, 0);
+            TestUsers.set(shoes, "id", UUID.randomUUID());
+            when(products.findByIdAndOrganizationId(shoes.getId(), organizationId)).thenReturn(Optional.of(shoes));
+
+            ProductResponse response = service.update(subject, organizationId, shoes.getId(),
+                    new UpdateProductRequest("Shoes", null, null, "", null, null));
+
+            assertNull(response.sku());
         }
 
         @Test
@@ -298,7 +412,7 @@ class ProductServiceTests {
             when(products.existsByOrganizationIdAndName(organizationId, "Hats")).thenReturn(true);
 
             assertThrows(ProductNameTakenException.class, () -> service.update(subject, organizationId,
-                    shoes.getId(), new UpdateProductRequest("Hats", null, null)));
+                    shoes.getId(), new UpdateProductRequest("Hats", null, null, null, null, null)));
         }
 
         @Test
@@ -308,7 +422,7 @@ class ProductServiceTests {
             when(products.findByIdAndOrganizationId(shoes.getId(), organizationId)).thenReturn(Optional.of(shoes));
 
             ProductResponse response = service.update(subject, organizationId, shoes.getId(),
-                    new UpdateProductRequest("Shoes", null, null));
+                    new UpdateProductRequest("Shoes", null, null, null, null, null));
 
             assertNull(response.categoryId());
         }
@@ -320,7 +434,7 @@ class ProductServiceTests {
             when(products.findByIdAndOrganizationId(productId, organizationId)).thenReturn(Optional.empty());
 
             assertThrows(ProductNotFoundException.class, () -> service.update(subject, organizationId, productId,
-                    new UpdateProductRequest("Shoes", null, null)));
+                    new UpdateProductRequest("Shoes", null, null, null, null, null)));
         }
 
         @Test
@@ -332,7 +446,7 @@ class ProductServiceTests {
             when(categories.findByIdAndOrganizationId(missing, organizationId)).thenReturn(Optional.empty());
 
             assertThrows(ProductCategoryNotFoundException.class, () -> service.update(subject, organizationId,
-                    shoes.getId(), new UpdateProductRequest("Shoes", null, missing)));
+                    shoes.getId(), new UpdateProductRequest("Shoes", null, missing, null, null, null)));
         }
 
         @Test
@@ -340,7 +454,7 @@ class ProductServiceTests {
             callerIs(Roles.AGENT);
 
             assertThrows(InsufficientOrganizationRoleException.class, () -> service.update(subject, organizationId,
-                    UUID.randomUUID(), new UpdateProductRequest("Shoes", null, null)));
+                    UUID.randomUUID(), new UpdateProductRequest("Shoes", null, null, null, null, null)));
             verify(products, never()).findByIdAndOrganizationId(any(), any());
         }
     }
