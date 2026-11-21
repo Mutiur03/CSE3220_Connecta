@@ -59,6 +59,22 @@ describe("RailOrgSection", () => {
     expect(render()).not.toContain('aria-current="page"');
   });
 
+  it("links Inventory after Categories and marks it active on the inventory route", () => {
+    pathname.current = `/organizations/${FIRST_ID}/inventory`;
+    const markup = render();
+    expect(markup).toContain(`href="/organizations/${FIRST_ID}/inventory"`);
+    expect(markup).toContain(">Inventory<");
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(markup).not.toMatch(/href="[^"]*\/products"[^>]*aria-current="page"/);
+  });
+
+  it("does not mark Inventory active on the products route", () => {
+    pathname.current = `/organizations/${FIRST_ID}/products`;
+    const markup = render();
+    expect(markup).toContain(`href="/organizations/${FIRST_ID}/inventory"`);
+    expect(markup).not.toMatch(/href="[^"]*\/inventory"[^>]*aria-current="page"/);
+  });
+
   it("links Categories and marks it, not Products, active on the categories route", () => {
     pathname.current = `/organizations/${FIRST_ID}/categories/new`;
     const markup = render();
