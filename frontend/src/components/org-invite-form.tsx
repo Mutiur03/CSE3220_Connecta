@@ -40,6 +40,7 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
             name="email"
             label="Email"
             type="email"
+            autoComplete="off"
             maxLength={254}
             defaultValue={state.values?.email}
             error={state.errors?.email}
@@ -55,6 +56,7 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
           <Select
             id="invite-role"
             name="role"
+            autoComplete="off"
             defaultValue={
               state.values?.role ?? roleOptions[roleOptions.length - 1]
             }

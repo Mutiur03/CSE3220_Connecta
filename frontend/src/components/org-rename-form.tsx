@@ -34,6 +34,7 @@ export default function OrgRenameForm({ action, name }: Props) {
         name="name"
         label="Organization name"
         maxLength={100}
+        autoComplete="organization"
         defaultValue={state.values?.name ?? name}
         error={state.errors?.name}
       />

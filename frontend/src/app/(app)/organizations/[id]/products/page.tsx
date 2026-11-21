@@ -68,7 +68,7 @@ export default async function ProductsPage({
       </header>
 
       {products.totalElements === 0 ? (
-        <div className="flex flex-col items-start gap-2 rounded-panel border border-line-subtle py-8">
+        <div className="flex flex-col items-start gap-2 border-t border-line-subtle pt-8">
           <p className="font-medium">No products yet</p>
           <p className="text-secondary">
             {canManage

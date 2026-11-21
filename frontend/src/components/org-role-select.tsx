@@ -59,6 +59,7 @@ export default function OrgRoleSelect({
             name="role"
             value={picked}
             aria-label={label}
+            autoComplete="off"
             disabled={pending}
             onChange={(event) => {
               const value = event.currentTarget.value;

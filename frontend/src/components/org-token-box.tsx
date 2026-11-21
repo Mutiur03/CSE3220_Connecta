@@ -33,6 +33,7 @@ export default function OrgTokenBox({ token }: { token: string }) {
             id="invitation-token"
             label="Invitation token"
             readOnly
+            autoComplete="off"
             value={token}
             onFocus={(event) => event.currentTarget.select()}
             className="font-mono text-xs"
