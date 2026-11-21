@@ -1,12 +1,16 @@
 package com.connecta.backend.org.controller;
 
 import com.connecta.backend.common.dto.PageResponse;
+import com.connecta.backend.auth.dto.TokenResponse;
 import com.connecta.backend.org.dto.AcceptInvitationRequest;
+import com.connecta.backend.org.dto.AcceptNewInvitationRequest;
+import com.connecta.backend.org.dto.InvitationPreviewResponse;
 import com.connecta.backend.org.dto.CreateInvitationRequest;
 import com.connecta.backend.org.dto.InvitationCreatedResponse;
 import com.connecta.backend.org.dto.InvitationResponse;
 import com.connecta.backend.org.dto.OrganizationResponse;
 import com.connecta.backend.org.service.InvitationService;
+import com.connecta.backend.org.service.InvitationSignupService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -33,9 +37,10 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
  * Role rules (checked by InvitationService through TenantAccessService): create, list and revoke need
- * OWNER or ADMIN of that organization, and an invitation cannot grant a role above the caller's own.
- * Accept needs only a signed-in account whose email matches the invitation. Anyone else gets 403 (role
- * too low) or 404 (not a member, or no matching invitation).
+ * ADMIN of that organization, and an invitation can only grant ADMIN or AGENT.
+ * Accept needs only a signed-in account whose email matches the invitation. Preview and accept-new are public
+ * by design: the invitation token is the credential. Anyone else gets 403 (role too low) or 404 (not a
+ * member, or no matching invitation).
  */
 @RestController
 @Tag(name = "Invitations", description = "Invite people to an organization and accept invitations")
@@ -43,10 +48,11 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class InvitationController {
 
     private final InvitationService invitations;
+    private final InvitationSignupService signups;
 
-    @Operation(summary = "Invite an email to the organization (OWNER or ADMIN; cannot invite above own role)",
-            description = "The raw token is returned once in this response. No email is sent yet, so the "
-                    + "admin must pass the token on. Only its hash is stored.",
+    @Operation(summary = "Invite an email to the organization (ADMIN of it; ADMIN or AGENT)",
+            description = "The invitation link is emailed to the invitee. The raw token is also returned once "
+                    + "in this response, as a fallback the admin can copy. Only its hash is stored.",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "201", description = "Invitation created, Location header set")
     @ApiResponse(responseCode = "400", description = "Invalid email or role")
@@ -63,7 +69,7 @@ public class InvitationController {
         return ResponseEntity.created(location).body(created);
     }
 
-    @Operation(summary = "List the organization's invitations, newest first (OWNER or ADMIN)",
+    @Operation(summary = "List the organization's invitations, newest first (ADMIN of it)",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "200", description = "One page of invitations; never includes tokens")
     @ApiResponse(responseCode = "400", description = "Page or size out of range")
@@ -77,7 +83,7 @@ public class InvitationController {
         return invitations.list(jwt.getSubject(), organizationId, page, size);
     }
 
-    @Operation(summary = "Revoke a pending invitation (OWNER or ADMIN)",
+    @Operation(summary = "Revoke a pending invitation (ADMIN of it)",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "204", description = "Invitation revoked")
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
@@ -102,5 +108,31 @@ public class InvitationController {
     @PostMapping("/api/invitations/accept")
     OrganizationResponse accept(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody AcceptInvitationRequest request) {
         return invitations.accept(jwt.getSubject(), request);
+    }
+
+    @Operation(summary = "Preview an invitation by its token (public; the token is the credential)",
+            description = "Shows the invited email, organization, role and inviter, and whether the email "
+                    + "already has an account. Unknown, expired, revoked and accepted tokens all answer 404.")
+    @ApiResponse(responseCode = "200", description = "The invitation as the invitee sees it")
+    @ApiResponse(responseCode = "400", description = "Missing token")
+    @ApiResponse(responseCode = "404", description = "No usable invitation matches this token")
+    @PostMapping("/api/invitations/preview")
+    InvitationPreviewResponse preview(@Valid @RequestBody AcceptInvitationRequest request) {
+        return signups.preview(request);
+    }
+
+    @Operation(summary = "Accept an invitation and create the account in one step (public; the token is the credential)",
+            description = "Creates the account for the invited email, with the invited role, joins the "
+                    + "organization and returns a signed-in session.")
+    @ApiResponse(responseCode = "201", description = "Account created and joined; access and refresh tokens")
+    @ApiResponse(responseCode = "400", description = "Invalid input")
+    @ApiResponse(responseCode = "404", description = "No invitation matches this token")
+    @ApiResponse(responseCode = "409", description = "The invitation was already accepted, or the email "
+            + "already has an account (sign in and use accept instead)")
+    @ApiResponse(responseCode = "422", description = "The invitation expired or was revoked")
+    @PostMapping("/api/invitations/accept-new")
+    @ResponseStatus(HttpStatus.CREATED)
+    TokenResponse acceptNew(@Valid @RequestBody AcceptNewInvitationRequest request) {
+        return signups.acceptAndSignUp(request);
     }
 }

@@ -58,6 +58,26 @@ export const listOrganizations = (
     accessToken,
   });
 
+/** One row of the system owner's view of every organization. */
+export type OrganizationSummary = {
+  id: string;
+  name: string;
+  slug: string;
+  memberCount: number;
+  createdAt: string;
+};
+
+/** Every organization in the system. Only the system owner may call this. */
+export const listAllOrganizations = (
+  accessToken: string,
+  page = 0,
+  size = PAGE_SIZE,
+) =>
+  request<Page<OrganizationSummary>>(
+    `/api/admin/organizations${pageQuery(page, size)}`,
+    { accessToken },
+  );
+
 export const createOrganization = (
   accessToken: string,
   body: { name: string; slug: string },

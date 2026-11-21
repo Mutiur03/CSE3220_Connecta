@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Who belongs to an organization and which role each member holds. Membership and role checks go through
  * {@link TenantAccessService}; this service adds the ceiling rules. A caller can grant or touch a role only
- * up to their own, and the organization always keeps one OWNER. Every member row is loaded by id AND
+ * up to their own, and the organization always keeps one ADMIN. Every member row is loaded by id AND
  * organization, so another tenant's membership id reads as not found.
  */
 @Service
@@ -43,7 +43,7 @@ public class MemberService {
 
     /**
      * ADMIN or above. The new role may not be above the caller's own, and the member's current role may not be
-     * above it either (an ADMIN cannot touch an OWNER). Demoting the last OWNER is refused.
+     * above it either. Demoting the last ADMIN is refused.
      */
     @Transactional
     public MemberResponse changeRole(String subject, UUID organizationId, UUID membershipId, String roleName) {
@@ -53,8 +53,8 @@ public class MemberService {
         if (!tenants.hasAtLeast(caller, roleName)) {
             throw new InsufficientOrganizationRoleException();
         }
-        if (tenants.hasAtLeast(target, Roles.OWNER) && !roleName.equals(Roles.OWNER)) {
-            requireAnotherOwner(organizationId);
+        if (tenants.hasAtLeast(target, Roles.ADMIN) && !roleName.equals(Roles.ADMIN)) {
+            requireAnotherAdmin(organizationId);
         }
         target.changeRole(users.findRole(roleName));
         return MemberResponse.from(target);
@@ -62,7 +62,7 @@ public class MemberService {
 
     /**
      * Any member may remove their own membership (leave), whatever their role. Removing someone else needs
-     * ADMIN or above and the same ceiling as a role change. The last OWNER cannot be removed by anyone.
+     * ADMIN or above and the same ceiling as a role change. The last ADMIN cannot be removed by anyone.
      */
     @Transactional
     public void remove(String subject, UUID organizationId, UUID membershipId) {
@@ -71,8 +71,8 @@ public class MemberService {
         Membership target = self.getId().equals(membershipId)
                 ? self
                 : managedMember(organizationId, callerId, membershipId);
-        if (tenants.hasAtLeast(target, Roles.OWNER)) {
-            requireAnotherOwner(organizationId);
+        if (tenants.hasAtLeast(target, Roles.ADMIN)) {
+            requireAnotherAdmin(organizationId);
         }
         memberships.delete(target);
     }
@@ -97,10 +97,10 @@ public class MemberService {
         }
     }
 
-    /** Called when an OWNER is about to lose the role or leave: another OWNER must remain; the owner rows are locked, so two owners leaving at once cannot both pass. */
-    private void requireAnotherOwner(UUID organizationId) {
-        if (memberships.findByOrganizationIdAndRoleName(organizationId, Roles.OWNER).size() <= 1) {
-            throw new LastOwnerException();
+    /** Called when an ADMIN is about to lose the role or leave: another ADMIN must remain; the admin rows are locked, so two admins leaving at once cannot both pass. */
+    private void requireAnotherAdmin(UUID organizationId) {
+        if (memberships.findByOrganizationIdAndRoleName(organizationId, Roles.ADMIN).size() <= 1) {
+            throw new LastAdminException();
         }
     }
 }

@@ -9,7 +9,7 @@ export function firstFieldError(
   );
 }
 
-/** What a form's alert line says: the action's own failure, else its first field error. */
+/** What a form's alert line says: the action's own failure. Field errors show on their field. */
 export function alertText(state: OrgActionState): string | undefined {
-  return state.message || firstFieldError(state.errors);
+  return state.message;
 }

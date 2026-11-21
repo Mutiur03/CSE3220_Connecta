@@ -89,9 +89,9 @@ class MemberServiceTests {
         return target;
     }
 
-    private void ownerCountIs(long count) {
-        lenient().when(memberships.findByOrganizationIdAndRoleName(organizationId, Roles.OWNER)).thenReturn(
-                java.util.Collections.nCopies((int) count, membership(TestUsers.user("o@example.com", Roles.OWNER), Roles.OWNER)));
+    private void adminCountIs(long count) {
+        lenient().when(memberships.findByOrganizationIdAndRoleName(organizationId, Roles.ADMIN)).thenReturn(
+                java.util.Collections.nCopies((int) count, membership(TestUsers.user("a@example.com", Roles.ADMIN), Roles.ADMIN)));
     }
 
     @Nested
@@ -147,8 +147,8 @@ class MemberServiceTests {
     class ChangeRole {
 
         @Test
-        void anOwnerPromotesAnAgentToAdmin() {
-            callerIs(Roles.OWNER);
+        void anAdminPromotesAnAgentToAdmin() {
+            callerIs(Roles.ADMIN);
             Membership target = memberWith(Roles.AGENT);
 
             MemberResponse changed = service.changeRole(subject, organizationId, target.getId(), Roles.ADMIN);
@@ -158,39 +158,12 @@ class MemberServiceTests {
         }
 
         @Test
-        void anOwnerCanGrantOwnerToAnotherMember() {
-            callerIs(Roles.OWNER);
-            Membership target = memberWith(Roles.ADMIN);
-
-            assertEquals(Roles.OWNER, service.changeRole(subject, organizationId, target.getId(), Roles.OWNER).role());
-        }
-
-        @Test
-        void anAdminDemotesAnAdminToAgent() {
+        void anAdminDemotesAnotherAdminToAgentWhileAnotherAdminRemains() {
             callerIs(Roles.ADMIN);
             Membership target = memberWith(Roles.ADMIN);
+            adminCountIs(2);
 
             assertEquals(Roles.AGENT, service.changeRole(subject, organizationId, target.getId(), Roles.AGENT).role());
-        }
-
-        @Test
-        void anAdminCannotGrantOwner() {
-            callerIs(Roles.ADMIN);
-            Membership target = memberWith(Roles.AGENT);
-
-            assertThrows(InsufficientOrganizationRoleException.class,
-                    () -> service.changeRole(subject, organizationId, target.getId(), Roles.OWNER));
-            assertEquals(Roles.AGENT, target.getRole().getName());
-        }
-
-        @Test
-        void anAdminCannotTouchAnOwner() {
-            callerIs(Roles.ADMIN);
-            Membership target = memberWith(Roles.OWNER);
-
-            assertThrows(InsufficientOrganizationRoleException.class,
-                    () -> service.changeRole(subject, organizationId, target.getId(), Roles.AGENT));
-            verify(memberships, never()).findByOrganizationIdAndRoleName(any(), any());
         }
 
         @Test
@@ -212,7 +185,7 @@ class MemberServiceTests {
 
         @Test
         void aMembershipOfAnotherOrganizationIsNotFound() {
-            callerIs(Roles.OWNER);
+            callerIs(Roles.ADMIN);
             UUID otherOrganizationsMembership = UUID.randomUUID();
             when(memberships.findByIdAndOrganizationId(otherOrganizationsMembership, organizationId))
                     .thenReturn(Optional.empty());
@@ -222,31 +195,22 @@ class MemberServiceTests {
         }
 
         @Test
-        void demotingTheLastOwnerIsRefused() {
-            callerIs(Roles.OWNER);
-            Membership target = memberWith(Roles.OWNER);
-            ownerCountIs(1);
+        void demotingTheLastAdminIsRefused() {
+            callerIs(Roles.ADMIN);
+            Membership target = memberWith(Roles.ADMIN);
+            adminCountIs(1);
 
-            assertThrows(LastOwnerException.class,
-                    () -> service.changeRole(subject, organizationId, target.getId(), Roles.ADMIN));
-            assertEquals(Roles.OWNER, target.getRole().getName());
+            assertThrows(LastAdminException.class,
+                    () -> service.changeRole(subject, organizationId, target.getId(), Roles.AGENT));
+            assertEquals(Roles.ADMIN, target.getRole().getName());
         }
 
         @Test
-        void demotingAnOwnerIsAllowedWhenAnotherOwnerRemains() {
-            callerIs(Roles.OWNER);
-            Membership target = memberWith(Roles.OWNER);
-            ownerCountIs(2);
+        void keepingTheAdminRoleNeverCountsAdmins() {
+            callerIs(Roles.ADMIN);
+            Membership target = memberWith(Roles.ADMIN);
 
-            assertEquals(Roles.ADMIN, service.changeRole(subject, organizationId, target.getId(), Roles.ADMIN).role());
-        }
-
-        @Test
-        void anOwnerKeepingTheOwnerRoleNeverCountsOwners() {
-            callerIs(Roles.OWNER);
-            Membership target = memberWith(Roles.OWNER);
-
-            service.changeRole(subject, organizationId, target.getId(), Roles.OWNER);
+            service.changeRole(subject, organizationId, target.getId(), Roles.ADMIN);
 
             verify(memberships, never()).findByOrganizationIdAndRoleName(any(), any());
         }
@@ -265,9 +229,9 @@ class MemberServiceTests {
         }
 
         @Test
-        void anOwnerLeavesWhenAnotherOwnerRemains() {
-            Membership mine = callerIs(Roles.OWNER);
-            ownerCountIs(2);
+        void anAdminLeavesWhenAnotherAdminRemains() {
+            Membership mine = callerIs(Roles.ADMIN);
+            adminCountIs(2);
 
             service.remove(subject, organizationId, mine.getId());
 
@@ -275,11 +239,11 @@ class MemberServiceTests {
         }
 
         @Test
-        void theLastOwnerCannotLeave() {
-            Membership mine = callerIs(Roles.OWNER);
-            ownerCountIs(1);
+        void theLastAdminCannotLeave() {
+            Membership mine = callerIs(Roles.ADMIN);
+            adminCountIs(1);
 
-            assertThrows(LastOwnerException.class, () -> service.remove(subject, organizationId, mine.getId()));
+            assertThrows(LastAdminException.class, () -> service.remove(subject, organizationId, mine.getId()));
             verify(memberships, never()).delete(any(Membership.class));
         }
 
@@ -304,18 +268,8 @@ class MemberServiceTests {
         }
 
         @Test
-        void anAdminCannotRemoveAnOwner() {
-            callerIs(Roles.ADMIN);
-            Membership target = memberWith(Roles.OWNER);
-
-            assertThrows(InsufficientOrganizationRoleException.class,
-                    () -> service.remove(subject, organizationId, target.getId()));
-            verify(memberships, never()).delete(any(Membership.class));
-        }
-
-        @Test
         void removingAnUnknownOrForeignMemberIsNotFound() {
-            callerIs(Roles.OWNER);
+            callerIs(Roles.ADMIN);
             UUID unknown = UUID.randomUUID();
             when(memberships.findByIdAndOrganizationId(unknown, organizationId)).thenReturn(Optional.empty());
 

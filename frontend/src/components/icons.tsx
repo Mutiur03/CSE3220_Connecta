@@ -30,6 +30,15 @@ export const UsersIcon = () => (
   </Icon>
 );
 
+export const BuildingIcon = () => (
+  <Icon>
+    <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+    <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+    <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+    <path d="M10 6h4M10 10h4M10 14h4M10 18h4" />
+  </Icon>
+);
+
 export const LogOutIcon = () => (
   <Icon>
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -45,8 +54,80 @@ export const SunIcon = () => (
   </Icon>
 );
 
+export const PlusIcon = () => (
+  <Icon>
+    <path d="M5 12h14M12 5v14" />
+  </Icon>
+);
+
 export const MoonIcon = () => (
   <Icon>
     <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+  </Icon>
+);
+
+export const ChevronRightIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    className="size-4 shrink-0 fill-none stroke-secondary stroke-[1.75] transition-transform duration-150 ease-out [stroke-linecap:round] [stroke-linejoin:round] group-hover:translate-x-0.5 motion-reduce:transition-none"
+  >
+    <path d="m9 18 6-6-6-6" />
+  </svg>
+);
+
+export const ChevronUpDownIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    className="size-4 shrink-0 fill-none stroke-secondary stroke-[1.75] [stroke-linecap:round] [stroke-linejoin:round]"
+  >
+    <path d="m7 15 5 5 5-5M7 9l5-5 5 5" />
+  </svg>
+);
+
+export const CheckIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    className="size-4 shrink-0 fill-none stroke-accent stroke-2 [stroke-linecap:round] [stroke-linejoin:round]"
+  >
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+
+export const InboxIcon = () => (
+  <Icon>
+    <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+    <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+  </Icon>
+);
+
+export const UserCheckIcon = () => (
+  <Icon>
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <polyline points="16 11 18 13 22 9" />
+  </Icon>
+);
+
+export const MailIcon = () => (
+  <Icon>
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+  </Icon>
+);
+
+export const KeyboardIcon = () => (
+  <Icon>
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
+  </Icon>
+);
+
+export const SendIcon = () => (
+  <Icon>
+    <path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" />
+    <path d="m21.854 2.147-10.94 10.939" />
   </Icon>
 );

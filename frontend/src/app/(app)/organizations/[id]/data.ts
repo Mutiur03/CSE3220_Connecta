@@ -1,0 +1,48 @@
+import { cache } from "react";
+import { notFound } from "next/navigation";
+import { ApiError } from "@/lib/api";
+import { getOrganization } from "@/lib/org-api";
+import { isUuid } from "@/lib/org-validation";
+import { getAccessToken, getCurrentUser } from "@/lib/session";
+
+// Each section of the organization page calls these. React's cache() runs each one once per
+// request, so the sections share a single /api/me and organization request.
+
+const isNotFound = (error: unknown) =>
+  error instanceof ApiError && error.status === 404;
+
+/** The signed-in user and their access token. Redirects to log in when there is none. */
+export const loadSession = cache(async (orgId: string) => {
+  const path = `/organizations/${orgId}`;
+  const user = await getCurrentUser(path);
+  const accessToken = await getAccessToken(path);
+  return { user, accessToken };
+});
+
+/**
+ * The organization, or undefined when the id is malformed, missing or belongs to another tenant. The
+ * backend answers 404 for the last two, so they look the same to the caller.
+ */
+export const findOrganization = cache(async (orgId: string) => {
+  if (!isUuid(orgId)) return undefined;
+  const { accessToken } = await loadSession(orgId);
+  return getOrganization(accessToken, orgId).catch((error: unknown) => {
+    if (isNotFound(error)) return undefined;
+    throw error;
+  });
+});
+
+/** The organization, or the not-found page. */
+export const loadOrganization = cache(async (orgId: string) => {
+  const organization = await findOrganization(orgId);
+  if (!organization) notFound();
+  return organization;
+});
+
+/** A backend 404 on a section's own request shows the not-found page, the same as a missing organization. */
+export function notFoundOnMissing<T>(request: Promise<T>): Promise<T> {
+  return request.catch((error: unknown) => {
+    if (isNotFound(error)) notFound();
+    throw error;
+  });
+}

@@ -9,6 +9,7 @@ import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
+import com.connecta.backend.auth.service.SetupRequiredException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,6 +25,11 @@ class AuthExceptionHandlerTests {
         @GetMapping("/email-used")
         void emailUsed() {
             throw new EmailAlreadyUsedException();
+        }
+
+        @GetMapping("/setup-required")
+        void setupRequired() {
+            throw new SetupRequiredException();
         }
 
         @GetMapping("/bad-token")
@@ -49,6 +55,15 @@ class AuthExceptionHandlerTests {
         mvc = MockMvcBuilders.standaloneSetup(new ThrowingController())
                 .setControllerAdvice(new AuthExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void setupRequiredIs409() throws Exception {
+        mvc.perform(get("/setup-required"))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.detail").value(new SetupRequiredException().getMessage()));
     }
 
     @Test

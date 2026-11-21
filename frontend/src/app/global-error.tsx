@@ -15,7 +15,7 @@ export default function GlobalError({
       <body className="min-h-full flex flex-col">
         <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
           <div className="flex flex-col gap-2">
-            <h1 className="text-display font-semibold tracking-tight">
+            <h1 className="text-display font-medium">
               Connecta could not load
             </h1>
             <p className="text-secondary">

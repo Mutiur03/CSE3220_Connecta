@@ -2,9 +2,23 @@ export const THEME_KEY = "theme";
 
 export type Theme = "light" | "dark";
 
-// Runs inline in <head> before first paint, so a pinned theme never flashes the other one.
-// It must stay a plain script: no module, no defer.
-export const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
+const ONE_YEAR = 60 * 60 * 24 * 365;
+
+/** A pinned theme from a stored value; anything else means "follow the system". */
+export function parseTheme(
+  value: string | null | undefined,
+): Theme | undefined {
+  return value === "light" || value === "dark" ? value : undefined;
+}
+
+// The server reads this cookie and renders <html data-theme>, so a pinned theme is right on the
+// very first paint. No script has to win a race against the browser.
+function writeThemeCookie(theme: Theme | undefined): void {
+  if (typeof document === "undefined") return;
+  document.cookie = theme
+    ? `${THEME_KEY}=${theme}; path=/; max-age=${ONE_YEAR}; samesite=lax`
+    : `${THEME_KEY}=; path=/; max-age=0`;
+}
 
 export function systemTheme(): Theme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -24,6 +38,7 @@ export function toggleTheme(root: HTMLElement): void {
   const follow = target === systemTheme();
   if (follow) delete root.dataset.theme;
   else root.dataset.theme = target;
+  writeThemeCookie(follow ? undefined : target);
   try {
     if (follow) localStorage.removeItem(THEME_KEY);
     else localStorage.setItem(THEME_KEY, target);
@@ -34,6 +49,8 @@ export function toggleTheme(root: HTMLElement): void {
 
 // Applies a change made in another tab.
 export function syncTheme(root: HTMLElement, stored: string | null): void {
-  if (stored === "light" || stored === "dark") root.dataset.theme = stored;
+  const theme = parseTheme(stored);
+  if (theme) root.dataset.theme = theme;
   else delete root.dataset.theme;
+  writeThemeCookie(theme);
 }

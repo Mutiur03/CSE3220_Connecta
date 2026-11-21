@@ -1,16 +1,15 @@
 import { ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
 
-// Owner carries the accent (it is the role that matters most); the others step down in tone.
+// Admin carries the accent; an agent steps down to neutral.
 export const ROLE_BADGE_TONE: Record<OrgRole, string> = {
-  OWNER: "text-accent",
-  ADMIN: "text-primary",
-  AGENT: "text-secondary",
+  ADMIN: "bg-accent/12 text-accent",
+  AGENT: "bg-hover text-secondary",
 };
 
 export default function OrgRoleBadge({ role }: { role: OrgRole }) {
   return (
     <span
-      className={`inline-flex items-center rounded-full bg-hover px-2 py-0.5 text-caption font-medium ${ROLE_BADGE_TONE[role]}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-caption font-medium ${ROLE_BADGE_TONE[role]}`}
     >
       {ROLE_LABELS[role]}
     </span>

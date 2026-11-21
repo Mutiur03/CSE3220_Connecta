@@ -10,5 +10,5 @@ import jakarta.validation.constraints.Size;
 
 public record CreateInvitationRequest(
         @NotBlank @Email @Size(max = Invitation.EMAIL_MAX_LENGTH) String email,
-        @NotNull @Pattern(regexp = "^(" + Roles.OWNER + "|" + Roles.ADMIN + "|" + Roles.AGENT + ")$") String role) {
+        @NotNull @Pattern(regexp = "^(" + Roles.ADMIN + "|" + Roles.AGENT + ")$") String role) {
 }

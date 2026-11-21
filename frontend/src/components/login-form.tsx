@@ -2,8 +2,9 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { login, type LoginState } from "@/lib/auth-actions";
-import { Button } from "@/components/ui/button";
+import { Button, PendingLabel } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import PasswordField from "@/components/password-field";
 
 export default function LoginForm({ next = "" }: { next?: string }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -36,25 +37,28 @@ export default function LoginForm({ next = "" }: { next?: string }) {
         name="email"
         type="email"
         label="Email"
+        placeholder="you@company.com"
         autoComplete="email"
         defaultValue={state.email}
         error={state.errors?.email}
       />
-      <Field
+      <PasswordField
         id="password"
         name="password"
-        type="password"
         label="Password"
+        placeholder="Enter your password"
         autoComplete="current-password"
         error={state.errors?.password}
       />
 
-      <p role="alert" className="min-h-5 text-sm text-danger">
-        {state.message}
-      </p>
+      {state.message && (
+        <p role="alert" className="text-sm text-danger">
+          {state.message}
+        </p>
+      )}
 
-      <Button type="submit" variant="primary" disabled={pending}>
-        {pending ? "Signing in…" : "Sign in"}
+      <Button type="submit" variant="primary" block disabled={pending}>
+        <PendingLabel pending={pending} busy={"Signing in…"} idle={"Sign in"} />
       </Button>
     </form>
   );

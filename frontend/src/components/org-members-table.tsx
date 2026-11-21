@@ -77,6 +77,7 @@ function RemoveControl({ orgId, member, rights }: RowProps) {
           : `Remove ${member.name} from the organization?`
       }
       tone="danger"
+      size="sm"
     />
   );
 }
@@ -124,19 +125,19 @@ function MemberTable({ orgId, members, callerRole, callerUserId }: Props) {
       <table className={tableClass}>
         <thead className="border-b border-line text-secondary">
           <tr>
-            <th scope="col" className="py-2 pr-4 font-medium">
+            <th scope="col" className="px-4 py-2 font-medium">
               Name
             </th>
-            <th scope="col" className="py-2 pr-4 font-medium">
+            <th scope="col" className="px-4 py-2 font-medium">
               Email
             </th>
-            <th scope="col" className="py-2 pr-4 font-medium">
+            <th scope="col" className="px-4 py-2 font-medium">
               Role
             </th>
-            <th scope="col" className="py-2 pr-4 font-medium">
+            <th scope="col" className="px-4 py-2 font-medium">
               Joined
             </th>
-            <th scope="col" className="py-2 font-medium">
+            <th scope="col" className="px-4 py-2 text-right font-medium">
               <span className="sr-only">Actions</span>
             </th>
           </tr>
@@ -148,9 +149,9 @@ function MemberTable({ orgId, members, callerRole, callerUserId }: Props) {
             return (
               <tr
                 key={member.membershipId}
-                className="border-b border-line-subtle align-top hover:bg-hover"
+                className="h-14 border-b border-line-subtle transition-colors last:border-b-0 hover:bg-hover/60"
               >
-                <td className="py-2.5 pr-4 font-medium">
+                <td className="px-4 py-2 align-middle font-medium">
                   {member.name}
                   {rights.isSelf && (
                     <span className="ml-2 text-caption text-secondary">
@@ -158,15 +159,19 @@ function MemberTable({ orgId, members, callerRole, callerUserId }: Props) {
                     </span>
                   )}
                 </td>
-                <td className="py-2.5 pr-4 text-secondary">{member.email}</td>
-                <td className="py-2.5 pr-4">
+                <td className="px-4 py-2 align-middle text-secondary">
+                  {member.email}
+                </td>
+                <td className="px-4 py-2 align-middle">
                   <RoleControl {...row} />
                 </td>
-                <td className="py-2.5 pr-4 text-secondary">
+                <td className="px-4 py-2 align-middle text-secondary">
                   {formatDate(member.joinedAt)}
                 </td>
-                <td className="py-2.5">
-                  <RemoveControl {...row} />
+                <td className="px-4 py-2 align-middle">
+                  <div className="flex justify-end">
+                    <RemoveControl {...row} />
+                  </div>
                 </td>
               </tr>
             );

@@ -6,11 +6,9 @@ export const metadata: Metadata = { title: "Page not found" };
 
 export default function NotFound() {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-6 sm:p-8">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 p-6 sm:p-8">
       <div className="flex flex-col gap-2">
-        <h1 className="text-display font-semibold tracking-tight">
-          Page not found
-        </h1>
+        <h1 className="text-display font-medium">Page not found</h1>
         <p className="text-secondary">
           The page you asked for does not exist or has moved.
         </p>

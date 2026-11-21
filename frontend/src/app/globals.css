@@ -15,24 +15,24 @@
  * follows the OS unless the theme toggle pins data-theme on <html>. */
 :root {
   color-scheme: light dark;
-  --app: light-dark(#f6f4ef, #0e0f13);
-  --surface: light-dark(#ffffff, #15161b);
-  --hover: light-dark(#efece5, #1c1d23);
-  --selected: light-dark(#e8ebf2, #1b2233);
-  --line: light-dark(#e4e0d6, #272830);
-  --line-subtle: light-dark(#ede9e0, #1f2027);
-  --line-strong: light-dark(#878277, #6b6c77);
-  --primary: light-dark(#14151a, #ececee);
-  --secondary: light-dark(#6a6760, #9a9aa2);
-  --accent: light-dark(#1e2a47, #8fa3d9);
-  --accent-hover: light-dark(#2d3d66, #a9b8e4);
-  --accent-ink: light-dark(#ffffff, #0e0f13);
-  --focus: light-dark(#1e2a47, #8fa3d9);
-  --highlight: light-dark(#a8802f, #d2a64a);
+  --app: light-dark(#eeeeed, #141414);
+  --surface: light-dark(#ffffff, #1e1e1e);
+  --hover: light-dark(#f4f4f3, #272727);
+  --selected: light-dark(#ebebea, #2c2c2c);
+  --line: light-dark(#e3e3e1, #2e2e2e);
+  --line-subtle: light-dark(#eeeeec, #272727);
+  --line-strong: light-dark(#82827e, #6e6e6e);
+  --primary: light-dark(#151515, #ededed);
+  --secondary: light-dark(#62625e, #a3a3a3);
+  --accent: light-dark(#16793f, #4cc38a);
+  --accent-hover: light-dark(#0f5f31, #6ad3a0);
+  --accent-ink: light-dark(#ffffff, #0e0e0e);
+  --focus: light-dark(#16793f, #4cc38a);
+  --highlight: light-dark(#1a8f4c, #4cc38a);
   --danger: light-dark(#b42318, #f0675c);
   --danger-solid: light-dark(#b42318, #c2362f);
   --on-danger: light-dark(#ffffff, #ffffff);
-  --success: light-dark(#1f7a45, #6fd29a);
+  --success: light-dark(#17703c, #5fd49a);
 }
 
 :root[data-theme="light"] {
@@ -66,9 +66,9 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
-  /* Radius: 8px controls, 10px panels, full for avatars and badges. */
-  --radius-control: 0.5rem;
-  --radius-panel: 0.625rem;
+  /* Radius: 10px controls, 16px panels, full for avatars and badges. */
+  --radius-control: 0.625rem;
+  --radius-panel: 1rem;
 
   /* Five sizes: caption 12, body 13 (text-sm), message 14, title 15 (text-lg), display 22. */
   --text-caption: 0.75rem;
@@ -83,7 +83,7 @@
   --text-lg--line-height: 1.4;
   --text-title: 0.9375rem;
   --text-title--line-height: 1.4;
-  --text-display: 1.375rem;
+  --text-display: 1.5rem;
   --text-display--line-height: 1.25;
   --text-display--letter-spacing: -0.015em;
 
@@ -106,9 +106,15 @@
 
   /* Counts, dates and times line up in columns. */
   time,
-  .tabular {
+  .tabular,
+  .figure {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Counts and times: Geist Mono, fixed-width figures, so columns and changes line up. */
+.figure {
+  font-family: var(--font-mono);
 }
 
 /* The theme toggle shows the action for the scheme in use, and needs no JS to stay right when
@@ -220,5 +226,56 @@
     .select::picker(select) {
       transition: none;
     }
+  }
+}
+
+/*
+ * Motion. One short settle when a page opens and one staggered reveal on the sign-in preview.
+ * Everything else is 150ms colour and press feedback. All of it is off under
+ * prefers-reduced-motion.
+ */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@layer components {
+  .enter {
+    animation: enter 220ms var(--ease-out) both;
+  }
+
+  /* Children rise in order; set --i on each child. */
+  .stagger > * {
+    animation: enter 420ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 70ms + 120ms);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: var(--selected);
+}
+
+h1,
+h2 {
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .enter,
+  .stagger > * {
+    animation: none;
   }
 }

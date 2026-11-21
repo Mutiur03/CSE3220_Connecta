@@ -10,7 +10,7 @@ Connecta should feel like a calm, dense work tool in the family of Linear, Front
 - **One accent:** a single deep navy used only for focus, selection and primary actions. A small brass highlight marks unread and status dots only.
 - **Density over cards:** rows and dividers, not boxes inside boxes. Whitespace is spent between groups, not inside every element.
 - **Channel identity is a detail, not a theme:** Instagram and Messenger appear as small badges. The UI never takes on their brand colors.
-- **Speed is part of the look:** skeleton loading, optimistic sends, keyboard-first navigation.
+- **Speed is part of the look:** pages arrive complete from the server (no loading skeletons or spinners in place of content), optimistic sends, keyboard-first navigation.
 - **Light and dark from day one,** built from the same token scale.
 
 ## Design tokens
@@ -67,13 +67,13 @@ The main screen is a three-pane inbox with a narrow rail on the left. Panes are 
 
 ## Screens and states
 
-Design each screen in light and dark, with its empty, loading and error states. Tie each to a backlog milestone when you create issues.
+Design each screen in light and dark, with its empty and error states, and the pending state of every control that sends something. Tie each to a backlog milestone when you create issues.
 
 | Screen | States to design |
 | --- | --- |
-| Sign in / sign up | Default, error, loading |
+| Sign in / sign up | Default, error, submitting (button label swaps, width unchanged) |
 | Workspace onboarding | Create workspace, connect Instagram, connect Messenger, connection failed |
-| Inbox (three-pane) | Empty inbox, loading skeleton, unread, assigned, snoozed, closed |
+| Inbox (three-pane) | Empty inbox, unread, assigned, snoozed, closed |
 | Thread | New contact, long history, image and attachment messages, failed send, sending, delivered, 24-hour window expired |
 | Composer | Default, attachment added, saved reply picker, disabled when outside window |
 | Contact details | Fresh contact, tagged, with notes, merged |
@@ -125,7 +125,7 @@ Design each screen in light and dark, with its empty, loading and error states. 
 
 **Loading and feedback**
 
-- Skeleton rows matching real row height; never a centered spinner for the inbox.
+- Pages and lists render complete from the server: no skeletons, no `loading.tsx`, never a centered spinner. A control that sends something shows a busy label without changing its width.
 - Optimistic send; toasts only for failures, bottom-right, auto-dismiss in 5 seconds.
 
 ## Anti-slop checklist and references
