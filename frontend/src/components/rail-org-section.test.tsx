@@ -58,4 +58,13 @@ describe("RailOrgSection", () => {
     pathname.current = `/organizations/${FIRST_ID}`;
     expect(render()).not.toContain('aria-current="page"');
   });
+
+  it("links Categories and marks it, not Products, active on the categories route", () => {
+    pathname.current = `/organizations/${FIRST_ID}/categories/new`;
+    const markup = render();
+    expect(markup).toContain(`href="/organizations/${FIRST_ID}/categories"`);
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(markup).toMatch(/aria-current="page"[^>]*class|href="[^"]*\/categories"[^>]*aria-current="page"/);
+    expect(markup).not.toMatch(/href="[^"]*\/products"[^>]*aria-current="page"/);
+  });
 });
