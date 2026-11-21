@@ -131,7 +131,7 @@ class OrganizationControllerIntegrationTests {
     class Create {
 
         @Test
-        void theCallerBecomesOwnerAndGetsCreatedWithALocation() throws Exception {
+        void theCallerBecomesAdminAndGetsCreatedWithALocation() throws Exception {
             User caller = newUser();
             String slug = newSlug();
 
@@ -142,7 +142,7 @@ class OrganizationControllerIntegrationTests {
                     .andExpect(jsonPath("$.slug").value(slug));
 
             Organization created = organizations.findBySlug(slug).orElseThrow();
-            assertEquals(Roles.OWNER, roleOf(created, caller));
+            assertEquals(Roles.ADMIN, roleOf(created, caller));
         }
 
         @Test
@@ -181,16 +181,16 @@ class OrganizationControllerIntegrationTests {
         void returnsOnlyMyOrganizationsInTheRequestedPage() throws Exception {
             User caller = newUser();
             organization("Alpha");
-            join(organization("Bravo"), caller, Roles.OWNER);
+            join(organization("Bravo"), caller, Roles.ADMIN);
             join(organization("Charlie"), caller, Roles.AGENT);
             join(organization("Delta"), caller, Roles.ADMIN);
-            join(organization("Other Tenant"), newUser(), Roles.OWNER);
+            join(organization("Other Tenant"), newUser(), Roles.ADMIN);
 
             mvc.perform(get(BASE).header(AUTH, bearer(caller)).param("page", "0").param("size", "2"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(2))
                     .andExpect(jsonPath("$.content[0].name").value("Bravo"))
-                    .andExpect(jsonPath("$.content[0].callerRole").value("OWNER"))
+                    .andExpect(jsonPath("$.content[0].callerRole").value("ADMIN"))
                     .andExpect(jsonPath("$.content[1].name").value("Charlie"))
                     .andExpect(jsonPath("$.page").value(0))
                     .andExpect(jsonPath("$.size").value(2))
@@ -200,7 +200,7 @@ class OrganizationControllerIntegrationTests {
         @Test
         void theLastPageHoldsTheRest() throws Exception {
             User caller = newUser();
-            join(organization("Bravo"), caller, Roles.OWNER);
+            join(organization("Bravo"), caller, Roles.ADMIN);
             join(organization("Charlie"), caller, Roles.AGENT);
             join(organization("Delta"), caller, Roles.ADMIN);
 
@@ -265,22 +265,6 @@ class OrganizationControllerIntegrationTests {
     class Rename {
 
         @Test
-        void anOwnerRenamesAndTheSlugStaysTheSame() throws Exception {
-            User owner = newUser();
-            Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
-
-            mvc.perform(json(patch(BASE + "/" + acme.getId()).header(AUTH, bearer(owner)),
-                            "{\"name\":\"Acme Desk\"}"))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value("Acme Desk"));
-
-            Organization renamed = organizations.findById(acme.getId()).orElseThrow();
-            assertEquals("Acme Desk", renamed.getName());
-            assertEquals(acme.getSlug(), renamed.getSlug());
-        }
-
-        @Test
         void anAdminCanRename() throws Exception {
             User admin = newUser();
             Organization acme = organization("Acme");
@@ -317,7 +301,7 @@ class OrganizationControllerIntegrationTests {
         void aBlankNameIsRejected() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
 
             mvc.perform(json(patch(BASE + "/" + acme.getId()).header(AUTH, bearer(owner)), "{\"name\":\" \"}"))
                     .andExpect(status().isBadRequest())
@@ -338,7 +322,7 @@ class OrganizationControllerIntegrationTests {
         void aDisabledUserWithAValidTokenIsRefusedOnEveryEndpoint() throws Exception {
             User user = newUser();
             Organization acme = organization("Acme");
-            join(acme, user, Roles.OWNER);
+            join(acme, user, Roles.ADMIN);
             TestUsers.set(user, "enabled", false);
             users.saveAndFlush(user);
             String token = bearer(user);
@@ -358,27 +342,16 @@ class OrganizationControllerIntegrationTests {
     class Delete {
 
         @Test
-        void anOwnerDeletesTheOrganizationAndItsMemberships() throws Exception {
+        void anAdminDeletesTheOrganizationAndItsMemberships() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
 
             mvc.perform(delete(BASE + "/" + acme.getId()).header(AUTH, bearer(owner)))
                     .andExpect(status().isNoContent());
 
             assertFalse(organizations.existsById(acme.getId()));
             assertTrue(memberships.findByOrganizationIdAndUserId(acme.getId(), owner.getId()).isEmpty());
-        }
-
-        @Test
-        void anAdminIsForbiddenAndTheOrganizationStays() throws Exception {
-            User admin = newUser();
-            Organization acme = organization("Acme");
-            join(acme, admin, Roles.ADMIN);
-
-            mvc.perform(delete(BASE + "/" + acme.getId()).header(AUTH, bearer(admin)))
-                    .andExpect(status().isForbidden());
-            assertTrue(organizations.existsById(acme.getId()));
         }
 
         @Test

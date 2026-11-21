@@ -33,8 +33,8 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
     Optional<Membership> findByIdAndOrganizationId(UUID id, UUID organizationId);
 
     /**
-     * The memberships holding this role, locked for update. Concurrent owner removals queue on these rows,
-     * so the last-OWNER check cannot be passed by two transactions at once.
+     * The memberships holding this role, locked for update. Concurrent admin removals queue on these rows,
+     * so the last-ADMIN check cannot be passed by two transactions at once.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     List<Membership> findByOrganizationIdAndRoleName(UUID organizationId, String roleName);

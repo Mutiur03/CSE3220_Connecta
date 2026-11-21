@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 
 import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.common.dto.PageResponse;
+import com.connecta.backend.org.dto.OrganizationSummaryResponse;
+import com.connecta.backend.org.repository.OrganizationSummary;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.dto.CreateOrganizationRequest;
@@ -91,9 +93,9 @@ class OrganizationServiceTests {
     class Create {
 
         @Test
-        void savesTheOrganizationAndMakesTheCallerOwner() {
-            Role owner = new Role(Roles.OWNER);
-            when(users.findRole(Roles.OWNER)).thenReturn(owner);
+        void savesTheOrganizationAndMakesTheCallerAdmin() {
+            Role admin = new Role(Roles.ADMIN);
+            when(users.findRole(Roles.ADMIN)).thenReturn(admin);
             when(organizations.existsBySlug(SLUG)).thenReturn(false);
             when(organizations.saveAndFlush(any(Organization.class))).thenAnswer(call -> call.getArgument(0));
             when(memberships.save(any(Membership.class))).thenAnswer(call -> call.getArgument(0));
@@ -102,16 +104,16 @@ class OrganizationServiceTests {
 
             assertEquals(NAME, created.name());
             assertEquals(SLUG, created.slug());
-            assertEquals(Roles.OWNER, created.callerRole());
+            assertEquals(Roles.ADMIN, created.callerRole());
             ArgumentCaptor<Membership> saved = ArgumentCaptor.forClass(Membership.class);
             verify(memberships).save(saved.capture());
             assertEquals(caller, saved.getValue().getUser());
-            assertEquals(Roles.OWNER, saved.getValue().getRole().getName());
+            assertEquals(Roles.ADMIN, saved.getValue().getRole().getName());
         }
 
         @Test
         void aTakenSlugIsRejectedBeforeAnythingIsSaved() {
-            when(users.findRole(Roles.OWNER)).thenReturn(new Role(Roles.OWNER));
+            when(users.findRole(Roles.ADMIN)).thenReturn(new Role(Roles.ADMIN));
             when(organizations.existsBySlug(SLUG)).thenReturn(true);
 
             assertThrows(OrganizationSlugTakenException.class, () -> service.create(subject, createRequest()));
@@ -121,7 +123,7 @@ class OrganizationServiceTests {
 
         @Test
         void aConcurrentDuplicateSlugIsReportedAsTaken() {
-            when(users.findRole(Roles.OWNER)).thenReturn(new Role(Roles.OWNER));
+            when(users.findRole(Roles.ADMIN)).thenReturn(new Role(Roles.ADMIN));
             when(organizations.existsBySlug(SLUG)).thenReturn(false);
             when(organizations.saveAndFlush(any(Organization.class)))
                     .thenThrow(new DataIntegrityViolationException("duplicate slug"));
@@ -145,11 +147,38 @@ class OrganizationServiceTests {
         }
 
         @Test
-        void aMissingOwnerRoleIsAServerFaultAndNothingIsSaved() {
-            when(users.findRole(Roles.OWNER)).thenThrow(new RoleNotSeededException(Roles.OWNER));
+        void aMissingAdminRoleIsAServerFaultAndNothingIsSaved() {
+            when(users.findRole(Roles.ADMIN)).thenThrow(new RoleNotSeededException(Roles.ADMIN));
 
             assertThrows(RoleNotSeededException.class, () -> service.create(subject, createRequest()));
             verify(organizations, never()).saveAndFlush(any());
+        }
+    }
+
+    @Nested
+    class ListAll {
+
+        @Test
+        void returnsTheRequestedPageOfSummariesSortedByName() {
+            OrganizationSummary summary = org.mockito.Mockito.mock(OrganizationSummary.class);
+            when(summary.getId()).thenReturn(organizationId);
+            when(summary.getName()).thenReturn(NAME);
+            when(summary.getSlug()).thenReturn(SLUG);
+            when(summary.getMemberCount()).thenReturn(3L);
+            when(organizations.findAllSummaries(any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(summary), PageRequest.of(1, 5), 11));
+
+            PageResponse<OrganizationSummaryResponse> page = service.listAll(1, 5);
+
+            assertEquals(NAME, page.content().get(0).name());
+            assertEquals(3L, page.content().get(0).memberCount());
+            assertEquals(1, page.page());
+            assertEquals(11L, page.totalElements());
+            ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+            verify(organizations).findAllSummaries(pageable.capture());
+            assertEquals(1, pageable.getValue().getPageNumber());
+            assertEquals(5, pageable.getValue().getPageSize());
+            assertEquals("name: ASC", pageable.getValue().getSort().iterator().next().toString());
         }
     }
 
@@ -233,25 +262,15 @@ class OrganizationServiceTests {
     class Rename {
 
         @Test
-        void anOwnerRenamesTheOrganizationAndKeepsTheSlug() {
+        void anAdminRenamesTheOrganization() {
             when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
-                    .thenReturn(membershipAs(Roles.OWNER));
+                    .thenReturn(membershipAs(Roles.ADMIN));
 
             OrganizationResponse renamed = service.rename(subject, organizationId,
                     new UpdateOrganizationRequest("  Acme Desk "));
 
             assertEquals("Acme Desk", renamed.name());
             assertEquals(SLUG, renamed.slug());
-            assertEquals(Roles.OWNER, renamed.callerRole());
-        }
-
-        @Test
-        void anAdminRenamesTheOrganization() {
-            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
-                    .thenReturn(membershipAs(Roles.ADMIN));
-
-            assertEquals("Acme Desk", service.rename(subject, organizationId,
-                    new UpdateOrganizationRequest("Acme Desk")).name());
         }
 
         @Test
@@ -287,10 +306,10 @@ class OrganizationServiceTests {
     class Delete {
 
         @Test
-        void anOwnerDeletesTheOrganizationAndTheCallersMembership() {
+        void anAdminDeletesTheOrganizationAndTheCallersMembership() {
             Organization target = organization();
-            Membership ownership = new Membership(target, caller, new Role(Roles.OWNER));
-            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER)).thenReturn(ownership);
+            Membership ownership = new Membership(target, caller, new Role(Roles.ADMIN));
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN)).thenReturn(ownership);
 
             service.delete(subject, organizationId);
 
@@ -299,18 +318,8 @@ class OrganizationServiceTests {
         }
 
         @Test
-        void deleteRequiresOwnerSoAnAdminIsDeniedAndNothingIsDeleted() {
-            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER))
-                    .thenThrow(new InsufficientOrganizationRoleException());
-
-            assertThrows(InsufficientOrganizationRoleException.class, () -> service.delete(subject, organizationId));
-            verify(organizations, never()).delete(any());
-            verify(memberships, never()).delete(any());
-        }
-
-        @Test
         void anAgentIsDeniedAndNothingIsDeleted() {
-            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER))
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
                     .thenThrow(new InsufficientOrganizationRoleException());
 
             assertThrows(InsufficientOrganizationRoleException.class, () -> service.delete(subject, organizationId));
@@ -319,7 +328,7 @@ class OrganizationServiceTests {
 
         @Test
         void aNonMemberOrUnknownIdIsNotFound() {
-            when(tenants.requireRole(organizationId, caller.getId(), Roles.OWNER))
+            when(tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN))
                     .thenThrow(new NotAMemberException());
 
             assertThrows(NotAMemberException.class, () -> service.delete(subject, organizationId));

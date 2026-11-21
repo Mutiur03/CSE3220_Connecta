@@ -167,9 +167,9 @@ class MemberControllerIntegrationTests {
         @Test
         void aNonMemberOfAnotherOrganizationGetsA404() throws Exception {
             User outsider = newUser();
-            join(organization("Mine"), outsider, Roles.OWNER);
+            join(organization("Mine"), outsider, Roles.ADMIN);
             Organization theirs = organization("Theirs");
-            join(theirs, newUser(), Roles.OWNER);
+            join(theirs, newUser(), Roles.ADMIN);
 
             mvc.perform(get(membersPath(theirs)).header(AUTH, bearer(outsider)))
                     .andExpect(status().isNotFound())
@@ -208,22 +208,6 @@ class MemberControllerIntegrationTests {
     class ChangeRole {
 
         @Test
-        void anOwnerPromotesAnAgentToAdmin() throws Exception {
-            User owner = newUser();
-            Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
-            User agent = newUser();
-            join(acme, agent, Roles.AGENT);
-
-            mvc.perform(json(patch(memberPath(acme, membershipId(acme, agent))).header(AUTH, bearer(owner)),
-                            roleBody(Roles.ADMIN)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.role").value(Roles.ADMIN))
-                    .andExpect(jsonPath("$.userId").value(agent.getId().toString()));
-            assertEquals(Roles.ADMIN, roleOf(acme, agent));
-        }
-
-        @Test
         void anAdminPromotesAnAgentToAdmin() throws Exception {
             User admin = newUser();
             Organization acme = organization("Acme");
@@ -237,7 +221,8 @@ class MemberControllerIntegrationTests {
         }
 
         @Test
-        void anAdminCannotGrantOwner() throws Exception {
+        void grantingOwnerIsABadRequest() throws Exception {
+            // OWNER is the system owner, never an organization role.
             User admin = newUser();
             Organization acme = organization("Acme");
             join(acme, admin, Roles.ADMIN);
@@ -245,25 +230,10 @@ class MemberControllerIntegrationTests {
             join(acme, agent, Roles.AGENT);
 
             mvc.perform(json(patch(memberPath(acme, membershipId(acme, agent))).header(AUTH, bearer(admin)),
-                            roleBody(Roles.OWNER)))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.status").value(403));
+                            roleBody("OWNER")))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.role").exists());
             assertEquals(Roles.AGENT, roleOf(acme, agent));
-        }
-
-        @Test
-        void anAdminCannotTouchAnOwner() throws Exception {
-            User admin = newUser();
-            Organization acme = organization("Acme");
-            join(acme, admin, Roles.ADMIN);
-            User owner = newUser();
-            join(acme, owner, Roles.OWNER);
-            join(acme, newUser(), Roles.OWNER);
-
-            mvc.perform(json(patch(memberPath(acme, membershipId(acme, owner))).header(AUTH, bearer(admin)),
-                            roleBody(Roles.AGENT)))
-                    .andExpect(status().isForbidden());
-            assertEquals(Roles.OWNER, roleOf(acme, owner));
         }
 
         @Test
@@ -280,10 +250,10 @@ class MemberControllerIntegrationTests {
         }
 
         @Test
-        void aRoleOutsideTheThreeIsABadRequest() throws Exception {
+        void aRoleOutsideAdminAndAgentIsABadRequest() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
             User agent = newUser();
             join(acme, agent, Roles.AGENT);
 
@@ -297,7 +267,7 @@ class MemberControllerIntegrationTests {
         void aMembershipOfAnotherOrganizationIsA404() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
             Organization theirs = organization("Theirs");
             User stranger = newUser();
             join(theirs, stranger, Roles.AGENT);
@@ -312,7 +282,7 @@ class MemberControllerIntegrationTests {
         @Test
         void aNonMemberCallerIsA404() throws Exception {
             Organization acme = organization("Acme");
-            join(acme, newUser(), Roles.OWNER);
+            join(acme, newUser(), Roles.ADMIN);
             User agent = newUser();
             join(acme, agent, Roles.AGENT);
             User outsider = newUser();
@@ -323,16 +293,16 @@ class MemberControllerIntegrationTests {
         }
 
         @Test
-        void demotingTheLastOwnerIsUnprocessable() throws Exception {
+        void demotingTheLastAdminIsUnprocessable() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
 
             mvc.perform(json(patch(memberPath(acme, membershipId(acme, owner))).header(AUTH, bearer(owner)),
-                            roleBody(Roles.ADMIN)))
+                            roleBody(Roles.AGENT)))
                     .andExpect(status().isUnprocessableEntity())
                     .andExpect(jsonPath("$.status").value(422));
-            assertEquals(Roles.OWNER, roleOf(acme, owner));
+            assertEquals(Roles.ADMIN, roleOf(acme, owner));
         }
 
         @Test
@@ -365,7 +335,7 @@ class MemberControllerIntegrationTests {
             User agent = newUser();
             Organization acme = organization("Acme");
             join(acme, agent, Roles.AGENT);
-            join(acme, newUser(), Roles.OWNER);
+            join(acme, newUser(), Roles.ADMIN);
 
             mvc.perform(delete(memberPath(acme, membershipId(acme, agent))).header(AUTH, bearer(agent)))
                     .andExpect(status().isNoContent());
@@ -373,16 +343,16 @@ class MemberControllerIntegrationTests {
         }
 
         @Test
-        void theLastOwnerCannotLeave() throws Exception {
+        void theLastAdminCannotLeave() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
             join(acme, newUser(), Roles.AGENT);
 
             mvc.perform(delete(memberPath(acme, membershipId(acme, owner))).header(AUTH, bearer(owner)))
                     .andExpect(status().isUnprocessableEntity())
                     .andExpect(jsonPath("$.status").value(422));
-            assertEquals(Roles.OWNER, roleOf(acme, owner));
+            assertEquals(Roles.ADMIN, roleOf(acme, owner));
         }
 
         @Test
@@ -399,24 +369,10 @@ class MemberControllerIntegrationTests {
         }
 
         @Test
-        void anAdminCannotRemoveAnOwner() throws Exception {
-            User admin = newUser();
-            Organization acme = organization("Acme");
-            join(acme, admin, Roles.ADMIN);
-            User owner = newUser();
-            join(acme, owner, Roles.OWNER);
-            join(acme, newUser(), Roles.OWNER);
-
-            mvc.perform(delete(memberPath(acme, membershipId(acme, owner))).header(AUTH, bearer(admin)))
-                    .andExpect(status().isForbidden());
-            assertEquals(Roles.OWNER, roleOf(acme, owner));
-        }
-
-        @Test
         void aMembershipOfAnotherOrganizationIsA404() throws Exception {
             User owner = newUser();
             Organization acme = organization("Acme");
-            join(acme, owner, Roles.OWNER);
+            join(acme, owner, Roles.ADMIN);
             Organization theirs = organization("Theirs");
             User stranger = newUser();
             join(theirs, stranger, Roles.AGENT);

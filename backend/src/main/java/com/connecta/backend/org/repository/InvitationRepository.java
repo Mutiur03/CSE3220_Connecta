@@ -10,8 +10,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InvitationRepository extends JpaRepository<Invitation, UUID> {
 
-    /** Loads the organization and role, which accepting an invitation needs to create the membership. */
-    @EntityGraph(attributePaths = {"organization", "role"})
+    /** Loads the organization, role and inviter, which accepting or previewing an invitation needs. */
+    @EntityGraph(attributePaths = {"organization", "role", "invitedBy"})
     Optional<Invitation> findByTokenHash(String tokenHash);
 
     @EntityGraph(attributePaths = {"role"})

@@ -78,14 +78,14 @@ class MembershipRepositoryIntegrationTests {
         User user = newUser();
         Organization first = newOrganization();
         Organization second = newOrganization();
-        memberships.saveAndFlush(new Membership(first, user, role(Roles.OWNER)));
+        memberships.saveAndFlush(new Membership(first, user, role(Roles.ADMIN)));
         memberships.saveAndFlush(new Membership(second, user, role(Roles.AGENT)));
 
         List<Membership> found = memberships.findAllByUserId(user.getId());
 
         assertEquals(2, found.size());
         assertTrue(found.stream().anyMatch(m -> m.getOrganization().equals(first)
-                && m.getRole().getName().equals(Roles.OWNER)));
+                && m.getRole().getName().equals(Roles.ADMIN)));
         assertTrue(found.stream().anyMatch(m -> m.getOrganization().equals(second)
                 && m.getRole().getName().equals(Roles.AGENT)));
     }

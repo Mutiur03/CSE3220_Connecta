@@ -67,11 +67,12 @@ class AuthServiceTests {
     class Register {
 
         @Test
-        void registerHashesPasswordNormalizesEmailAndAssignsAgentRole() {
+        void registerHashesPasswordNormalizesEmailAndAssignsAdminRole() {
+            when(users.ownerExists()).thenReturn(true);
             when(users.emailExists("jane@example.com")).thenReturn(false);
-            when(users.createAgent(anyString(), anyString(), anyString())).thenAnswer(i -> {
-                User created = new User(i.getArgument(0), i.getArgument(1), i.getArgument(2));
-                created.addRole(new Role(Roles.AGENT));
+            when(users.create(anyString(), anyString(), anyString(), anyString())).thenAnswer(i -> {
+                User created = new User(i.getArgument(1), i.getArgument(2), i.getArgument(3));
+                created.addRole(new Role(i.getArgument(0)));
                 return created;
             });
 
@@ -79,28 +80,39 @@ class AuthServiceTests {
                     new RegisterRequest("  Jane@Example.com ", "correct-password", "Jane"));
 
             ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
-            verify(users).createAgent(eq("jane@example.com"), hash.capture(), eq("Jane"));
+            verify(users).create(eq(Roles.ADMIN), eq("jane@example.com"), hash.capture(), eq("Jane"));
             assertNotEquals("correct-password", hash.getValue());
             assertTrue(encoder.matches("correct-password", hash.getValue()));
-            assertEquals(Set.of(Roles.AGENT), response.roles());
+            assertEquals(Set.of(Roles.ADMIN), response.roles());
         }
 
         @Test
         void registerRejectsExistingEmail() {
+            when(users.ownerExists()).thenReturn(true);
             when(users.emailExists("jane@example.com")).thenReturn(true);
 
             assertThrows(EmailAlreadyUsedException.class,
                     () -> service.register(new RegisterRequest("Jane@example.com", "correct-password", "Jane")));
-            verify(users, never()).createAgent(any(), any(), any());
+            verify(users, never()).create(any(), any(), any(), any());
         }
 
         @Test
         void registerMapsConcurrentDuplicateToEmailAlreadyUsed() {
+            when(users.ownerExists()).thenReturn(true);
             when(users.emailExists(anyString())).thenReturn(false);
-            when(users.createAgent(anyString(), anyString(), anyString())).thenThrow(new DataIntegrityViolationException("dup"));
+            when(users.create(anyString(), anyString(), anyString(), anyString())).thenThrow(new DataIntegrityViolationException("dup"));
 
             assertThrows(EmailAlreadyUsedException.class,
                     () -> service.register(new RegisterRequest("jane@example.com", "correct-password", "Jane")));
+        }
+
+        @Test
+        void registerIsClosedUntilTheFirstRunSetupIsDone() {
+            when(users.ownerExists()).thenReturn(false);
+
+            assertThrows(SetupRequiredException.class,
+                    () -> service.register(new RegisterRequest("jane@example.com", "correct-password", "Jane")));
+            verify(users, never()).create(any(), any(), any(), any());
         }
 
     }
@@ -178,6 +190,24 @@ class AuthServiceTests {
             verifyNoInteractions(tokenService);
         }
 
+    }
+
+    @Nested
+    class StartSession {
+
+        @Test
+        void startSessionIssuesTokensWithoutAPasswordCheck() throws Exception {
+            User user = existingUser(true);
+            when(tokenService.createAccessToken(user)).thenReturn("access-token");
+            when(tokenService.accessTtlSeconds()).thenReturn(900L);
+            when(refreshTokens.issue(user)).thenReturn("refresh-token");
+
+            TokenResponse response = service.startSession(user);
+
+            assertEquals("access-token", response.accessToken());
+            assertEquals("refresh-token", response.refreshToken());
+            assertEquals("jane@example.com", response.user().email());
+        }
     }
 
     @Nested

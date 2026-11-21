@@ -41,16 +41,20 @@ public class UserService {
         return roles.findByName(name).orElseThrow(() -> new RoleNotSeededException(name));
     }
 
+    /** True once the system OWNER exists. Before that the first-run setup is the only way in. */
+    @Transactional(readOnly = true)
+    public boolean ownerExists() {
+        return users.existsByRolesName(Roles.OWNER);
+    }
+
     /**
-     * Stores a new user with the AGENT role. Flushes so a concurrent duplicate email surfaces here as
+     * Stores a new user holding one global role. Flushes so a concurrent duplicate email surfaces here as
      * a DataIntegrityViolationException and not at commit.
      */
     @Transactional
-    public User createAgent(String normalizedEmail, String passwordHash, String fullName) {
-        Role agent = roles.findByName(Roles.AGENT)
-                .orElseThrow(() -> new RoleNotSeededException(Roles.AGENT));
+    public User create(String roleName, String normalizedEmail, String passwordHash, String fullName) {
         User user = new User(normalizedEmail, passwordHash, fullName);
-        user.addRole(agent);
+        user.addRole(findRole(roleName));
         return users.saveAndFlush(user);
     }
 }

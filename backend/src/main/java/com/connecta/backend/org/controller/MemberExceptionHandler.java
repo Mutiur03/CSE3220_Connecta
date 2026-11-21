@@ -1,6 +1,6 @@
 package com.connecta.backend.org.controller;
 
-import com.connecta.backend.org.service.LastOwnerException;
+import com.connecta.backend.org.service.LastAdminException;
 import com.connecta.backend.org.service.MemberNotFoundException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -19,8 +19,8 @@ class MemberExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }
 
-    @ExceptionHandler(LastOwnerException.class)
-    ProblemDetail lastOwner(LastOwnerException e) {
+    @ExceptionHandler(LastAdminException.class)
+    ProblemDetail lastAdmin(LastAdminException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
     }
 }

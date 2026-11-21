@@ -33,8 +33,8 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /**
  * Role rules (the caller's role inside each organization is checked by OrganizationService):
- * list, create and get need a signed-in user, and get is limited to members; rename needs OWNER or
- * ADMIN of that organization; delete needs OWNER. Anyone else gets 403, and a non-member gets 404.
+ * list, create and get need a signed-in user, and get is limited to members; rename and delete need
+ * ADMIN of that organization. An AGENT gets 403, and a non-member gets 404.
  */
 @RestController
 @Tag(name = "Organizations", description = "Organizations the caller belongs to and their settings")
@@ -44,7 +44,7 @@ public class OrganizationController {
 
     private final OrganizationService organizations;
 
-    @Operation(summary = "Create an organization; the caller becomes its OWNER",
+    @Operation(summary = "Create an organization; the caller becomes its ADMIN",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "201", description = "Organization created, Location header set")
     @ApiResponse(responseCode = "400", description = "Invalid input")
@@ -80,7 +80,7 @@ public class OrganizationController {
         return organizations.get(jwt.getSubject(), id);
     }
 
-    @Operation(summary = "Rename an organization (OWNER or ADMIN of it)",
+    @Operation(summary = "Rename an organization (ADMIN of it)",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "200", description = "The renamed organization")
     @ApiResponse(responseCode = "400", description = "Invalid input")
@@ -93,11 +93,11 @@ public class OrganizationController {
         return organizations.rename(jwt.getSubject(), id, request);
     }
 
-    @Operation(summary = "Delete an organization and its memberships (OWNER of it)",
+    @Operation(summary = "Delete an organization and its memberships (ADMIN of it)",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "204", description = "Organization deleted")
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
-    @ApiResponse(responseCode = "403", description = "The caller is an ADMIN or AGENT of this organization")
+    @ApiResponse(responseCode = "403", description = "The caller is an AGENT of this organization")
     @ApiResponse(responseCode = "404", description = "Not found, or the caller is not a member")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

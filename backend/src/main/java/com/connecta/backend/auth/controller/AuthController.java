@@ -30,10 +30,10 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @Operation(summary = "Register a new AGENT account")
+    @Operation(summary = "Register a new ADMIN account (only after the first-run setup)")
     @ApiResponse(responseCode = "201", description = "Account created")
     @ApiResponse(responseCode = "400", description = "Invalid input")
-    @ApiResponse(responseCode = "409", description = "Email already in use")
+    @ApiResponse(responseCode = "409", description = "Email already in use, or the first-run setup is not done")
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody RegisterRequest request) {

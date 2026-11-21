@@ -107,25 +107,25 @@ class UserServiceTests {
     }
 
     @Nested
-    class CreateAgent {
+    class Create {
 
         @Test
-        void savesTheUserWithTheAgentRole() {
-            when(roles.findByName(Roles.AGENT)).thenReturn(Optional.of(new Role(Roles.AGENT)));
+        void savesTheUserWithTheGivenRole() {
+            when(roles.findByName(Roles.ADMIN)).thenReturn(Optional.of(new Role(Roles.ADMIN)));
             when(users.saveAndFlush(any(User.class))).thenAnswer(i -> i.getArgument(0));
 
-            User created = service.createAgent(EMAIL, "hash", "Jane");
+            User created = service.create(Roles.ADMIN, EMAIL, "hash", "Jane");
 
             assertEquals(EMAIL, created.getEmail());
             assertEquals("hash", created.getPasswordHash());
-            assertEquals(Set.of(Roles.AGENT), created.getRoleNames());
+            assertEquals(Set.of(Roles.ADMIN), created.getRoleNames());
         }
 
         @Test
-        void failsWhenTheAgentRoleIsNotSeeded() {
+        void failsWhenTheRoleIsNotSeeded() {
             when(roles.findByName(Roles.AGENT)).thenReturn(Optional.empty());
 
-            assertThrows(RoleNotSeededException.class, () -> service.createAgent(EMAIL, "hash", "Jane"));
+            assertThrows(RoleNotSeededException.class, () -> service.create(Roles.AGENT, EMAIL, "hash", "Jane"));
             verify(users, never()).saveAndFlush(any());
         }
 
@@ -135,7 +135,18 @@ class UserServiceTests {
             when(users.saveAndFlush(any(User.class))).thenThrow(new DataIntegrityViolationException("dup"));
 
             assertThrows(DataIntegrityViolationException.class,
-                    () -> service.createAgent(EMAIL, "hash", "Jane"));
+                    () -> service.create(Roles.AGENT, EMAIL, "hash", "Jane"));
+        }
+    }
+
+    @Nested
+    class OwnerExists {
+
+        @Test
+        void asksTheRepositoryForTheOwnerRole() {
+            when(users.existsByRolesName(Roles.OWNER)).thenReturn(true);
+
+            assertTrue(service.ownerExists());
         }
     }
 }

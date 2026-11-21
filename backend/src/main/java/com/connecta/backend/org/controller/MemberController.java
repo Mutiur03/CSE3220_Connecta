@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Role rules (checked by MemberService through TenantAccessService). List needs any membership of that
  * organization. Changing a role needs ADMIN or above. Removing another member needs ADMIN or above; any
  * member may remove their own membership. A role or member above the caller's own is 403, and the last
- * OWNER can neither be demoted nor removed (422).
+ * ADMIN can neither be demoted nor removed (422).
  */
 @RestController
 @Tag(name = "Members", description = "Who belongs to an organization and which role each member holds")
@@ -51,14 +51,14 @@ public class MemberController {
         return members.list(jwt.getSubject(), organizationId, page, size);
     }
 
-    @Operation(summary = "Change a member's role (ADMIN or above; not above own role; keeps one OWNER)",
+    @Operation(summary = "Change a member's role (ADMIN of it; ADMIN or AGENT; keeps one ADMIN)",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "200", description = "Role changed; the member as now stored")
-    @ApiResponse(responseCode = "400", description = "Role is not OWNER, ADMIN or AGENT")
+    @ApiResponse(responseCode = "400", description = "Role is not ADMIN or AGENT")
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
     @ApiResponse(responseCode = "403", description = "Caller is an AGENT, grants a role above their own, or the member outranks them")
     @ApiResponse(responseCode = "404", description = "Not found, another organization's member, or not a member")
-    @ApiResponse(responseCode = "422", description = "The member is the last OWNER and would be demoted")
+    @ApiResponse(responseCode = "422", description = "The member is the last ADMIN and would be demoted")
     @PatchMapping("/api/organizations/{organizationId}/members/{membershipId}")
     MemberResponse changeRole(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID organizationId,
             @PathVariable UUID membershipId, @Valid @RequestBody UpdateMemberRoleRequest request) {
@@ -71,7 +71,7 @@ public class MemberController {
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
     @ApiResponse(responseCode = "403", description = "Caller is an AGENT removing someone else, or the member outranks them")
     @ApiResponse(responseCode = "404", description = "Not found, another organization's member, or not a member")
-    @ApiResponse(responseCode = "422", description = "The member is the last OWNER")
+    @ApiResponse(responseCode = "422", description = "The member is the last ADMIN")
     @DeleteMapping("/api/organizations/{organizationId}/members/{membershipId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void remove(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID organizationId, @PathVariable UUID membershipId) {

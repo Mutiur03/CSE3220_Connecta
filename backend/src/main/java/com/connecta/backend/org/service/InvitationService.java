@@ -50,8 +50,7 @@ public class InvitationService {
     private final ApplicationEventPublisher events;
 
     /**
-     * ADMIN or above. The invited role may not be higher than the caller's own role, so an ADMIN cannot
-     * invite an OWNER. The raw token is returned here and nowhere else.
+     * ADMIN of the organization. The invited role is ADMIN or AGENT, never above the caller's own. The raw token is returned here and nowhere else.
      */
     @Transactional
     public InvitationCreatedResponse create(String subject, UUID organizationId, CreateInvitationRequest request) {
@@ -75,7 +74,9 @@ public class InvitationService {
             // A concurrent invite for the same email hits the one-pending-per-email index.
             throw new DuplicateInvitationException();
         }
-        events.publishEvent(new InvitationCreatedEvent(invitation.getId(), organizationId, email, request.role()));
+        events.publishEvent(new InvitationCreatedEvent(invitation.getId(), organizationId,
+                inviter.getOrganization().getName(), inviter.getUser().getFullName(), email, request.role(),
+                token.raw()));
         return new InvitationCreatedResponse(InvitationResponse.from(invitation), token.raw());
     }
 

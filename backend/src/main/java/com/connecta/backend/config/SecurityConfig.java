@@ -40,6 +40,8 @@ class SecurityConfig {
     private static final String[] PUBLIC_PATHS = {
         "/actuator/health",
         "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
+        "/api/setup/**",
+        "/api/invitations/preview", "/api/invitations/accept-new",
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 
@@ -54,6 +56,8 @@ class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(PUBLIC_PATHS).permitAll()
+                        // The system owner's view across every organization: OWNER only.
+                        .requestMatchers("/api/admin/organizations").hasRole(Roles.OWNER)
                         // Everything under /api/admin needs ADMIN (OWNER inherits it, see roleHierarchy).
                         .requestMatchers("/api/admin/**").hasRole(Roles.ADMIN)
                         // Health is public; metrics, info and the Prometheus scrape need ADMIN.
