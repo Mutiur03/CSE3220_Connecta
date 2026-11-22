@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -59,6 +60,26 @@ public class OAuthStateSigner {
             return new OAuthState(UUID.fromString(fields[0]), UUID.fromString(fields[1]));
         } catch (IllegalArgumentException e) {
             throw new InvalidOAuthStateException();
+        }
+    }
+
+    /**
+     * The organization a state names, read without checking its signature. Used only to choose which page the
+     * browser is sent to after a failed callback; nothing is granted on this value.
+     */
+    public Optional<UUID> organizationIdOf(String state) {
+        String[] parts = state == null ? new String[0] : state.split("\\.", -1);
+        if (parts.length != 2) {
+            return Optional.empty();
+        }
+        String[] fields = new String(decodeOrEmpty(parts[0]), StandardCharsets.UTF_8).split("\\|", -1);
+        if (fields.length != 3) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(UUID.fromString(fields[0]));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
         }
     }
 

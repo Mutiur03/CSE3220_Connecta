@@ -81,4 +81,22 @@ class OAuthStateSignerTests {
     private static MetaProperties props(String appSecret) {
         return new MetaProperties("app", appSecret, null, "config", "https://api.example.com", "unused");
     }
+
+    @Nested
+    class OrganizationOf {
+
+        @Test
+        void readsTheOrganizationANamedStateNamesWithoutCheckingItsSignature() {
+            UUID org = UUID.randomUUID();
+            String state = new OAuthStateSigner(props("another-secret")).issue(org, USER, NOW);
+
+            assertEquals(java.util.Optional.of(org), signer.organizationIdOf(state));
+        }
+
+        @Test
+        void aMalformedStateNamesNoOrganization() {
+            assertEquals(java.util.Optional.empty(), signer.organizationIdOf(null));
+            assertEquals(java.util.Optional.empty(), signer.organizationIdOf("forged.state"));
+        }
+    }
 }

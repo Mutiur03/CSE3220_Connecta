@@ -199,4 +199,17 @@ class InstagramConnectServiceTests {
                     org.springframework.data.domain.PageRequest.of(0, 20)).hasContent());
         }
     }
+
+    @Nested
+    class Cancelled {
+
+        @Test
+        void aCancelledLoginIsDeniedAndInstagramIsNotCalled() {
+            adminIsAMember();
+            String state = states.issue(acme.getId(), admin.getId(), TestClock.NOW);
+
+            assertThrows(MetaAuthorizationDeniedException.class, () -> service.completeConnection(null, state));
+            verify(client, never()).exchangeCode(anyString(), anyString());
+        }
+    }
 }
