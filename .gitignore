@@ -8,7 +8,7 @@ build/
 # Local environment files; only the example is committed
 .env
 .env.*
-!*.env.example
+!.env.example
 
 # Logs and tool artifacts
 *.log
