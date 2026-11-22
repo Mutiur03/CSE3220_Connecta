@@ -15,6 +15,7 @@ import com.connecta.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +60,27 @@ public class MetaPageService {
         User caller = callers.load(subject);
         tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN);
         return pages.findByOrganizationId(organizationId, PageRequest.of(page, size, BY_NAME));
+    }
+
+    /**
+     * The Pages the stored grant includes, by name, each marked connected or not. Without a grant there are none,
+     * so the connect screen can ask the admin to connect Facebook first. Never includes a token.
+     */
+    @Transactional(readOnly = true)
+    public List<MetaAvailablePage> availablePages(String subject, UUID organizationId) {
+        User caller = callers.load(subject);
+        tenants.requireRole(organizationId, caller.getId(), Roles.ADMIN);
+        requireConfigured();
+        if (authorizations.findByOrganizationId(organizationId).isEmpty()) {
+            return List.of();
+        }
+        Set<String> connected = pages.findByOrganizationId(organizationId, Pageable.unpaged()).stream()
+                .map(MetaConnectedPage::getPageId)
+                .collect(Collectors.toSet());
+        return grantedPages(organizationId).values().stream()
+                .map(page -> new MetaAvailablePage(page.id(), page.name(), connected.contains(page.id())))
+                .sorted(Comparator.comparing(MetaAvailablePage::name).thenComparing(MetaAvailablePage::pageId))
+                .toList();
     }
 
     /**

@@ -2,6 +2,7 @@ package com.connecta.backend.meta.controller;
 
 import com.connecta.backend.common.dto.PageResponse;
 import com.connecta.backend.meta.dto.ConnectPagesRequest;
+import com.connecta.backend.meta.dto.MetaAvailablePageResponse;
 import com.connecta.backend.meta.dto.MetaPageResponse;
 import com.connecta.backend.meta.service.MetaPageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,6 +51,21 @@ class MetaPageController {
             @RequestParam(defaultValue = "" + PageResponse.DEFAULT_SIZE) @Min(1) @Max(PageResponse.MAX_SIZE) int size) {
         return PageResponse.from(pages.connectedPages(jwt.getSubject(), organizationId, page, size),
                 MetaPageResponse::from);
+    }
+
+    @Operation(summary = "List the Pages the Meta grant includes, each marked connected or not (ADMIN of the organization)",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponse(responseCode = "200", description = "The granted Pages by name; empty when Facebook is not connected")
+    @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
+    @ApiResponse(responseCode = "403", description = "The caller is not an ADMIN of this organization")
+    @ApiResponse(responseCode = "404", description = "Not found, or the caller is not a member")
+    @ApiResponse(responseCode = "502", description = "Meta refused the Page lookup")
+    @ApiResponse(responseCode = "503", description = "Meta is not configured on this server")
+    @GetMapping("/available")
+    List<MetaAvailablePageResponse> available(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID organizationId) {
+        return pages.availablePages(jwt.getSubject(), organizationId).stream()
+                .map(MetaAvailablePageResponse::from)
+                .toList();
     }
 
     @Operation(summary = "Connect Facebook Pages from the Meta grant (ADMIN of the organization)",
