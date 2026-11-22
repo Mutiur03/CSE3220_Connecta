@@ -32,12 +32,16 @@ public class ProductImageService {
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
 
-    /** ADMIN of the organization. Size, then real type (magic bytes must match the declared type), then count. */
+    /**
+     * ADMIN of the organization. The product row is locked first, so concurrent uploads to one product run one after
+     * another and the count sees every committed image. Then size, real type (magic bytes must match the declared
+     * type), and the count.
+     */
     @Transactional
     public ProductImageResponse upload(String subject, UUID organizationId, UUID productId, String declaredType,
             byte[] content) {
         tenants.requireRole(organizationId, callerId(subject), Roles.ADMIN);
-        Product product = findProduct(organizationId, productId);
+        Product product = lockProduct(organizationId, productId);
         if (content.length > limits.maxSizeBytes()) {
             throw new ProductImageTooLargeException();
         }
@@ -98,6 +102,11 @@ public class ProductImageService {
 
     private UUID callerId(String subject) {
         return activeCaller.load(subject).getId();
+    }
+
+    private Product lockProduct(UUID organizationId, UUID productId) {
+        return products.findForUpdateByIdAndOrganizationId(productId, organizationId)
+                .orElseThrow(ProductNotFoundException::new);
     }
 
     private Product findProduct(UUID organizationId, UUID productId) {

@@ -26,6 +26,7 @@ import com.connecta.backend.product.dto.CreateProductRequest;
 import com.connecta.backend.product.dto.ProductResponse;
 import com.connecta.backend.product.dto.UpdateProductRequest;
 import com.connecta.backend.product.repository.ProductCategoryRepository;
+import com.connecta.backend.product.repository.ProductImageRepository;
 import com.connecta.backend.product.repository.ProductRepository;
 import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Role;
@@ -62,6 +63,9 @@ class ProductServiceTests {
     ProductCategoryRepository categories;
 
     @Mock
+    ProductImageRepository images;
+
+    @Mock
     MembershipRepository memberships;
 
     @Mock
@@ -81,7 +85,7 @@ class ProductServiceTests {
     void setUp() {
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
-        service = new ProductService(products, categories, tenants, new ActiveCaller(users), events);
+        service = new ProductService(products, categories, images, tenants, new ActiveCaller(users), events);
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
     }
 
@@ -475,7 +479,19 @@ class ProductServiceTests {
             service.delete(subject, organizationId, shoes.getId());
 
             verify(products).delete(shoes);
-            verify(events).publishEvent(new ProductDeletedEvent(organizationId, shoes.getId()));
+            verify(events).publishEvent(new ProductDeletedEvent(organizationId, shoes.getId(), List.of()));
+        }
+
+        @Test
+        void theImageKeysAreReadBeforeTheDeleteAndCarriedInTheEvent() {
+            callerIs(Roles.ADMIN);
+            Product shoes = product("Shoes", null);
+            when(products.findByIdAndOrganizationId(shoes.getId(), organizationId)).thenReturn(Optional.of(shoes));
+            when(images.findObjectKeys(shoes.getId(), organizationId)).thenReturn(List.of("k1", "k2"));
+
+            service.delete(subject, organizationId, shoes.getId());
+
+            verify(events).publishEvent(new ProductDeletedEvent(organizationId, shoes.getId(), List.of("k1", "k2")));
         }
 
         @Test

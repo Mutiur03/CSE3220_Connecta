@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -78,6 +80,8 @@ class ProductImageServiceTests {
                 new ProductImageProperties(MAX_SIZE, MAX_PER_PRODUCT), tenants, new ActiveCaller(users));
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
         lenient().when(products.findByIdAndOrganizationId(product.getId(), organizationId))
+                .thenReturn(Optional.of(product));
+        lenient().when(products.findForUpdateByIdAndOrganizationId(product.getId(), organizationId))
                 .thenReturn(Optional.of(product));
     }
 
@@ -193,9 +197,22 @@ class ProductImageServiceTests {
         }
 
         @Test
+        void theProductRowIsLockedBeforeTheLimitIsCounted() {
+            when(images.countByProductIdAndOrganizationId(product.getId(), organizationId)).thenReturn(0L);
+            when(storage.store(any(), any(), anyString(), any())).thenReturn("k");
+            when(images.save(any(ProductImage.class))).thenAnswer(call -> call.getArgument(0));
+
+            upload("image/png", ProductImageSamples.PNG);
+
+            InOrder order = inOrder(products, images);
+            order.verify(products).findForUpdateByIdAndOrganizationId(product.getId(), organizationId);
+            order.verify(images).countByProductIdAndOrganizationId(product.getId(), organizationId);
+        }
+
+        @Test
         void anotherTenantsProductIsNotFound() {
             UUID foreign = UUID.randomUUID();
-            when(products.findByIdAndOrganizationId(foreign, organizationId)).thenReturn(Optional.empty());
+            when(products.findForUpdateByIdAndOrganizationId(foreign, organizationId)).thenReturn(Optional.empty());
 
             assertThrows(ProductNotFoundException.class,
                     () -> service.upload(subject, organizationId, foreign, "image/png", ProductImageSamples.PNG));
