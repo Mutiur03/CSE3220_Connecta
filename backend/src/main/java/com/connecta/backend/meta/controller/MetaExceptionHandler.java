@@ -3,7 +3,10 @@ package com.connecta.backend.meta.controller;
 import com.connecta.backend.meta.service.InvalidOAuthStateException;
 import com.connecta.backend.meta.service.MetaAuthorizationFailedException;
 import com.connecta.backend.meta.service.MetaNotConfiguredException;
+import com.connecta.backend.meta.service.InvalidWebhookSignatureException;
+import com.connecta.backend.meta.service.MalformedWebhookException;
 import com.connecta.backend.meta.service.MetaPageNotAllowedException;
+import com.connecta.backend.meta.service.WebhookVerificationFailedException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -18,7 +21,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  */
 @RestControllerAdvice(assignableTypes = {
     MetaAuthorizationController.class, MetaOAuthCallbackController.class, MetaPageController.class,
-    InstagramConnectionController.class, InstagramOAuthCallbackController.class})
+    InstagramConnectionController.class, InstagramOAuthCallbackController.class, MetaWebhookController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class MetaExceptionHandler {
 
@@ -41,5 +44,20 @@ class MetaExceptionHandler {
     @ExceptionHandler(MetaPageNotAllowedException.class)
     ProblemDetail pageNotAllowed(MetaPageNotAllowedException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
+    @ExceptionHandler(InvalidWebhookSignatureException.class)
+    ProblemDetail invalidSignature(InvalidWebhookSignatureException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(MalformedWebhookException.class)
+    ProblemDetail malformedWebhook(MalformedWebhookException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(WebhookVerificationFailedException.class)
+    ProblemDetail verificationFailed(WebhookVerificationFailedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, e.getMessage());
     }
 }
