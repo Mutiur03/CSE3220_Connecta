@@ -76,7 +76,8 @@ describe("product edit page images", () => {
     state.role = "ADMIN";
     const markup = await render();
     expect(markup).toContain(">Images</h2>");
-    expect(markup).toContain("1 of 8 images.");
+    expect(markup).toContain("1 of 8 image added");
+    expect(markup).not.toContain("1 of 8 images.");
     expect(markup).toContain('alt="Oat Latte Kit, image 1"');
     expect(markup).toContain('aria-label="Remove image 1 of Oat Latte Kit"');
     expect(markup).toContain('type="file"');

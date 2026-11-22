@@ -8,7 +8,8 @@ export const PRODUCT_IMAGE_LIMIT = 8;
 export const IMAGE_TYPE_MESSAGE = "Choose a JPEG, PNG or WebP image.";
 export const IMAGE_SIZE_MESSAGE = "Choose an image of 5 MB or less.";
 export const IMAGE_MISSING_MESSAGE = "Choose an image to upload.";
-const IMAGE_LIMIT_MESSAGE = `This product already has the most images (${PRODUCT_IMAGE_LIMIT}). Remove one to add another.`;
+export const IMAGE_LIMIT_MESSAGE = `The limit of ${PRODUCT_IMAGE_LIMIT} images is reached. Remove one to add more.`;
+export const IMAGE_UPLOAD_FAILED_MESSAGE = "The image could not be added. Try again.";
 
 /** The problem with a picked file, or undefined when it can be uploaded. */
 export function validateProductImage(file: { type: string; size: number }): string | undefined {
@@ -29,4 +30,10 @@ export function imageUploadMessage(status: number | undefined, fallback: string)
   if (status === 415) return IMAGE_TYPE_MESSAGE;
   if (status === 422) return IMAGE_LIMIT_MESSAGE;
   return fallback;
+}
+
+/** "1 of 8 image added" or "3 of 8 images added". Empty galleries say so in their own copy. */
+export function imageCountText(count: number): string {
+  const noun = count === 1 ? "image" : "images";
+  return `${count} of ${PRODUCT_IMAGE_LIMIT} ${noun} added`;
 }
