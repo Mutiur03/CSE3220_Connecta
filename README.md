@@ -164,6 +164,72 @@ erDiagram
         uuid invited_by FK
         string token_hash UK
         string status }
+    ORGANIZATIONS ||--o| META_AUTHORIZATIONS : connects
+    USERS ||--o{ META_AUTHORIZATIONS : grants
+    META_AUTHORIZATIONS { uuid id PK
+        uuid organization_id FK "unique"
+        uuid granted_by_user_id FK "nullable"
+        text access_token_encrypted
+        timestamp expires_at "nullable" }
+    ORGANIZATIONS ||--o{ META_CONNECTED_PAGES : connects
+    USERS ||--o{ META_CONNECTED_PAGES : connects_as
+    META_CONNECTED_PAGES { uuid id PK
+        uuid organization_id FK
+        string page_id "unique per organization"
+        string page_name
+        text page_access_token_encrypted
+        uuid granted_by_user_id FK "nullable" }
+    ORGANIZATIONS ||--o{ META_CONNECTED_ACCOUNTS : connects
+    USERS ||--o{ META_CONNECTED_ACCOUNTS : grants
+    META_CONNECTED_ACCOUNTS { uuid id PK
+        uuid organization_id FK
+        string platform "INSTAGRAM"
+        string external_account_id "unique per organization and platform"
+        string username "nullable"
+        uuid granted_by_user_id FK "nullable"
+        text access_token_encrypted }
+    ORGANIZATIONS ||--o{ META_WEBHOOK_EVENTS : receives
+    META_WEBHOOK_EVENTS { uuid id PK
+        string object "PAGE or INSTAGRAM"
+        text payload "raw JSON, as signed by Meta"
+        timestamp received_at
+        timestamp processed_at "nullable until processed" }
+    ORGANIZATIONS ||--o{ META_PROCESSED_MESSAGES : receives
+    META_PROCESSED_MESSAGES { uuid id PK
+        uuid organization_id FK
+        string object "PAGE or INSTAGRAM"
+        string external_message_id "unique per organization and object"
+        timestamp processed_at }
+    ORGANIZATIONS ||--o{ CONVERSATIONS : owns
+    CONVERSATIONS { uuid id PK
+        uuid organization_id FK
+        string channel "INSTAGRAM or MESSENGER"
+        string external_thread_id "unique per organization and channel"
+        timestamp last_message_at "nullable" }
+    ORGANIZATIONS ||--o{ PARTICIPANTS : owns
+    PARTICIPANTS { uuid id PK
+        uuid organization_id FK
+        string channel
+        string external_id "unique per organization and channel"
+        string display_name "nullable" }
+    CONVERSATIONS ||--o{ CONVERSATION_PARTICIPANTS : includes
+    PARTICIPANTS ||--o{ CONVERSATION_PARTICIPANTS : joins
+    CONVERSATION_PARTICIPANTS { uuid id PK
+        uuid organization_id FK
+        uuid conversation_id FK
+        uuid participant_id FK }
+    CONVERSATIONS ||--o{ MESSAGES : contains
+    PARTICIPANTS ||--o{ MESSAGES : sends
+    USERS ||--o{ MESSAGES : sends_as_agent
+    MESSAGES { uuid id PK
+        uuid organization_id FK
+        uuid conversation_id FK
+        string direction "INBOUND or OUTBOUND"
+        uuid sender_participant_id FK "inbound only, nullable"
+        uuid sent_by_user_id FK "outbound, nullable"
+        string external_message_id "unique per organization"
+        text body
+        timestamp sent_at }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 
@@ -210,6 +276,17 @@ erDiagram
 | GET | `/api/organizations/{id}/product-categories/{categoryId}` | any member of it | 200 | One category. Another organization's id gets `404`. |
 | PUT | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 200 | Replace a category's name and description. `409` on a name clash. |
 | DELETE | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 204 | Delete a category. Its products stay, uncategorized. |
+| POST | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Start connecting Meta. Returns `{"authorizationUrl"}`, the Facebook login dialog with a signed, 10-minute state. `503` if the Meta app is not configured. |
+| GET | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Whether the organization is connected: `{"connected", "connectedAt", "expiresAt"}`. No token is returned. |
+| GET | `/api/meta/oauth/callback` | public (the signed state is the check) | 302 | Meta's redirect target. Exchanges the code for a long-lived token and stores it encrypted, then redirects the browser to the Integrations page (`?facebook=connected`). A failure redirects back with `metaError` (`denied`, `invalid_state`, `forbidden`, `meta_failed`, `not_configured`). |
+| GET | `/api/organizations/{id}/meta/pages` | `ADMIN` of it | 200 | The organization's connected Facebook Pages, by name (`page`, `size` max 100): `pageId`, `name`, `connectedAt`. No tokens. |
+| GET | `/api/organizations/{id}/meta/pages/available` | `ADMIN` of it | 200 | The Pages the Meta grant includes, by name, each with `connected` (true when this organization already connected it). Empty before Facebook is connected. No tokens. `502` if Meta refuses the lookup. |
+| POST | `/api/organizations/{id}/meta/pages` | `ADMIN` of it | 200 | Connect Pages from the Meta grant: body `{"pageIds": [...]}` (1 to 100). Each Page is subscribed to `messages` and `message_echoes`, then stored with its token encrypted. Reconnecting replaces the token. `422` if a Page is not in the grant, `502` if Meta refused. |
+| POST | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | Start connecting an Instagram professional account. Returns `{"authorizationUrl"}` (Instagram Business Login, signed 10-minute state). `503` if Instagram is not configured. |
+| GET | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | The organization's connected Instagram accounts, paginated (`page`, `size` max 100). No token is returned. |
+| GET | `/api/meta/instagram/callback` | public (the signed state is the check) | 302 | Instagram's redirect target. Exchanges the code, extends the token and stores the account with its token encrypted. `400` bad or expired state, `403` if the admin lost the role, `502` if Instagram refused. |
+| GET | `/api/meta/webhooks` | public (the verify token is the check) | 200 | Meta's subscription check. Returns `hub.challenge` as plain text when `hub.mode` is `subscribe` and `hub.verify_token` matches `META_WEBHOOK_VERIFY_TOKEN`; `403` otherwise. |
+| POST | `/api/meta/webhooks` | public (the `X-Hub-Signature-256` is the check) | 200 | Receive a Messenger (`page`) or Instagram event. The signature is verified over the raw body with that product's app secret, then the event is stored unprocessed. `401` bad or missing signature, `400` body not JSON, `503` app secret not set. Other Meta products are acknowledged and not stored. |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.

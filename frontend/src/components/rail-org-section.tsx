@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { selectCurrentOrganization } from "@/lib/current-org";
-import { ArchiveIcon, PackageIcon, TagIcon } from "./icons";
+import { ArchiveIcon, PackageIcon, PlugIcon, TagIcon } from "./icons";
 import RailLink from "./rail-link";
 
 type RailOrganization = { id: string; name: string };
@@ -18,22 +18,42 @@ export default function RailOrgSection({
   organizations: RailOrganization[];
   remembered?: string;
 }) {
-  const current = selectCurrentOrganization(organizations, usePathname(), remembered);
+  const current = selectCurrentOrganization(
+    organizations,
+    usePathname(),
+    remembered,
+  );
   if (!current) return null;
 
   return (
-    <div role="group" aria-label={current.name} className="flex flex-col gap-0.5 max-[799px]:contents">
+    <div
+      role="group"
+      aria-label={current.name}
+      className="flex flex-col gap-0.5 max-[799px]:contents"
+    >
       <p className="truncate px-2.5 pt-2 text-caption text-secondary max-[799px]:sr-only">
         {current.name}
       </p>
       <RailLink href={`/organizations/${current.id}/products`} label="Products">
         <PackageIcon />
       </RailLink>
-      <RailLink href={`/organizations/${current.id}/categories`} label="Categories">
+      <RailLink
+        href={`/organizations/${current.id}/categories`}
+        label="Categories"
+      >
         <TagIcon />
       </RailLink>
-      <RailLink href={`/organizations/${current.id}/inventory`} label="Inventory">
+      <RailLink
+        href={`/organizations/${current.id}/inventory`}
+        label="Inventory"
+      >
         <ArchiveIcon />
+      </RailLink>
+      <RailLink
+        href={`/organizations/${current.id}/integrations`}
+        label="Integrations"
+      >
+        <PlugIcon />
       </RailLink>
     </div>
   );
