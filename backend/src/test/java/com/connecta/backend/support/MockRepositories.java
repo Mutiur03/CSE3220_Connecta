@@ -10,6 +10,7 @@ import com.connecta.backend.product.repository.ProductRepository;
 import com.connecta.backend.meta.repository.MetaAuthorizationRepository;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
+import com.connecta.backend.meta.repository.MetaProcessedMessageRepository;
 import com.connecta.backend.meta.repository.MetaWebhookEventRepository;
 import com.connecta.backend.product.repository.StockMovementRepository;
 import com.connecta.backend.user.repository.RoleRepository;
@@ -38,6 +39,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         SystemSetupRepository.class, ProductRepository.class, ProductCategoryRepository.class,
         StockMovementRepository.class,
         ProductImageRepository.class, MetaAuthorizationRepository.class, MetaConnectedPageRepository.class,
-        MetaConnectedAccountRepository.class, MetaWebhookEventRepository.class})
+        MetaConnectedAccountRepository.class, MetaWebhookEventRepository.class,
+        MetaProcessedMessageRepository.class})
 public @interface MockRepositories {
 }

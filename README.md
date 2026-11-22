@@ -194,6 +194,12 @@ erDiagram
         text payload "raw JSON, as signed by Meta"
         timestamp received_at
         timestamp processed_at "nullable until processed" }
+    ORGANIZATIONS ||--o{ META_PROCESSED_MESSAGES : receives
+    META_PROCESSED_MESSAGES { uuid id PK
+        uuid organization_id FK
+        string object "PAGE or INSTAGRAM"
+        string external_message_id "unique per organization and object"
+        timestamp processed_at }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 

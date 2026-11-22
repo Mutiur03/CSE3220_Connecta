@@ -16,8 +16,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Receives Meta webhook deliveries (Template Method skeleton: verify, parse, persist). Verification and
- * persistence live here; the per-product parsing and processing come in META-06. A delivery is stored only
+ * Receives Meta webhook deliveries (Template Method skeleton: verify, store, process). Verification and storage
+ * live here; the per-product parsing and routing are in {@link WebhookEventProcessor}. A delivery is stored only
  * after its signature checks out, and deliveries for other Meta products are acknowledged without being stored.
  */
 @Service
@@ -29,6 +29,7 @@ public class WebhookIntakeService {
     private final WebhookSignatureVerifier verifier;
     private final MetaWebhookProperties properties;
     private final MetaWebhookEventRepository events;
+    private final WebhookEventProcessor processor;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -51,7 +52,8 @@ public class WebhookIntakeService {
             return;
         }
         verifier.verify(object.get(), rawBody, signatureHeader);
-        events.save(new MetaWebhookEvent(object.get(), rawBody, clock.instant()));
+        MetaWebhookEvent event = events.save(new MetaWebhookEvent(object.get(), rawBody, clock.instant()));
+        processor.process(event);
     }
 
     private JsonNode parse(String rawBody) {

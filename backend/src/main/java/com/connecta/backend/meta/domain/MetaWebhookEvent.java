@@ -44,6 +44,11 @@ public class MetaWebhookEvent {
         this.receivedAt = receivedAt;
     }
 
+    /** Records that every message in the event has been handled. */
+    public void markProcessed(Instant now) {
+        this.processedAt = now;
+    }
+
     @Override
     public boolean equals(Object o) {
         return this == o || o instanceof MetaWebhookEvent other && getId() != null && getId().equals(other.getId());

@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.repository;
 
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -14,4 +15,10 @@ public interface MetaConnectedAccountRepository extends JpaRepository<MetaConnec
 
     Optional<MetaConnectedAccount> findByOrganizationIdAndPlatformAndExternalAccountId(
             UUID organizationId, String platform, String externalAccountId);
+
+    /**
+     * Every organization that connected this account. Used only to route a webhook event to its tenants, so it is
+     * the one lookup that is not scoped by organization.
+     */
+    List<MetaConnectedAccount> findAllByPlatformAndExternalAccountId(String platform, String externalAccountId);
 }

@@ -23,6 +23,17 @@ Table `meta_webhook_events`: one row per verified delivery, holding `object` (`P
 
 Routing to a tenant is not done here. The payload names a page or Instagram account id; #46 maps that id to an organization through the connected-page and connected-account tables. Until then no tenant data is read or written by reception.
 
+## Processing (META-06)
+
+After a delivery is stored, `WebhookEventProcessor` handles it in the same transaction:
+
+1. For each `entry`, the id is a Page id (`page`) or an Instagram account id (`instagram`). Connected organizations are looked up in the connection tables; an id no organization connected is skipped.
+2. `MessagingEventParser` turns each messaging event into a `NormalizedMessage` (product, Meta message id, customer id, direction, text or attachment label, time). Echoes are outbound. Events without a message id or any content are skipped.
+3. Each message is delivered once per connected organization: if `meta_processed_messages` already has it, it is skipped; otherwise the row is saved and a `MessageReceivedEvent` is published.
+4. The event is marked processed.
+
+A failure while processing rolls the transaction back, so the event is not stored and Meta retries the delivery. Nothing is swallowed.
+
 ## Failures
 
 | Case | Response |
