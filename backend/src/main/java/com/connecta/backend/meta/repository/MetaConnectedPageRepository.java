@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.repository;
 
 import com.connecta.backend.meta.domain.MetaConnectedPage;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -13,4 +14,10 @@ public interface MetaConnectedPageRepository extends JpaRepository<MetaConnected
     Page<MetaConnectedPage> findByOrganizationId(UUID organizationId, Pageable pageable);
 
     Optional<MetaConnectedPage> findByOrganizationIdAndPageId(UUID organizationId, String pageId);
+
+    /**
+     * Every organization that connected this Page. Used only to route a webhook event to its tenants, so it is
+     * the one lookup that is not scoped by organization.
+     */
+    List<MetaConnectedPage> findAllByPageId(String pageId);
 }

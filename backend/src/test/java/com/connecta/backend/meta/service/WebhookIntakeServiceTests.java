@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.connecta.backend.config.InstagramProperties;
 import com.connecta.backend.config.MetaProperties;
@@ -33,15 +34,18 @@ class WebhookIntakeServiceTests {
     private static final String INSTAGRAM_BODY = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"2\"}]}";
 
     private MetaWebhookEventRepository events;
+    private WebhookEventProcessor processor;
     private WebhookIntakeService service;
 
     @BeforeEach
     void setUp() {
         events = mock(MetaWebhookEventRepository.class);
+        processor = mock(WebhookEventProcessor.class);
+        when(events.save(any(MetaWebhookEvent.class))).thenAnswer(call -> call.getArgument(0));
         WebhookSignatureVerifier verifier = new WebhookSignatureVerifier(
                 new MetaProperties("app", PAGE_SECRET, null, "config", "https://api.example.com", "unused"),
                 new InstagramProperties("ig-app", INSTAGRAM_SECRET));
-        service = new WebhookIntakeService(verifier, new MetaWebhookProperties(VERIFY_TOKEN), events,
+        service = new WebhookIntakeService(verifier, new MetaWebhookProperties(VERIFY_TOKEN), events, processor,
                 new ObjectMapper(), TestClock.FIXED);
     }
 
@@ -67,6 +71,7 @@ class WebhookIntakeServiceTests {
             assertEquals(WebhookObject.PAGE, captor.getValue().getObject());
             assertEquals(PAGE_BODY, captor.getValue().getPayload());
             assertEquals(TestClock.NOW, captor.getValue().getReceivedAt());
+            verify(processor).process(captor.getValue());
         }
 
         @Test
@@ -84,6 +89,7 @@ class WebhookIntakeServiceTests {
                     () -> service.receive(PAGE_BODY, sign(INSTAGRAM_SECRET, PAGE_BODY)));
 
             verify(events, never()).save(any());
+            verify(processor, never()).process(any());
         }
 
         @Test
@@ -111,6 +117,7 @@ class WebhookIntakeServiceTests {
             service.receive("{\"object\":\"whatsapp_business_account\"}", null);
 
             verify(events, never()).save(any());
+            verify(processor, never()).process(any());
         }
     }
 
@@ -139,7 +146,7 @@ class WebhookIntakeServiceTests {
             WebhookIntakeService unconfigured = new WebhookIntakeService(
                     new WebhookSignatureVerifier(
                             new MetaProperties("", "", null, "", "", "unused"), new InstagramProperties("", "")),
-                    new MetaWebhookProperties(""), events, new ObjectMapper(), TestClock.FIXED);
+                    new MetaWebhookProperties(""), events, processor, new ObjectMapper(), TestClock.FIXED);
 
             assertThrows(WebhookVerificationFailedException.class,
                     () -> unconfigured.confirmSubscription("subscribe", "", "12345"));
