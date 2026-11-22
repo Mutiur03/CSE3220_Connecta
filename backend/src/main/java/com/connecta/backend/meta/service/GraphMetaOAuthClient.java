@@ -4,6 +4,7 @@ import com.connecta.backend.config.MetaProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.function.UnaryOperator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,9 @@ class GraphMetaOAuthClient implements MetaOAuthClient {
     private static final String GRAPH_HOST = "https://graph.facebook.com/";
     private static final String TOKEN_PATH = "/oauth/access_token";
     private static final String GRANT_FB_EXCHANGE = "fb_exchange_token";
+    private static final String PAGES_PATH = "/me/accounts";
+    private static final String SUBSCRIBED_APPS_PATH = "/{pageId}/subscribed_apps";
+    private static final String SUBSCRIBED_FIELDS = "messages,message_echoes";
 
     private final MetaProperties properties;
     private final RestClient graph;
@@ -94,6 +98,49 @@ class GraphMetaOAuthClient implements MetaOAuthClient {
         return new MetaUserToken(body.accessToken(), expiry(body.expiresIn()));
     }
 
+    @Override
+    public List<MetaPage> listPages(String userAccessToken) {
+        PagesResponse body;
+        try {
+            body = graph.get()
+                    .uri(uri -> uri.path(PAGES_PATH)
+                            .queryParam("fields", "id,name,access_token")
+                            .queryParam("access_token", userAccessToken)
+                            .build())
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(PagesResponse.class);
+        } catch (RestClientException e) {
+            log.warn("Meta page list request failed: {}", e.getClass().getSimpleName());
+            throw new MetaAuthorizationFailedException("Meta page list request failed", e);
+        }
+        if (body == null) {
+            throw new MetaAuthorizationFailedException("Meta returned no page list");
+        }
+        return body.data() == null ? List.of() : body.data();
+    }
+
+    @Override
+    public void subscribePage(String pageId, String pageAccessToken) {
+        SuccessResponse body;
+        try {
+            body = graph.post()
+                    .uri(uri -> uri.path(SUBSCRIBED_APPS_PATH)
+                            .queryParam("subscribed_fields", SUBSCRIBED_FIELDS)
+                            .queryParam("access_token", pageAccessToken)
+                            .build(pageId))
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(SuccessResponse.class);
+        } catch (RestClientException e) {
+            log.warn("Meta page subscribe request failed: {}", e.getClass().getSimpleName());
+            throw new MetaAuthorizationFailedException("Meta page subscribe request failed", e);
+        }
+        if (body == null || !body.success()) {
+            throw new MetaAuthorizationFailedException("Meta did not subscribe the page");
+        }
+    }
+
     private Instant expiry(Long expiresInSeconds) {
         return expiresInSeconds == null ? null : clock.instant().plusSeconds(expiresInSeconds);
     }
@@ -101,5 +148,13 @@ class GraphMetaOAuthClient implements MetaOAuthClient {
     /** The subset of Meta's token response this flow reads. */
     record TokenResponse(@JsonProperty("access_token") String accessToken,
             @JsonProperty("expires_in") Long expiresIn) {
+    }
+
+    /** Meta's /me/accounts response: the Pages the user granted. */
+    record PagesResponse(List<MetaPage> data) {
+    }
+
+    /** Meta's subscription response. */
+    record SuccessResponse(boolean success) {
     }
 }

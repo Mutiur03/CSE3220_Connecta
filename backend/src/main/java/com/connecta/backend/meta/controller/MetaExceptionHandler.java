@@ -3,6 +3,7 @@ package com.connecta.backend.meta.controller;
 import com.connecta.backend.meta.service.InvalidOAuthStateException;
 import com.connecta.backend.meta.service.MetaAuthorizationFailedException;
 import com.connecta.backend.meta.service.MetaNotConfiguredException;
+import com.connecta.backend.meta.service.MetaPageNotAllowedException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -15,7 +16,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * never reach the client; the adapter logs what it needs. Ordered first so it wins over the catch-all in
  * GlobalExceptionHandler for these types.
  */
-@RestControllerAdvice(assignableTypes = {MetaAuthorizationController.class, MetaOAuthCallbackController.class})
+@RestControllerAdvice(assignableTypes = {
+    MetaAuthorizationController.class, MetaOAuthCallbackController.class, MetaPageController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class MetaExceptionHandler {
 
@@ -33,5 +35,10 @@ class MetaExceptionHandler {
     ProblemDetail authorizationFailed(MetaAuthorizationFailedException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY,
                 "Meta could not complete the authorization. Try again.");
+    }
+
+    @ExceptionHandler(MetaPageNotAllowedException.class)
+    ProblemDetail pageNotAllowed(MetaPageNotAllowedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
     }
 }
