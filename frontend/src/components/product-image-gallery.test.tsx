@@ -35,7 +35,9 @@ const html = (canManage: boolean, images: ProductImage[] = [image]) =>
 describe("ProductImageGallery", () => {
   it("shows each image through the same-origin proxy route, with alt text from name and position", () => {
     const markup = html(false);
-    expect(markup).toContain(`src="/api/organizations/${ORG}/products/${PRODUCT}/images/${IMAGE}/content"`);
+    expect(markup).toContain(
+      `src="/api/organizations/${ORG}/products/${PRODUCT}/images/${IMAGE}/content"`,
+    );
     expect(markup).toContain('alt="Oat Latte Kit, image 1"');
   });
 
@@ -61,48 +63,68 @@ describe("ProductImageGallery", () => {
 
   it("explains an empty gallery, with the next action for an ADMIN", () => {
     expect(html(true, [])).toContain("No images yet");
-    expect(html(true, [])).toContain("Add a photo so members can recognise this product.");
-    expect(html(false, [])).toContain("An admin of this organization adds photos here.");
+    expect(html(true, [])).toContain(
+      "Add a photo so members can recognise this product.",
+    );
+    expect(html(false, [])).toContain(
+      "An admin of this organization adds photos here.",
+    );
   });
 
   it("shows the placeholder tile in the empty state, and no thumbnails", () => {
     const markup = html(true, []);
     expect(markup).toContain('role="img" aria-label="No image"');
-    expect(markup).not.toContain("<ul");
+    expect(markup).not.toContain("<img");
   });
 
   it("names each thumbnail button by product, position and count", () => {
-    const markup = html(false, [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }]);
+    const markup = html(false, [
+      image,
+      { ...image, id: "55555555-5555-5555-5555-555555555555" },
+    ]);
     expect(markup).toContain('aria-label="Open Oat Latte Kit, image 1 of 2"');
     expect(markup).toContain('aria-label="Open Oat Latte Kit, image 2 of 2"');
     expect(markup).toContain('type="button"');
   });
 
   it("renders the viewer closed: no caption or controls until a thumbnail opens it", () => {
-    const markup = html(false, [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }]);
+    const markup = html(false, [
+      image,
+      { ...image, id: "55555555-5555-5555-5555-555555555555" },
+    ]);
     expect(markup).not.toContain("Image 1 of 2");
     expect(markup).not.toContain("Next image");
   });
 
   it("counts the images in the singular and plural, never with the old wording", () => {
     expect(html(false)).toContain("1 of 8 image added");
-    const two = [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }];
+    const two = [
+      image,
+      { ...image, id: "55555555-5555-5555-5555-555555555555" },
+    ];
     expect(html(false, two)).toContain("2 of 8 images added");
     expect(html(false, two)).not.toContain("images.");
   });
 
   it("renders one equal tile per image, each with its position label", () => {
-    const three = [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }, { ...image, id: "66666666-6666-6666-6666-666666666666" }];
+    const three = [
+      image,
+      { ...image, id: "55555555-5555-5555-5555-555555555555" },
+      { ...image, id: "66666666-6666-6666-6666-666666666666" },
+    ];
     const markup = html(true, three);
     expect(markup.match(/<li /g)).toHaveLength(3);
     expect(markup).toContain("grid-cols-[repeat(auto-fill,7.5rem)]");
-    for (const position of [1, 2, 3]) expect(markup).toContain(`>Image ${position}</p>`);
+    for (const position of [1, 2, 3])
+      expect(markup).toContain(`>Image ${position}</p>`);
   });
 
   it("asks for confirmation before removing: a plain button with a native dialog", () => {
     const markup = html(true);
     expect(markup).toContain("<dialog");
-    expect(markup).toContain("Remove image 1 of Oat Latte Kit? This cannot be undone.");
+    expect(markup).toContain(
+      "Remove image 1 of Oat Latte Kit? This cannot be undone.",
+    );
     expect(markup).not.toContain("window.confirm");
   });
 });

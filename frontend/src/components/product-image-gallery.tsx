@@ -2,7 +2,10 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { deleteProductImage, uploadProductImage } from "@/lib/product-image-actions";
+import {
+  deleteProductImage,
+  uploadProductImage,
+} from "@/lib/product-image-actions";
 import type { ProductImage } from "@/lib/product-image-api";
 import { productImageSrc } from "@/lib/product-image-api";
 import { imageCountText } from "@/lib/product-image-validation";
@@ -25,7 +28,13 @@ type Props = {
  * position. A thumbnail opens the full-size viewer. Thumbnails load through the app's proxy route,
  * so the access token never reaches the browser.
  */
-export default function ProductImageGallery({ orgId, productId, productName, images, canManage }: Props) {
+export default function ProductImageGallery({
+  orgId,
+  productId,
+  productName,
+  images,
+  canManage,
+}: Props) {
   const [viewing, setViewing] = useState<number | null>(null);
   const viewerImages = images.map((image) => ({
     id: image.id,
@@ -35,7 +44,7 @@ export default function ProductImageGallery({ orgId, productId, productName, ima
   return (
     <div className="flex flex-col gap-6">
       {images.length === 0 ? (
-        <div className="flex items-start gap-4 border-t border-line-subtle pt-6">
+        <div className="flex items-start gap-4">
           <ProductImagePlaceholder size="lg" />
           <div className="flex flex-col items-start gap-2">
             <p className="font-medium">No images yet</p>
@@ -48,7 +57,9 @@ export default function ProductImageGallery({ orgId, productId, productName, ima
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="text-secondary tabular-nums">{imageCountText(images.length)}</p>
+          <p className="text-secondary tabular-nums">
+            {imageCountText(images.length)}
+          </p>
           <ul className="grid grid-cols-[repeat(auto-fill,7.5rem)] gap-3">
             {viewerImages.map((image, index) => {
               const position = index + 1;
@@ -69,10 +80,17 @@ export default function ProductImageGallery({ orgId, productId, productName, ima
                       className="object-cover"
                     />
                   </button>
-                  <p className="text-sm text-secondary tabular-nums">Image {position}</p>
+                  <p className="text-sm text-secondary tabular-nums">
+                    Image {position}
+                  </p>
                   {canManage && (
                     <OrgActionButton
-                      action={deleteProductImage.bind(null, orgId, productId, images[index].id)}
+                      action={deleteProductImage.bind(
+                        null,
+                        orgId,
+                        productId,
+                        images[index].id,
+                      )}
                       label="Remove"
                       pendingLabel="Removing…"
                       ariaLabel={`Remove image ${position} of ${productName}`}
