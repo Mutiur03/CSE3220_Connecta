@@ -200,6 +200,36 @@ erDiagram
         string object "PAGE or INSTAGRAM"
         string external_message_id "unique per organization and object"
         timestamp processed_at }
+    ORGANIZATIONS ||--o{ CONVERSATIONS : owns
+    CONVERSATIONS { uuid id PK
+        uuid organization_id FK
+        string channel "INSTAGRAM or MESSENGER"
+        string external_thread_id "unique per organization and channel"
+        timestamp last_message_at "nullable" }
+    ORGANIZATIONS ||--o{ PARTICIPANTS : owns
+    PARTICIPANTS { uuid id PK
+        uuid organization_id FK
+        string channel
+        string external_id "unique per organization and channel"
+        string display_name "nullable" }
+    CONVERSATIONS ||--o{ CONVERSATION_PARTICIPANTS : includes
+    PARTICIPANTS ||--o{ CONVERSATION_PARTICIPANTS : joins
+    CONVERSATION_PARTICIPANTS { uuid id PK
+        uuid organization_id FK
+        uuid conversation_id FK
+        uuid participant_id FK }
+    CONVERSATIONS ||--o{ MESSAGES : contains
+    PARTICIPANTS ||--o{ MESSAGES : sends
+    USERS ||--o{ MESSAGES : sends_as_agent
+    MESSAGES { uuid id PK
+        uuid organization_id FK
+        uuid conversation_id FK
+        string direction "INBOUND or OUTBOUND"
+        uuid sender_participant_id FK "inbound only, nullable"
+        uuid sent_by_user_id FK "outbound, nullable"
+        string external_message_id "unique per organization"
+        text body
+        timestamp sent_at }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 
