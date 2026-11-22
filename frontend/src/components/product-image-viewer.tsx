@@ -61,7 +61,7 @@ export default function ProductImageViewer({
       aria-label={`${productName} images`}
       onClose={onClose}
       onKeyDown={onKeyDown}
-      className="m-auto flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-5xl flex-col gap-4 rounded-panel border border-line bg-surface p-4 text-primary backdrop:bg-black/40 open:flex"
+      className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-5xl flex-col gap-4 rounded-panel border border-line bg-surface p-4 text-primary backdrop:bg-black/40 open:flex"
     >
       {current && (
         <>
@@ -88,10 +88,18 @@ export default function ProductImageViewer({
           </div>
           {count > 1 && (
             <div className="flex items-center justify-between gap-2">
-              <button type="button" onClick={() => move(-1)} className={buttonClasses("secondary")}>
+              <button
+                type="button"
+                onClick={() => move(-1)}
+                className={buttonClasses("secondary")}
+              >
                 Previous image
               </button>
-              <button type="button" onClick={() => move(1)} className={buttonClasses("secondary")}>
+              <button
+                type="button"
+                onClick={() => move(1)}
+                className={buttonClasses("secondary")}
+              >
                 Next image
               </button>
             </div>
