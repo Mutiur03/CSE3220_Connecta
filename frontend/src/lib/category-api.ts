@@ -1,5 +1,5 @@
-import { request } from "./api";
-import type { Page } from "./org-api";
+import { ApiError, request } from "./api";
+import { MAX_PAGE_SIZE, type Page } from "./org-api";
 
 export type Category = {
   id: string;
@@ -26,6 +26,32 @@ export const listCategories = (
   request<Page<Category>>(`${categoriesPath(orgId)}?page=${page}&size=${size}`, {
     accessToken,
   });
+
+/**
+ * Every category of the organization, in the backend's order. The first page gives the
+ * total, the remaining pages are fetched in parallel and joined in page order.
+ */
+export async function listAllCategories(
+  accessToken: string,
+  orgId: string,
+): Promise<Category[]> {
+  const first = await listCategories(accessToken, orgId, 0, MAX_PAGE_SIZE);
+  const pageCount = Math.ceil(first.totalElements / MAX_PAGE_SIZE);
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(pageCount - 1, 0) }, (_, i) =>
+      listCategories(accessToken, orgId, i + 1, MAX_PAGE_SIZE),
+    ),
+  );
+  const pages = [first, ...rest];
+  // A page that should hold rows but is empty means the server changed under us or is stuck.
+  // Fail instead of returning a silently short list.
+  if (
+    pages.some((page, index) => index < pageCount && page.content.length === 0)
+  ) {
+    throw new ApiError(502, "Category list ended before the reported total");
+  }
+  return pages.flatMap((page) => page.content);
+}
 
 export const getCategory = (
   accessToken: string,
