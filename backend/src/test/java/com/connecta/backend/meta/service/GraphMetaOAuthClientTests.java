@@ -4,19 +4,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.meta.service.MetaOAuthClient.MetaPage;
 import com.connecta.backend.meta.service.MetaOAuthClient.MetaUserToken;
 import com.connecta.backend.support.TestClock;
 import java.time.Clock;
-import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -96,6 +99,54 @@ class GraphMetaOAuthClientTests {
                     () -> client.exchangeCode("bad", "https://api.example.com/cb"));
 
             assertFalse(e.getMessage().contains("Invalid verification code"));
+        }
+    }
+
+    @Nested
+    class PagesAndSubscriptions {
+
+        private static final String PAGES_URL = "https://graph.facebook.com/v26.0/me/accounts";
+
+        @Test
+        void listPagesReadsEachPageWithItsToken() {
+            graph.expect(requestTo(startsWith(PAGES_URL)))
+                    .andExpect(queryParam("access_token", "user-token"))
+                    .andRespond(withSuccess("{\"data\":[{\"id\":\"p1\",\"name\":\"Page One\",\"access_token\":\"t1\"},"
+                            + "{\"id\":\"p2\",\"name\":\"Page Two\",\"access_token\":\"t2\"}]}",
+                            MediaType.APPLICATION_JSON));
+
+            List<MetaPage> pages = client.listPages("user-token");
+
+            assertEquals(List.of(new MetaPage("p1", "Page One", "t1"), new MetaPage("p2", "Page Two", "t2")), pages);
+            graph.verify();
+        }
+
+        @Test
+        void subscribePageAsksForMessagesAndEchoesWithThePageToken() {
+            graph.expect(requestTo(startsWith("https://graph.facebook.com/v26.0/p1/subscribed_apps")))
+                    .andExpect(method(HttpMethod.POST))
+                    .andExpect(queryParam("subscribed_fields", "messages,message_echoes"))
+                    .andExpect(queryParam("access_token", "t1"))
+                    .andRespond(withSuccess("{\"success\":true}", MediaType.APPLICATION_JSON));
+
+            client.subscribePage("p1", "t1");
+
+            graph.verify();
+        }
+
+        @Test
+        void aRefusedSubscriptionIsAGenericFailure() {
+            graph.expect(requestTo(startsWith("https://graph.facebook.com/v26.0/p1/subscribed_apps")))
+                    .andRespond(withSuccess("{\"success\":false}", MediaType.APPLICATION_JSON));
+
+            assertThrows(MetaAuthorizationFailedException.class, () -> client.subscribePage("p1", "t1"));
+        }
+
+        @Test
+        void aPageListErrorIsAGenericFailure() {
+            graph.expect(requestTo(startsWith(PAGES_URL))).andRespond(withBadRequest());
+
+            assertThrows(MetaAuthorizationFailedException.class, () -> client.listPages("bad-token"));
         }
     }
 
