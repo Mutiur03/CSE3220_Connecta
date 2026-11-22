@@ -43,12 +43,17 @@ class SecurityConfig {
         "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
         "/api/setup/**",
         "/api/invitations/preview", "/api/invitations/accept-new",
+        // Meta redirects the browser here without a token; the signed, expiring state is the check.
+        "/api/meta/oauth/callback",
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 
     private static final String[] PRODUCT_CATEGORY_PATHS = {
         "/api/organizations/*/product-categories", "/api/organizations/*/product-categories/*"
     };
+
+    /** Connecting Meta (start, status) is an organization admin's job: ADMIN, the service checks the membership. */
+    private static final String[] META_CONNECTION_PATHS = {"/api/organizations/*/meta/**"};
 
     private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
 
@@ -69,6 +74,7 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
                         .requestMatchers(HttpMethod.PUT, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
                         .requestMatchers(HttpMethod.DELETE, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
+                        .requestMatchers(META_CONNECTION_PATHS).hasRole(Roles.ADMIN)
                         // Health is public; metrics, info and the Prometheus scrape need ADMIN.
                         .requestMatchers("/actuator/**").hasRole(Roles.ADMIN)
                         .anyRequest().authenticated())
