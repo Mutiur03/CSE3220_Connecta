@@ -15,10 +15,12 @@ type Props = {
   ) => Promise<OrgActionState>;
 };
 
-/** Pick the Facebook Pages to connect. Pages already connected show as done and cannot be ticked again. */
+/**
+ * Pick the Facebook Pages to connect. A connected Page is ticked by default; submitting again re-subscribes it, so
+ * a Page connected before a new webhook field was added starts receiving that field.
+ */
 export default function MetaPagePicker({ pages, action }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
-  const selectable = pages.filter((page) => !page.connected);
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
@@ -34,14 +36,14 @@ export default function MetaPagePicker({ pages, action }: Props) {
                 type="checkbox"
                 name="pageId"
                 value={page.pageId}
-                disabled={page.connected || pending}
+                disabled={pending}
                 defaultChecked={page.connected}
                 className="size-4 accent-accent"
               />
               <span className="text-primary">{page.name}</span>
             </span>
             <span className="text-sm text-secondary tabular-nums">
-              {page.connected ? "Connected" : "Not connected"}
+              {page.connected ? "Connected · refresh" : "Not connected"}
             </span>
           </label>
         ))}
@@ -51,7 +53,7 @@ export default function MetaPagePicker({ pages, action }: Props) {
       <Button
         type="submit"
         variant="primary"
-        disabled={pending || selectable.length === 0}
+        disabled={pending || pages.length === 0}
         aria-busy={pending}
         className="self-start"
       >

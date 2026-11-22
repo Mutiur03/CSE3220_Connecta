@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record MetaProperties(String appId, String appSecret, String graphVersion, String configId,
         String baseUrl, String tokenEncryptionKey) {
 
-    static final String DEFAULT_GRAPH_VERSION = "v26.0";
+    static final String DEFAULT_GRAPH_VERSION = "v27.0";
 
     public MetaProperties {
         graphVersion = notBlank(graphVersion) ? graphVersion : DEFAULT_GRAPH_VERSION;

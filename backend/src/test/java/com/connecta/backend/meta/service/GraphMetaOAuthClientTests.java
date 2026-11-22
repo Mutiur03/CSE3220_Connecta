@@ -28,14 +28,14 @@ class GraphMetaOAuthClientTests {
 
     private static final String KEY = "dGVzdC1vbmx5LW1ldGEtdG9rZW4ta2V5LTAwMDAwMDE=";
     private static final Clock CLOCK = TestClock.FIXED;
-    private static final String TOKEN_URL = "https://graph.facebook.com/v26.0/oauth/access_token";
+    private static final String TOKEN_URL = "https://graph.facebook.com/v27.0/oauth/access_token";
 
     private MockRestServiceServer graph;
     private GraphMetaOAuthClient client;
 
     @BeforeEach
     void setUp() {
-        MetaProperties props = new MetaProperties("test-app-id", "test-app-secret", "v26.0", "test-config-id",
+        MetaProperties props = new MetaProperties("test-app-id", "test-app-secret", "v27.0", "test-config-id",
                 "https://api.example.com", KEY);
         RestClient.Builder builder = RestClient.builder();
         graph = MockRestServiceServer.bindTo(builder).build();
@@ -49,7 +49,7 @@ class GraphMetaOAuthClientTests {
         void pointsAtTheLoginDialogWithTheAppConfigAndState() {
             String url = client.authorizationUrl("signed-state", "https://api.example.com/api/meta/oauth/callback");
 
-            assertTrue(url.startsWith("https://www.facebook.com/v26.0/dialog/oauth?"));
+            assertTrue(url.startsWith("https://www.facebook.com/v27.0/dialog/oauth?"));
             assertTrue(url.contains("client_id=test-app-id"));
             assertTrue(url.contains("config_id=test-config-id"));
             assertTrue(url.contains("response_type=code"));
@@ -105,7 +105,7 @@ class GraphMetaOAuthClientTests {
     @Nested
     class PagesAndSubscriptions {
 
-        private static final String PAGES_URL = "https://graph.facebook.com/v26.0/me/accounts";
+        private static final String PAGES_URL = "https://graph.facebook.com/v27.0/me/accounts";
 
         @Test
         void listPagesReadsEachPageWithItsToken() {
@@ -123,9 +123,9 @@ class GraphMetaOAuthClientTests {
 
         @Test
         void subscribePageAsksForMessagesAndEchoesWithThePageToken() {
-            graph.expect(requestTo(startsWith("https://graph.facebook.com/v26.0/p1/subscribed_apps")))
+            graph.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/p1/subscribed_apps")))
                     .andExpect(method(HttpMethod.POST))
-                    .andExpect(queryParam("subscribed_fields", "messages,message_echoes"))
+                    .andExpect(queryParam("subscribed_fields", "messages,message_echoes,message_reactions,message_edits"))
                     .andExpect(queryParam("access_token", "t1"))
                     .andRespond(withSuccess("{\"success\":true}", MediaType.APPLICATION_JSON));
 
@@ -136,7 +136,7 @@ class GraphMetaOAuthClientTests {
 
         @Test
         void aRefusedSubscriptionIsAGenericFailure() {
-            graph.expect(requestTo(startsWith("https://graph.facebook.com/v26.0/p1/subscribed_apps")))
+            graph.expect(requestTo(startsWith("https://graph.facebook.com/v27.0/p1/subscribed_apps")))
                     .andRespond(withSuccess("{\"success\":false}", MediaType.APPLICATION_JSON));
 
             assertThrows(MetaAuthorizationFailedException.class, () -> client.subscribePage("p1", "t1"));

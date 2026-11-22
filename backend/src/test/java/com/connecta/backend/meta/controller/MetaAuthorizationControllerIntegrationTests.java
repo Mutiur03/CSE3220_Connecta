@@ -68,7 +68,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class MetaAuthorizationControllerIntegrationTests {
 
     private static final String AUTH = "Authorization";
-    private static final String DIALOG_URL = "https://www.facebook.com/v26.0/dialog/oauth?state=x";
+    private static final String DIALOG_URL = "https://www.facebook.com/v27.0/dialog/oauth?state=x";
 
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");

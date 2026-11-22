@@ -23,21 +23,22 @@ describe("MetaPagePicker", () => {
     expect(markup).toContain("Not connected");
   });
 
-  it("disables a connected Page's checkbox so it cannot be ticked again", () => {
+  it("ticks a connected Page by default and leaves it tickable, so submitting re-subscribes it", () => {
     const tags = html(pages).match(/<input[^>]*>/g) ?? [];
     const tagFor = (pageId: string) =>
       tags.find((tag) => tag.includes(`value="${pageId}"`)) ?? "";
 
-    expect(tagFor("p1")).toContain('disabled=""');
-    expect(tagFor("p2")).not.toContain('disabled=""');
+    expect(tagFor("p1")).toContain('checked=""');
+    expect(tagFor("p1")).not.toContain('disabled=""');
+    expect(tagFor("p2")).not.toContain('checked=""');
   });
 
-  it("disables the submit when every Page is already connected", () => {
+  it("keeps the submit enabled when every Page is already connected, so they can be refreshed", () => {
     const markup = html([
       { pageId: "p1", name: "Shop Dhaka", connected: true },
     ]);
 
-    expect(markup).toMatch(
+    expect(markup).not.toMatch(
       /<button[^>]*disabled=""[^>]*type="submit"|<button[^>]*type="submit"[^>]*disabled=""/,
     );
   });
