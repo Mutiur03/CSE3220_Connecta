@@ -1,6 +1,6 @@
 import { request } from "./api";
-import { listCategories } from "./category-api";
-import { MAX_PAGE_SIZE, type Page } from "./org-api";
+import { listAllCategories } from "./category-api";
+import type { Page } from "./org-api";
 import {
   productListQuery,
   type ProductFilters,
@@ -51,10 +51,10 @@ export const listProducts = (
     { accessToken },
   );
 
-/** The organization's categories for a picker: the first page of up to 100, in the backend's order. */
+/** Every category of the organization for a picker or filter, in the backend's order. */
 export const listCategoryOptions = (accessToken: string, orgId: string) =>
-  listCategories(accessToken, orgId, 0, MAX_PAGE_SIZE).then((page) =>
-    page.content.map(({ id, name }): CategoryOption => ({ id, name })),
+  listAllCategories(accessToken, orgId).then((categories) =>
+    categories.map(({ id, name }): CategoryOption => ({ id, name })),
   );
 
 export const getProduct = (
