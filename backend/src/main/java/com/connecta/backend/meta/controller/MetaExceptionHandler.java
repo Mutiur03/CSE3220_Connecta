@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * GlobalExceptionHandler for these types.
  */
 @RestControllerAdvice(assignableTypes = {
-    MetaAuthorizationController.class, MetaOAuthCallbackController.class, MetaPageController.class})
+    MetaAuthorizationController.class, MetaOAuthCallbackController.class, MetaPageController.class,
+    InstagramConnectionController.class, InstagramOAuthCallbackController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class MetaExceptionHandler {
 

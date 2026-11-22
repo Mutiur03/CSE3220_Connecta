@@ -179,6 +179,15 @@ erDiagram
         string page_name
         text page_access_token_encrypted
         uuid granted_by_user_id FK "nullable" }
+    ORGANIZATIONS ||--o{ META_CONNECTED_ACCOUNTS : connects
+    USERS ||--o{ META_CONNECTED_ACCOUNTS : grants
+    META_CONNECTED_ACCOUNTS { uuid id PK
+        uuid organization_id FK
+        string platform "INSTAGRAM"
+        string external_account_id "unique per organization and platform"
+        string username "nullable"
+        uuid granted_by_user_id FK "nullable"
+        text access_token_encrypted }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 
@@ -230,6 +239,9 @@ erDiagram
 | GET | `/api/meta/oauth/callback` | public (the signed state is the check) | 200 | Meta's redirect target. Exchanges the code for a long-lived token and stores it encrypted. `400` for a bad or expired state, `403` if the admin lost the role, `502` if Meta refused. |
 | GET | `/api/organizations/{id}/meta/pages` | `ADMIN` of it | 200 | The organization's connected Facebook Pages, by name (`page`, `size` max 100): `pageId`, `name`, `connectedAt`. No tokens. |
 | POST | `/api/organizations/{id}/meta/pages` | `ADMIN` of it | 200 | Connect Pages from the Meta grant: body `{"pageIds": [...]}` (1 to 100). Each Page is subscribed to `messages` and `message_echoes`, then stored with its token encrypted. Reconnecting replaces the token. `422` if a Page is not in the grant, `502` if Meta refused. |
+| POST | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | Start connecting an Instagram professional account. Returns `{"authorizationUrl"}` (Instagram Business Login, signed 10-minute state). `503` if Instagram is not configured. |
+| GET | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | The organization's connected Instagram accounts, paginated (`page`, `size` max 100). No token is returned. |
+| GET | `/api/meta/instagram/callback` | public (the signed state is the check) | 200 | Instagram's redirect target. Exchanges the code, extends the token and stores the account with its token encrypted. `400` bad or expired state, `403` if the admin lost the role, `502` if Instagram refused. |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
