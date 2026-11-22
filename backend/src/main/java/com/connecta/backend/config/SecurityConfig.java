@@ -45,6 +45,8 @@ class SecurityConfig {
         "/api/invitations/preview", "/api/invitations/accept-new",
         // Meta redirects the browser here without a token; the signed, expiring state is the check.
         "/api/meta/oauth/callback", "/api/meta/instagram/callback",
+        // Meta's webhook: the verify token (GET) and the event signature (POST) are the checks.
+        "/api/meta/webhooks",
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 
