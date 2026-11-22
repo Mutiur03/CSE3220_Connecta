@@ -188,6 +188,12 @@ erDiagram
         string username "nullable"
         uuid granted_by_user_id FK "nullable"
         text access_token_encrypted }
+    ORGANIZATIONS ||--o{ META_WEBHOOK_EVENTS : receives
+    META_WEBHOOK_EVENTS { uuid id PK
+        string object "PAGE or INSTAGRAM"
+        text payload "raw JSON, as signed by Meta"
+        timestamp received_at
+        timestamp processed_at "nullable until processed" }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 
@@ -242,6 +248,8 @@ erDiagram
 | POST | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | Start connecting an Instagram professional account. Returns `{"authorizationUrl"}` (Instagram Business Login, signed 10-minute state). `503` if Instagram is not configured. |
 | GET | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | The organization's connected Instagram accounts, paginated (`page`, `size` max 100). No token is returned. |
 | GET | `/api/meta/instagram/callback` | public (the signed state is the check) | 200 | Instagram's redirect target. Exchanges the code, extends the token and stores the account with its token encrypted. `400` bad or expired state, `403` if the admin lost the role, `502` if Instagram refused. |
+| GET | `/api/meta/webhooks` | public (the verify token is the check) | 200 | Meta's subscription check. Returns `hub.challenge` as plain text when `hub.mode` is `subscribe` and `hub.verify_token` matches `META_WEBHOOK_VERIFY_TOKEN`; `403` otherwise. |
+| POST | `/api/meta/webhooks` | public (the `X-Hub-Signature-256` is the check) | 200 | Receive a Messenger (`page`) or Instagram event. The signature is verified over the raw body with that product's app secret, then the event is stored unprocessed. `401` bad or missing signature, `400` body not JSON, `503` app secret not set. Other Meta products are acknowledged and not stored. |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
