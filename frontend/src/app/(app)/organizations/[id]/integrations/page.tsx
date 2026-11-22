@@ -21,12 +21,18 @@ import {
   startFacebookConnection,
   startInstagramConnection,
 } from "@/lib/meta-actions";
-import { canConnectMeta, facebookStatusLine } from "@/lib/meta-view";
+import {
+  canConnectMeta,
+  connectionFlash,
+  facebookStatusLine,
+  type ConnectionResultParams,
+} from "@/lib/meta-view";
 import type { OrgActionState } from "@/lib/org-actions";
 import type { Page } from "@/lib/org-api";
 import { loadOrganization, loadSession } from "../data";
 
 type RouteParams = Promise<{ id: string }>;
+type SearchParams = Promise<ConnectionResultParams>;
 
 const LIST_SIZE = 20;
 
@@ -36,10 +42,13 @@ export const metadata: Metadata = { title: "Integrations" };
 // the page makes no Meta requests. Each section loads in parallel and shows its own alert when it fails.
 export default async function IntegrationsPage({
   params,
+  searchParams,
 }: {
   params: RouteParams;
+  searchParams: SearchParams;
 }) {
   const { id } = await params;
+  const flash = connectionFlash(await searchParams);
   const organization = await loadOrganization(id);
   if (!canConnectMeta(organization.callerRole)) {
     return (
@@ -66,6 +75,7 @@ export default async function IntegrationsPage({
   return (
     <>
       <Header orgId={id} orgName={organization.name} />
+      {flash && <Alert tone={flash.tone}>{flash.text}</Alert>}
 
       <section
         aria-labelledby="facebook-heading"

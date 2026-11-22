@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canConnectMeta, facebookStatusLine, parsePageIds } from "./meta-view";
+import {
+  canConnectMeta,
+  connectionFlash,
+  facebookStatusLine,
+  parsePageIds,
+} from "./meta-view";
 
 describe("canConnectMeta", () => {
   it("lets an admin connect and an agent not", () => {
@@ -32,5 +37,29 @@ describe("facebookStatusLine", () => {
     expect(facebookStatusLine(true, "2026-11-23T00:00:00Z", formatDate)).toBe(
       "Connected on date(2026-11-23T00:00:00Z)",
     );
+  });
+});
+
+describe("connectionFlash", () => {
+  it("confirms a successful Facebook or Instagram connection", () => {
+    expect(connectionFlash({ facebook: "connected" })?.tone).toBe("success");
+    expect(connectionFlash({ instagram: "connected" })?.text).toBe(
+      "Instagram account connected.",
+    );
+  });
+
+  it("explains each failure in plain words", () => {
+    expect(connectionFlash({ metaError: "denied" })?.tone).toBe("danger");
+    expect(connectionFlash({ metaError: "invalid_state" })?.text).toContain(
+      "expired",
+    );
+    expect(connectionFlash({ metaError: "forbidden" })?.text).toContain(
+      "admin",
+    );
+  });
+
+  it("shows nothing for a normal visit or an unknown code", () => {
+    expect(connectionFlash({})).toBeNull();
+    expect(connectionFlash({ metaError: "something_else" })).toBeNull();
   });
 });
