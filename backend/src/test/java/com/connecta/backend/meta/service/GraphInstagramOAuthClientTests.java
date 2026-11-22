@@ -29,8 +29,8 @@ class GraphInstagramOAuthClientTests {
     private static final String KEY = "dGVzdC1vbmx5LW1ldGEtdG9rZW4ta2V5LTAwMDAwMDE=";
     private static final Clock CLOCK = TestClock.FIXED;
     private static final String SHORT_URL = "https://api.instagram.com/oauth/access_token";
-    private static final String LONG_URL = "https://graph.instagram.com/v26.0/access_token";
-    private static final String ME_URL = "https://graph.instagram.com/v26.0/me";
+    private static final String LONG_URL = "https://graph.instagram.com/v27.0/access_token";
+    private static final String ME_URL = "https://graph.instagram.com/v27.0/me";
 
     private MockRestServiceServer server;
     private GraphInstagramOAuthClient client;
@@ -39,7 +39,7 @@ class GraphInstagramOAuthClientTests {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        MetaProperties meta = new MetaProperties("fb-app", "fb-secret", "v26.0", "config",
+        MetaProperties meta = new MetaProperties("fb-app", "fb-secret", "v27.0", "config",
                 "https://api.example.com", KEY);
         InstagramProperties instagram = new InstagramProperties("ig-app", "ig-secret");
         client = new GraphInstagramOAuthClient(instagram, meta, builder, CLOCK);

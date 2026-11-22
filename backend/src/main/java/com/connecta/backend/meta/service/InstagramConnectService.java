@@ -65,6 +65,9 @@ public class InstagramConnectService {
         User caller = callers.load(verified.userId().toString());
         Membership membership = tenants.requireRole(verified.organizationId(), caller.getId(), Roles.ADMIN);
 
+        if (code == null || code.isBlank()) {
+            throw new MetaAuthorizationDeniedException();
+        }
         MetaUserToken shortLived = client.exchangeCode(code, redirectUri());
         MetaUserToken longLived = client.extendToken(shortLived.accessToken());
         InstagramAccount account = client.fetchAccount(longLived.accessToken());

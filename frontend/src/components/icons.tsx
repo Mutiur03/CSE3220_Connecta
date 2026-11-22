@@ -162,3 +162,12 @@ export const ImageIcon = () => (
     <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
   </Icon>
 );
+
+export const PlugIcon = () => (
+  <Icon>
+    <path d="M12 22v-5" />
+    <path d="M9 8V2" />
+    <path d="M15 8V2" />
+    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+  </Icon>
+);

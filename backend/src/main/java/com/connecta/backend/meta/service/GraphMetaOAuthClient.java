@@ -30,7 +30,7 @@ class GraphMetaOAuthClient implements MetaOAuthClient {
     private static final String GRANT_FB_EXCHANGE = "fb_exchange_token";
     private static final String PAGES_PATH = "/me/accounts";
     private static final String SUBSCRIBED_APPS_PATH = "/{pageId}/subscribed_apps";
-    private static final String SUBSCRIBED_FIELDS = "messages,message_echoes";
+    private static final String SUBSCRIBED_FIELDS = "messages,message_echoes,message_reactions,message_edits";
 
     private final MetaProperties properties;
     private final RestClient graph;

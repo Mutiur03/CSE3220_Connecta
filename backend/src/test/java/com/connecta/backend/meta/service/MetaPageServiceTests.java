@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -205,6 +206,41 @@ class MetaPageServiceTests {
             when(tenants.requireRole(acme.getId(), admin.getId(), Roles.ADMIN)).thenThrow(new NotAMemberException());
 
             assertThrows(NotAMemberException.class, () -> service.connectedPages("sub", acme.getId(), 0, 20));
+        }
+    }
+
+    @Nested
+    class AvailablePages {
+
+        @Test
+        void listsTheGrantedPagesAndMarksTheConnectedOnes() {
+            grantTwoPages();
+            MetaConnectedPage connected = new MetaConnectedPage(acme, "p1");
+            connected.replace("Page One", cipher.encrypt("page-token-1"), admin, NOW);
+            when(pages.findByOrganizationId(eq(acme.getId()), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(connected)));
+
+            List<MetaAvailablePage> available = service.availablePages("sub", acme.getId());
+
+            assertEquals(List.of(
+                    new MetaAvailablePage("p1", "Page One", true),
+                    new MetaAvailablePage("p2", "Page Two", false)), available);
+        }
+
+        @Test
+        void withoutAGrantThereAreNoPagesAndMetaIsNotAsked() {
+            when(authorizations.findByOrganizationId(acme.getId())).thenReturn(Optional.empty());
+
+            assertTrue(service.availablePages("sub", acme.getId()).isEmpty());
+            verify(meta, never()).listPages(anyString());
+        }
+
+        @Test
+        void aNonMemberIsNotFound() {
+            when(tenants.requireRole(acme.getId(), admin.getId(), Roles.ADMIN)).thenThrow(new NotAMemberException());
+
+            assertThrows(NotAMemberException.class, () -> service.availablePages("sub", acme.getId()));
+            verify(meta, never()).listPages(anyString());
         }
     }
 }

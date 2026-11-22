@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -67,7 +68,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class MetaAuthorizationControllerIntegrationTests {
 
     private static final String AUTH = "Authorization";
-    private static final String DIALOG_URL = "https://www.facebook.com/v26.0/dialog/oauth?state=x";
+    private static final String DIALOG_URL = "https://www.facebook.com/v27.0/dialog/oauth?state=x";
 
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
@@ -229,9 +230,14 @@ class MetaAuthorizationControllerIntegrationTests {
     class Callback {
 
         private static final String CALLBACK = MetaAuthorizationService.CALLBACK_PATH;
+        private static final String FRONTEND = "http://localhost:3000";
+
+        private String integrations(Seeded s, String query) {
+            return FRONTEND + "/organizations/" + s.acme().getId() + "/integrations?" + query;
+        }
 
         @Test
-        void aValidCallbackStoresTheTokenEncryptedAndReportsConnected() throws Exception {
+        void aValidCallbackStoresTheTokenEncryptedAndSendsTheAdminBackToIntegrations() throws Exception {
             Seeded s = seedAcme();
             String state = states.issue(s.acme().getId(), s.admin().getId(), TestClock.NOW);
             Instant expires = TestClock.NOW.plusSeconds(5_184_000);
@@ -239,9 +245,8 @@ class MetaAuthorizationControllerIntegrationTests {
             when(meta.extendToken("short")).thenReturn(new MetaUserToken("long-token", expires));
 
             mvc.perform(get(CALLBACK).param("code", "the-code").param("state", state))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.connected").value(true))
-                    .andExpect(jsonPath("$.expiresAt").value(expires.toString()));
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", integrations(s, "facebook=connected")));
 
             MetaAuthorization grant = authorizations.findByOrganizationId(s.acme().getId()).orElseThrow();
             assertFalse(grant.getAccessTokenEncrypted().contains("long-token"));
@@ -250,40 +255,44 @@ class MetaAuthorizationControllerIntegrationTests {
         }
 
         @Test
-        void aTamperedStateIsBadRequest() throws Exception {
+        void aTamperedStateGoesBackToTheOrganizationsPage() throws Exception {
             mvc.perform(get(CALLBACK).param("code", "the-code").param("state", "forged.state"))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.detail").value("Invalid or expired authorization state"));
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", FRONTEND + "/organizations?metaError=invalid_state"));
         }
 
         @Test
-        void aMissingCodeIsBadRequest() throws Exception {
+        void aCancelledLoginGoesBackWithDenied() throws Exception {
             Seeded s = seedAcme();
             String state = states.issue(s.acme().getId(), s.admin().getId(), TestClock.NOW);
 
-            mvc.perform(get(CALLBACK).param("state", state)).andExpect(status().isBadRequest());
+            mvc.perform(get(CALLBACK).param("state", state))
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", integrations(s, "metaError=denied")));
+            assertTrue(authorizations.findByOrganizationId(s.acme().getId()).isEmpty());
         }
 
         @Test
-        void aMetaRefusalIsBadGatewayWithoutMetasText() throws Exception {
+        void aMetaRefusalGoesBackWithAGenericCodeAndSavesNothing() throws Exception {
             Seeded s = seedAcme();
             String state = states.issue(s.acme().getId(), s.admin().getId(), TestClock.NOW);
             when(meta.exchangeCode(anyString(), anyString()))
                     .thenThrow(new MetaAuthorizationFailedException("Invalid verification code"));
 
             mvc.perform(get(CALLBACK).param("code", "bad").param("state", state))
-                    .andExpect(status().isBadGateway())
-                    .andExpect(jsonPath("$.detail").value("Meta could not complete the authorization. Try again."));
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", integrations(s, "metaError=meta_failed")));
             assertTrue(authorizations.findByOrganizationId(s.acme().getId()).isEmpty());
         }
 
         @Test
-        void anAdminWhoLostTheRoleIsForbidden() throws Exception {
+        void anAdminWhoLostTheRoleGoesBackWithForbidden() throws Exception {
             Seeded s = seedAcme();
             String state = states.issue(s.acme().getId(), s.agent().getId(), TestClock.NOW);
 
             mvc.perform(get(CALLBACK).param("code", "the-code").param("state", state))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", integrations(s, "metaError=forbidden")));
         }
     }
 }

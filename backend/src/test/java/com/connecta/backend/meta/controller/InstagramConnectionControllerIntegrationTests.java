@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -240,8 +241,14 @@ class InstagramConnectionControllerIntegrationTests {
     @Nested
     class Callback {
 
+        private static final String FRONTEND = "http://localhost:3000";
+
+        private String integrations(Seeded s, String query) {
+            return FRONTEND + "/organizations/" + s.acme().getId() + "/integrations?" + query;
+        }
+
         @Test
-        void aValidCallbackConnectsTheAccountWithItsTokenEncrypted() throws Exception {
+        void aValidCallbackConnectsTheAccountAndSendsTheAdminBackToIntegrations() throws Exception {
             Seeded s = seedAcme();
             String state = states.issue(s.acme().getId(), s.admin().getId(), TestClock.NOW);
             when(instagram.exchangeCode(anyString(), anyString())).thenReturn(new MetaUserToken("short", TestClock.NOW));
@@ -249,8 +256,8 @@ class InstagramConnectionControllerIntegrationTests {
             when(instagram.fetchAccount("long-token")).thenReturn(new InstagramAccount("17841", "acme_shop"));
 
             mvc.perform(get(CALLBACK).param("code", "the-code").param("state", state))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.externalAccountId").value("17841"));
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", integrations(s, "instagram=connected")));
 
             MetaConnectedAccount stored = accounts.findByOrganizationIdAndPlatformAndExternalAccountId(
                     s.acme().getId(), MetaConnectedAccount.PLATFORM_INSTAGRAM, "17841").orElseThrow();
@@ -260,22 +267,32 @@ class InstagramConnectionControllerIntegrationTests {
         }
 
         @Test
-        void aTamperedStateIsBadRequest() throws Exception {
+        void aTamperedStateGoesBackToTheOrganizationsPage() throws Exception {
             mvc.perform(get(CALLBACK).param("code", "the-code").param("state", "forged.state"))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.detail").value("Invalid or expired authorization state"));
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", FRONTEND + "/organizations?metaError=invalid_state"));
         }
 
         @Test
-        void anInstagramRefusalIsBadGatewayAndSavesNothing() throws Exception {
+        void aCancelledLoginGoesBackWithDenied() throws Exception {
+            Seeded s = seedAcme();
+            String state = states.issue(s.acme().getId(), s.admin().getId(), TestClock.NOW);
+
+            mvc.perform(get(CALLBACK).param("state", state))
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", integrations(s, "metaError=denied")));
+        }
+
+        @Test
+        void anInstagramRefusalGoesBackWithAGenericCodeAndSavesNothing() throws Exception {
             Seeded s = seedAcme();
             String state = states.issue(s.acme().getId(), s.admin().getId(), TestClock.NOW);
             when(instagram.exchangeCode(anyString(), anyString()))
                     .thenThrow(new MetaAuthorizationFailedException("Instagram request failed"));
 
             mvc.perform(get(CALLBACK).param("code", "bad").param("state", state))
-                    .andExpect(status().isBadGateway())
-                    .andExpect(jsonPath("$.detail").value("Meta could not complete the authorization. Try again."));
+                    .andExpect(status().isFound())
+                    .andExpect(header().string("Location", integrations(s, "metaError=meta_failed")));
             assertFalse(accounts.findByOrganizationIdAndPlatform(s.acme().getId(),
                     MetaConnectedAccount.PLATFORM_INSTAGRAM, org.springframework.data.domain.Pageable.unpaged())
                     .hasContent());

@@ -214,4 +214,20 @@ class MetaAuthorizationServiceTests {
             assertTrue(service.authorization("sub", acme.getId()).isEmpty());
         }
     }
+
+    @Nested
+    class Cancelled {
+
+        @Test
+        void aCancelledLoginIsDeniedAndMetaIsNotCalled() {
+            when(callers.load(admin.getId().toString())).thenReturn(admin);
+            when(tenants.requireRole(acme.getId(), admin.getId(), Roles.ADMIN))
+                    .thenReturn(new Membership(acme, admin, new Role(Roles.ADMIN)));
+            String state = states.issue(acme.getId(), admin.getId(), NOW);
+
+            assertThrows(MetaAuthorizationDeniedException.class, () -> service.completeAuthorization(" ", state));
+            verify(meta, never()).exchangeCode(anyString(), anyString());
+            verify(authorizations, never()).save(any());
+        }
+    }
 }

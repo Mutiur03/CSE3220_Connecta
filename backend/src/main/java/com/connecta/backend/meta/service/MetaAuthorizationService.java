@@ -61,6 +61,9 @@ public class MetaAuthorizationService {
         User caller = callers.load(verified.userId().toString());
         Membership membership = tenants.requireRole(verified.organizationId(), caller.getId(), Roles.ADMIN);
 
+        if (code == null || code.isBlank()) {
+            throw new MetaAuthorizationDeniedException();
+        }
         MetaUserToken shortLived = meta.exchangeCode(code, redirectUri());
         MetaUserToken longLived = meta.extendToken(shortLived.accessToken());
         return save(membership, caller, longLived);
