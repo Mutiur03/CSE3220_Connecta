@@ -44,7 +44,7 @@ class SecurityConfig {
         "/api/setup/**",
         "/api/invitations/preview", "/api/invitations/accept-new",
         // Meta redirects the browser here without a token; the signed, expiring state is the check.
-        "/api/meta/oauth/callback",
+        "/api/meta/oauth/callback", "/api/meta/instagram/callback",
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 
