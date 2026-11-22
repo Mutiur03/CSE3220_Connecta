@@ -10,9 +10,11 @@ import com.connecta.backend.product.dto.CreateProductRequest;
 import com.connecta.backend.product.dto.ProductResponse;
 import com.connecta.backend.product.dto.UpdateProductRequest;
 import com.connecta.backend.product.repository.ProductCategoryRepository;
+import com.connecta.backend.product.repository.ProductImageRepository;
 import com.connecta.backend.product.repository.ProductRepository;
 import com.connecta.backend.product.repository.ProductSpecifications;
 import com.connecta.backend.user.domain.Roles;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,6 +39,7 @@ public class ProductService {
 
     private final ProductRepository products;
     private final ProductCategoryRepository categories;
+    private final ProductImageRepository images;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
     private final ApplicationEventPublisher events;
@@ -90,7 +93,8 @@ public class ProductService {
     public void delete(String subject, UUID organizationId, UUID productId) {
         tenants.requireRole(organizationId, callerId(subject), Roles.ADMIN);
         Product product = findProduct(organizationId, productId);
-        events.publishEvent(new ProductDeletedEvent(organizationId, productId));
+        List<String> objectKeys = images.findObjectKeys(productId, organizationId);
+        events.publishEvent(new ProductDeletedEvent(organizationId, productId, objectKeys));
         products.delete(product);
     }
 
