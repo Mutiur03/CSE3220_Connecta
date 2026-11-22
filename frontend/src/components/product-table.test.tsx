@@ -23,10 +23,36 @@ const product: Product = {
   updatedAt: "2026-01-02T00:00:00Z",
 };
 
-const html = (canManage: boolean, rows: Product[] = [product]) =>
+const html = (
+  canManage: boolean,
+  rows: Product[] = [product],
+  thumbnails: Record<string, string> = {},
+) =>
   renderToStaticMarkup(
-    <ProductTable orgId="org-1" products={rows} canManage={canManage} />,
+    <ProductTable orgId="org-1" products={rows} thumbnails={thumbnails} canManage={canManage} />,
   );
+
+const PROXY_SRC = `/api/organizations/org-1/products/${product.id}/images/a/content`;
+
+describe("ProductTable thumbnails", () => {
+  it("puts the image column first, before the name", () => {
+    const markup = html(false);
+    expect(markup.indexOf(">Image</span>")).toBeLessThan(markup.indexOf(">Name</th>"));
+  });
+
+  it("shows the first image through its proxy address, with the product name as alt text", () => {
+    const markup = html(false, [product], { [product.id]: PROXY_SRC });
+    expect(markup).toContain(`src="${PROXY_SRC}"`);
+    expect(markup).toContain('alt="Oat Latte Kit"');
+    expect(markup).toContain('loading="lazy"');
+  });
+
+  it("shows a named placeholder, and no image, for a product without one", () => {
+    const markup = html(false, [product], {});
+    expect(markup).toContain('role="img" aria-label="No image"');
+    expect(markup).not.toContain("/content");
+  });
+});
 
 describe("ProductTable columns", () => {
   it("shows the name, SKU, category, price and stock in their columns", () => {

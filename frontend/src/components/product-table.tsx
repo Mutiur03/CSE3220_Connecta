@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { deleteProduct } from "@/lib/product-actions";
 import type { Product } from "@/lib/product-api";
@@ -5,12 +6,15 @@ import { formatPrice } from "@/lib/format";
 import { buttonClasses } from "./ui/classes";
 import OrgActionButton from "./org-action-button";
 import { tableClass } from "./org-styles";
+import ProductImagePlaceholder from "./product-image-placeholder";
 import { StockStatusBadge } from "./stock-status-badge";
 import { TableScroll } from "./ui/table-scroll";
 
 type Props = {
   orgId: string;
   products: Product[];
+  /** Proxy address of the first image, keyed by product id. A product without one shows a placeholder. */
+  thumbnails: Record<string, string>;
   /** Only an ADMIN sees the edit and delete controls. AGENT gets a read-only table. */
   canManage: boolean;
 };
@@ -18,12 +22,15 @@ type Props = {
 const DASH = "—";
 
 /** The catalog as rows. Wide tables scroll inside their named region. */
-export default function ProductTable({ orgId, products, canManage }: Props) {
+export default function ProductTable({ orgId, products, thumbnails, canManage }: Props) {
   return (
     <TableScroll label="Products">
       <table className={tableClass}>
         <thead className="border-b border-line text-secondary">
           <tr>
+            <th scope="col" className="w-14 px-4 py-2 font-medium">
+              <span className="sr-only">Image</span>
+            </th>
             <th scope="col" className="px-4 py-2 font-medium">
               Name
             </th>
@@ -54,9 +61,26 @@ export default function ProductTable({ orgId, products, canManage }: Props) {
               className="h-14 border-b border-line-subtle transition-colors last:border-b-0 hover:bg-hover/60"
             >
               <td className="px-4 py-2 align-middle">
+                {thumbnails[product.id] ? (
+                  <span className="relative block size-10 overflow-hidden rounded-control border border-line bg-hover">
+                    <Image
+                      src={thumbnails[product.id]}
+                      alt={product.name}
+                      fill
+                      unoptimized
+                      loading="lazy"
+                      sizes="40px"
+                      className="object-cover"
+                    />
+                  </span>
+                ) : (
+                  <ProductImagePlaceholder />
+                )}
+              </td>
+              <td className="px-4 py-2 align-middle">
                 <Link
                   href={`/organizations/${orgId}/products/${product.id}`}
-                  className="font-medium underline-offset-4 hover:underline"
+                  className="cursor-pointer font-medium underline-offset-4 hover:underline focus-visible:underline"
                 >
                   {product.name}
                 </Link>

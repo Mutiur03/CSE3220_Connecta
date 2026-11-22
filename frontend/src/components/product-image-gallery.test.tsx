@@ -64,4 +64,23 @@ describe("ProductImageGallery", () => {
     expect(html(true, [])).toContain("Add a photo so members can recognise this product.");
     expect(html(false, [])).toContain("An admin of this organization adds photos here.");
   });
+
+  it("shows the placeholder tile in the empty state, and no thumbnails", () => {
+    const markup = html(true, []);
+    expect(markup).toContain('role="img" aria-label="No image"');
+    expect(markup).not.toContain("<ul");
+  });
+
+  it("names each thumbnail button by product, position and count", () => {
+    const markup = html(false, [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }]);
+    expect(markup).toContain('aria-label="Open Oat Latte Kit, image 1 of 2"');
+    expect(markup).toContain('aria-label="Open Oat Latte Kit, image 2 of 2"');
+    expect(markup).toContain('type="button"');
+  });
+
+  it("renders the viewer closed: no caption or controls until a thumbnail opens it", () => {
+    const markup = html(false, [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }]);
+    expect(markup).not.toContain("Image 1 of 2");
+    expect(markup).not.toContain("Next image");
+  });
 });
