@@ -17,7 +17,7 @@ Node.js 24+, pnpm, JDK 17, Docker.
    ```bash
    pnpm install
    ```
-2. **Environment.** Copy `.env.example` to `.env` (used by docker compose). The backend works without any variables in dev: its `dev` profile has local defaults. The frontend reads `frontend/.env.local` (see `.env.example`).
+2. **Environment.** Copy `backend/.env.example` to `backend/.env` (used by docker compose for PostgreSQL and the app). The backend works without any variables in dev: its `dev` profile has local defaults. The frontend reads `frontend/.env.local` (see `frontend/.env.example`).
 3. **Start PostgreSQL:**
    ```bash
    docker compose up -d postgres
