@@ -31,7 +31,16 @@ export default function ProductStockForm({ action }: Props) {
           <label htmlFor="stock-type" className="text-sm font-medium text-primary">
             Movement
           </label>
-          <Select id="stock-type" name="type" autoComplete="off" defaultValue={value("type", "RECEIVE")}>
+          {/* After a form action React resets the form, which restores each select to its
+              option's defaultSelected. React never updates that for a changed defaultValue, so
+              a new key remounts the select with the type the server kept. */}
+          <Select
+            key={value("type", "RECEIVE")}
+            id="stock-type"
+            name="type"
+            autoComplete="off"
+            defaultValue={value("type", "RECEIVE")}
+          >
             {STOCK_MOVEMENT_TYPES.map((type) => (
               <option key={type} value={type}>
                 {STOCK_MOVEMENT_LABELS[type]}
