@@ -9,7 +9,6 @@ import ProductMovementTable from "@/components/product-movement-table";
 import { recordStockMovement } from "@/lib/stock-actions";
 import { getProduct } from "@/lib/product-api";
 import { listProductImages } from "@/lib/product-image-api";
-import { PRODUCT_IMAGE_LIMIT } from "@/lib/product-image-validation";
 import { listStockMovements } from "@/lib/stock-api";
 import { canManageProducts } from "@/lib/product-permissions";
 import { ORG_PAGE_SIZE, pageCount, pageHref, pageRange, parsePageParam } from "@/lib/org-pagination";
@@ -88,9 +87,6 @@ export default async function ProductDetailPage({
           <h2 id="images-heading" className="text-lg font-medium">
             Images
           </h2>
-          <p className="text-secondary">
-            {images.length === 0 ? "No images added." : `${images.length} of ${PRODUCT_IMAGE_LIMIT} images.`}
-          </p>
         </div>
         <ProductImageGallery
           orgId={id}

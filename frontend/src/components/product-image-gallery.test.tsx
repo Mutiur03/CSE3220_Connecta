@@ -83,4 +83,26 @@ describe("ProductImageGallery", () => {
     expect(markup).not.toContain("Image 1 of 2");
     expect(markup).not.toContain("Next image");
   });
+
+  it("counts the images in the singular and plural, never with the old wording", () => {
+    expect(html(false)).toContain("1 of 8 image added");
+    const two = [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }];
+    expect(html(false, two)).toContain("2 of 8 images added");
+    expect(html(false, two)).not.toContain("images.");
+  });
+
+  it("renders one equal tile per image, each with its position label", () => {
+    const three = [image, { ...image, id: "55555555-5555-5555-5555-555555555555" }, { ...image, id: "66666666-6666-6666-6666-666666666666" }];
+    const markup = html(true, three);
+    expect(markup.match(/<li /g)).toHaveLength(3);
+    expect(markup).toContain("grid-cols-[repeat(auto-fill,7.5rem)]");
+    for (const position of [1, 2, 3]) expect(markup).toContain(`>Image ${position}</p>`);
+  });
+
+  it("asks for confirmation before removing: a plain button with a native dialog", () => {
+    const markup = html(true);
+    expect(markup).toContain("<dialog");
+    expect(markup).toContain("Remove image 1 of Oat Latte Kit? This cannot be undone.");
+    expect(markup).not.toContain("window.confirm");
+  });
 });

@@ -6,7 +6,6 @@ import ProductImageGallery from "@/components/product-image-gallery";
 import { updateProduct } from "@/lib/product-actions";
 import { getProduct, listCategoryOptions } from "@/lib/product-api";
 import { listProductImages } from "@/lib/product-image-api";
-import { PRODUCT_IMAGE_LIMIT } from "@/lib/product-image-validation";
 import { canManageProducts } from "@/lib/product-permissions";
 import { formatPrice } from "@/lib/format";
 import { isUuid } from "@/lib/org-validation";
@@ -60,9 +59,6 @@ export default async function EditProductPage({ params }: { params: RouteParams 
           <h2 id="images-heading" className="text-lg font-medium">
             Images
           </h2>
-          <p className="text-secondary">
-            {images.length === 0 ? "No images added." : `${images.length} of ${PRODUCT_IMAGE_LIMIT} images.`}
-          </p>
         </div>
         <ProductImageGallery
           orgId={id}

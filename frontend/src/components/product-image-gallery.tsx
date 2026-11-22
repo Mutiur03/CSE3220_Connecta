@@ -5,6 +5,7 @@ import { useState } from "react";
 import { deleteProductImage, uploadProductImage } from "@/lib/product-image-actions";
 import type { ProductImage } from "@/lib/product-image-api";
 import { productImageSrc } from "@/lib/product-image-api";
+import { imageCountText } from "@/lib/product-image-validation";
 import OrgActionButton from "./org-action-button";
 import ProductImagePlaceholder from "./product-image-placeholder";
 import ProductImageUploadForm from "./product-image-upload-form";
@@ -20,8 +21,9 @@ type Props = {
 };
 
 /**
- * The product's images as a grid of thumbnails in display order. A thumbnail opens the full-size
- * viewer. Thumbnails load through the app's proxy route, so the access token never reaches the browser.
+ * The product's images as a grid of equal thumbnails in display order, each labelled with its
+ * position. A thumbnail opens the full-size viewer. Thumbnails load through the app's proxy route,
+ * so the access token never reaches the browser.
  */
 export default function ProductImageGallery({ orgId, productId, productName, images, canManage }: Props) {
   const [viewing, setViewing] = useState<number | null>(null);
@@ -45,8 +47,9 @@ export default function ProductImageGallery({ orgId, productId, productName, ima
           </div>
         </div>
       ) : (
-        <>
-          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="flex flex-col gap-3">
+          <p className="text-secondary tabular-nums">{imageCountText(images.length)}</p>
+          <ul className="grid grid-cols-[repeat(auto-fill,7.5rem)] gap-3">
             {viewerImages.map((image, index) => {
               const position = index + 1;
               return (
@@ -62,24 +65,21 @@ export default function ProductImageGallery({ orgId, productId, productName, ima
                       alt={`${productName}, image ${position}`}
                       fill
                       unoptimized
-                      sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+                      sizes="120px"
                       className="object-cover"
                     />
                   </button>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm text-secondary tabular-nums">Image {position}</p>
-                    {canManage && (
-                      <OrgActionButton
-                        action={deleteProductImage.bind(null, orgId, productId, image.id)}
-                        label="Remove"
-                        pendingLabel="Removing…"
-                        ariaLabel={`Remove image ${position} of ${productName}`}
-                        confirm={`Remove image ${position} of ${productName}? This cannot be undone.`}
-                        tone="danger"
-                        size="sm"
-                      />
-                    )}
-                  </div>
+                  <p className="text-sm text-secondary tabular-nums">Image {position}</p>
+                  {canManage && (
+                    <OrgActionButton
+                      action={deleteProductImage.bind(null, orgId, productId, images[index].id)}
+                      label="Remove"
+                      pendingLabel="Removing…"
+                      ariaLabel={`Remove image ${position} of ${productName}`}
+                      confirm={`Remove image ${position} of ${productName}? This cannot be undone.`}
+                      tone="danger"
+                    />
+                  )}
                 </li>
               );
             })}
@@ -91,10 +91,13 @@ export default function ProductImageGallery({ orgId, productId, productName, ima
             onIndexChange={setViewing}
             onClose={() => setViewing(null)}
           />
-        </>
+        </div>
       )}
       {canManage && (
-        <ProductImageUploadForm action={uploadProductImage.bind(null, orgId, productId)} />
+        <ProductImageUploadForm
+          action={uploadProductImage.bind(null, orgId, productId)}
+          existing={images.length}
+        />
       )}
     </div>
   );
