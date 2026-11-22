@@ -164,6 +164,13 @@ erDiagram
         uuid invited_by FK
         string token_hash UK
         string status }
+    ORGANIZATIONS ||--o| META_AUTHORIZATIONS : connects
+    USERS ||--o{ META_AUTHORIZATIONS : grants
+    META_AUTHORIZATIONS { uuid id PK
+        uuid organization_id FK "unique"
+        uuid granted_by_user_id FK "nullable"
+        text access_token_encrypted
+        timestamp expires_at "nullable" }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 
@@ -210,6 +217,9 @@ erDiagram
 | GET | `/api/organizations/{id}/product-categories/{categoryId}` | any member of it | 200 | One category. Another organization's id gets `404`. |
 | PUT | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 200 | Replace a category's name and description. `409` on a name clash. |
 | DELETE | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 204 | Delete a category. Its products stay, uncategorized. |
+| POST | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Start connecting Meta. Returns `{"authorizationUrl"}`, the Facebook login dialog with a signed, 10-minute state. `503` if the Meta app is not configured. |
+| GET | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Whether the organization is connected: `{"connected", "connectedAt", "expiresAt"}`. No token is returned. |
+| GET | `/api/meta/oauth/callback` | public (the signed state is the check) | 200 | Meta's redirect target. Exchanges the code for a long-lived token and stores it encrypted. `400` for a bad or expired state, `403` if the admin lost the role, `502` if Meta refused. |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
