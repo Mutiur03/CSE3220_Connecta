@@ -29,6 +29,7 @@ export default function OrgCreateForm() {
         name="name"
         label="Organization name"
         maxLength={100}
+        autoComplete="organization"
         defaultValue={state.values?.name}
         hint="Its web address is made from the name."
         error={state.errors?.name}

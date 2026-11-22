@@ -1,11 +1,11 @@
 name: compose
 on:
   pull_request:
-    paths: ["docker-compose.yml", ".env.example", ".github/workflows/compose.yml"]
+    paths: ["docker-compose.yml", "backend/.env.example", "frontend/**", ".github/workflows/compose.yml"]
 jobs:
   config:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cp .env.example .env
+      - run: cp backend/.env.example backend/.env
       - run: docker compose config --quiet

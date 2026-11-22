@@ -31,6 +31,11 @@ class GlobalExceptionHandlerTests {
     @RestController
     static class StubController {
 
+        @GetMapping("/too-big")
+        String tooBig() {
+            throw new org.springframework.web.multipart.MaxUploadSizeExceededException(5);
+        }
+
         @GetMapping("/boom")
         String boom() {
             throw new IllegalStateException("secret internal detail");
@@ -94,6 +99,14 @@ class GlobalExceptionHandlerTests {
                     .andExpect(status().isMethodNotAllowed())
                     .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                     .andExpect(jsonPath("$.status").value(405));
+        }
+
+        @Test
+        void anUploadOverTheMultipartLimitReturns413ProblemJson() throws Exception {
+            mvc.perform(get("/too-big"))
+                    .andExpect(status().isContentTooLarge())
+                    .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                    .andExpect(jsonPath("$.status").value(413));
         }
 
         @Test

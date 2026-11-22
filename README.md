@@ -17,7 +17,7 @@ Node.js 24+, pnpm, JDK 17, Docker.
    ```bash
    pnpm install
    ```
-2. **Environment.** Copy `.env.example` to `.env` (used by docker compose). The backend works without any variables in dev: its `dev` profile has local defaults. The frontend reads `frontend/.env.local` (see `.env.example`).
+2. **Environment.** Copy `backend/.env.example` to `backend/.env` (used by docker compose for PostgreSQL and the app). The backend works without any variables in dev: its `dev` profile has local defaults. The frontend reads `frontend/.env.local` (see `frontend/.env.example`).
 3. **Start PostgreSQL:**
    ```bash
    docker compose up -d postgres
@@ -81,6 +81,9 @@ Inside an organization only `ADMIN` and `AGENT` exist (the `memberships` role). 
 ### Invitation email (SMTP)
 Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_STARTTLS`, `MAIL_FROM` and `FRONTEND_URL` (see `.env.example`). With a blank `SMTP_HOST` nothing is sent and only a log line says so; the invitation is still created. A mail outage never undoes an invitation. For local work, `docker compose --profile dev up -d mailpit` starts Mailpit (SMTP `localhost:1025`, inbox <http://localhost:8025>), which the `dev` profile already points at.
 
+### Product image storage (any S3-compatible service)
+Product images go through `product.service.ProductImageStorage`, with one S3 adapter (`S3ProductImageStorage`) for any S3 API service: AWS S3, Cloudflare R2, MinIO, Backblaze B2, Wasabi, DigitalOcean Spaces. There is no service-specific code path. Set `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_PUBLIC_BASE_URL` (see `.env.example`) to use it. `S3_ENDPOINT` is blank for AWS and set for other services, `S3_REGION` defaults to `us-east-1` (R2 uses `auto`), and `S3_PATH_STYLE_ACCESS=true` is needed by MinIO. Local MinIO example (backend run on the host): `S3_ENDPOINT=http://localhost:9000`, `S3_PATH_STYLE_ACCESS=true`, `S3_PUBLIC_BASE_URL=http://localhost:9000/<bucket>`, with the bucket created beforehand. Compose has no MinIO service; it only passes these variables through. Without the four required values, dev keeps images in memory; the `prod` profile refuses to start. Keys are `organizations/{orgId}/products/{productId}/{uuid}.{ext}`, so the client filename is never used. Uploads, listing, streaming and deletes go through `ProductImageController` (see the endpoint table); the content endpoint streams the bytes through the backend, so it works for private buckets and the in-memory store. Limits come from `APP_PRODUCT_IMAGES_MAX_SIZE_BYTES` (default 5 MB) and `APP_PRODUCT_IMAGES_MAX_PER_PRODUCT` (default 8), i.e. `app.product-images.max-size-bytes` and `app.product-images.max-per-product`.
+
 Tenant isolation: an organization's data is reached only through `org.service.TenantAccessService`. A user who is not a member of an organization gets `404` (the same answer as an unknown organization), and a member whose role is too low gets `403`.
 
 ## ER diagram
@@ -114,6 +117,43 @@ erDiagram
     SYSTEM_SETUP { smallint id PK "always 1"
         uuid owner_id FK
         timestamptz completed_at }
+    ORGANIZATIONS ||--o{ PRODUCT_CATEGORIES : owns
+    ORGANIZATIONS ||--o{ PRODUCTS : owns
+    PRODUCT_CATEGORIES ||--o{ PRODUCTS : groups
+    PRODUCT_CATEGORIES { uuid id PK
+        uuid organization_id FK
+        string name
+        string description }
+    PRODUCTS { uuid id PK
+        uuid organization_id FK
+        uuid category_id FK "nullable"
+        string name
+        string description
+        string sku "nullable, unique per organization ignoring case"
+        decimal unit_price
+        int stock_quantity
+        int reorder_level }
+    PRODUCTS ||--o{ STOCK_MOVEMENTS : records
+    ORGANIZATIONS ||--o{ STOCK_MOVEMENTS : owns
+    USERS ||--o{ STOCK_MOVEMENTS : makes
+    STOCK_MOVEMENTS { uuid id PK
+        uuid organization_id FK
+        uuid product_id FK
+        string type "RECEIVE, ISSUE or ADJUST"
+        int quantity_delta
+        int quantity_after
+        string reason "nullable"
+        uuid created_by FK "nullable"
+        timestamp created_at }
+    PRODUCTS ||--o{ PRODUCT_IMAGES : shows
+    ORGANIZATIONS ||--o{ PRODUCT_IMAGES : owns
+    PRODUCT_IMAGES { uuid id PK
+        uuid organization_id FK
+        uuid product_id FK
+        string object_key UK
+        string content_type
+        bigint size_bytes
+        int position }
     ORGANIZATIONS ||--o{ INVITATIONS : receives
     ROLES ||--o{ INVITATIONS : offers
     USERS ||--o{ INVITATIONS : sends
@@ -151,6 +191,25 @@ erDiagram
 | GET | `/api/organizations/{id}/members` | any member of it | 200 | List its members with their role (`page`, `size` max 100). No password data. |
 | PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` of it | 200 | Change a member's role (`ADMIN` or `AGENT`). The last `ADMIN` cannot be demoted (`422`). |
 | DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. The last `ADMIN` cannot leave (`422`). |
+| GET | `/api/organizations/{id}/products` | any member | 200 | List products by name (`page`, `size` max 100). Optional filters, combined with AND: `q` (name or SKU contains, ignoring case), `categoryId` (must be this organization's, else `404`), `stockStatus` (`IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`, else `400`). Each product shows `sku`, `unitPrice`, `stockQuantity` (read only), `reorderLevel` and `stockStatus`. |
+| POST | `/api/organizations/{id}/products` | `ADMIN` of it | 201 | Create a product. `categoryId` is optional and must be this organization's (`404` otherwise). Duplicate name or SKU (ignoring case) `409`. Optional `sku` (max 64), `unitPrice` (>= 0, 2 decimals, default 0), `reorderLevel` (>= 0, default 0). |
+| GET | `/api/organizations/{id}/products/{productId}` | any member | 200 | One product. Another organization's id gets `404`. |
+| PUT | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 200 | Replace a product, including `sku`, `unitPrice` and `reorderLevel`. A `null` `categoryId` clears its category. `409` on a name or SKU clash. |
+| DELETE | `/api/organizations/{id}/products/{productId}` | `ADMIN` of it | 204 | Delete a product and its stored images. |
+| POST | `/api/organizations/{id}/products/{productId}/images` | `ADMIN` of it | 201 | Upload an image (multipart field `file`; JPEG, PNG or WebP checked by magic bytes). `415` bad type, `413` over 5 MB, `422` over 8 images. |
+| GET | `/api/organizations/{id}/products/{productId}/images` | any member | 200 | List the product's images in display order. |
+| GET | `/api/organizations/{id}/products/{productId}/images/{imageId}/content` | any member | 200 | Stream the image bytes (stored `Content-Type`, `inline`, `Cache-Control: private`, `nosniff`). Another organization's id gets `404`. |
+| DELETE | `/api/organizations/{id}/products/{productId}/images/{imageId}` | `ADMIN` of it | 204 | Delete an image and its stored object. |
+| POST | `/api/organizations/{id}/products/{productId}/stock-movements` | any member | 201 | Record a stock movement: `RECEIVE` or `ISSUE` a `quantity` (>= 1), or `ADJUST` to an absolute level (`quantity` >= 0). Optional `reason` (max 255). The product row is locked while the stock changes. An `ISSUE` beyond stock is `422`; a quantity below its type's minimum is `400`. `Location` points to the movement. |
+| GET | `/api/organizations/{id}/products/{productId}/stock-movements` | any member | 200 | One product's movements, newest first (`page`, `size` max 100). |
+| GET | `/api/organizations/{id}/stock-movements` | any member | 200 | The organization's movements, newest first. Optional `productId` narrows to one product (must be this organization's, else `404`). |
+| GET | `/api/organizations/{id}/stock-movements/{movementId}` | any member | 200 | One movement. Another organization's id gets `404`. |
+| GET | `/api/organizations/{id}/inventory/summary` | any member | 200 | `productCount`, `totalUnits`, `stockValue` (stock times unit price, 2 decimals), `lowStockCount` and `outOfStockCount`. |
+| GET | `/api/organizations/{id}/product-categories` | any member of it | 200 | List its product categories, by name (`page`, `size` max 100). |
+| POST | `/api/organizations/{id}/product-categories` | `ADMIN` of it | 201 | Create a category. `409` if the name is already used in the organization. |
+| GET | `/api/organizations/{id}/product-categories/{categoryId}` | any member of it | 200 | One category. Another organization's id gets `404`. |
+| PUT | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 200 | Replace a category's name and description. `409` on a name clash. |
+| DELETE | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 204 | Delete a category. Its products stay, uncategorized. |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is available in the `dev` profile only.
@@ -167,7 +226,7 @@ docker compose up --build
 ```
 Add `--profile dev` to also start Mailpit, a local mail catcher for invitation emails (inbox <http://localhost:8025>; set `SMTP_HOST=mailpit` and `SMTP_PORT=1025` in `.env`).
 
-Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. Invitation email uses `SMTP_*`, `MAIL_FROM` and `FRONTEND_URL` (non-secret defaults in compose; blank `SMTP_HOST` sends nothing). The frontend also reads `API_URL` (server-side backend address, set to `http://app:8080` in compose; defaults to `NEXT_PUBLIC_API_URL` outside Docker). Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
+Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. Invitation email uses `SMTP_*`, `MAIL_FROM` and `FRONTEND_URL` (non-secret defaults in compose; blank `SMTP_HOST` sends nothing). Product images need the `S3_*` variables (see `.env.example`), passed through to the app as-is: `S3_ENDPOINT` (optional, blank for AWS), `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PATH_STYLE_ACCESS` and `S3_PUBLIC_BASE_URL`. The prod profile refuses to start while the bucket, keys or public base URL are blank. The frontend also reads `API_URL` (server-side backend address, set to `http://app:8080` in compose; defaults to `NEXT_PUBLIC_API_URL` outside Docker). Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
 
 ## Monitoring
 Actuator exposes `health` (public), and `info`, `metrics` and `prometheus` (ADMIN token required). Config lives in `ops/`:

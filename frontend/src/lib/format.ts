@@ -12,3 +12,16 @@ export function invitationStatusLabel(
   if (status === "REVOKED") return "Revoked";
   return new Date(expiresAt) > now ? "Pending" : "Expired";
 }
+
+/** A unit price with two decimals and no locale grouping, so "12.50" reads the same everywhere. */
+export function formatPrice(value: number): string {
+  return value.toFixed(2);
+}
+
+/** A movement's time for a history table: date and clock time in the reader's locale. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}

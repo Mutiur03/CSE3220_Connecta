@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -45,6 +46,10 @@ class SecurityConfig {
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 
+    private static final String[] PRODUCT_CATEGORY_PATHS = {
+        "/api/organizations/*/product-categories", "/api/organizations/*/product-categories/*"
+    };
+
     private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
 
     @Bean
@@ -60,6 +65,10 @@ class SecurityConfig {
                         .requestMatchers("/api/admin/organizations").hasRole(Roles.OWNER)
                         // Everything under /api/admin needs ADMIN (OWNER inherits it, see roleHierarchy).
                         .requestMatchers("/api/admin/**").hasRole(Roles.ADMIN)
+                        // Product categories: any signed-in member reads; writes need ADMIN (OWNER inherits).
+                        .requestMatchers(HttpMethod.POST, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
+                        .requestMatchers(HttpMethod.PUT, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
+                        .requestMatchers(HttpMethod.DELETE, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
                         // Health is public; metrics, info and the Prometheus scrape need ADMIN.
                         .requestMatchers("/actuator/**").hasRole(Roles.ADMIN)
                         .anyRequest().authenticated())

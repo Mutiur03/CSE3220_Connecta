@@ -80,6 +80,12 @@ async function OrganizationHeader({ params }: { params: RouteParams }) {
         <p className="text-sm text-secondary">
           Slug <code>{organization.slug}</code> · Your role: {ROLE_LABELS[role]}
         </p>
+        <Link
+          href={`/organizations/${id}/products`}
+          className="text-sm text-secondary underline-offset-4 hover:underline"
+        >
+          Product catalog
+        </Link>
       </header>
 
       {canRename(role) && (
