@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import ProductForm from "@/components/product-form";
+import ProductImageGallery from "@/components/product-image-gallery";
 import { updateProduct } from "@/lib/product-actions";
 import { getProduct, listCategoryOptions } from "@/lib/product-api";
+import { listProductImages } from "@/lib/product-image-api";
+import { PRODUCT_IMAGE_LIMIT } from "@/lib/product-image-validation";
 import { canManageProducts } from "@/lib/product-permissions";
 import { formatPrice } from "@/lib/format";
 import { isUuid } from "@/lib/org-validation";
@@ -21,9 +24,10 @@ export default async function EditProductPage({ params }: { params: RouteParams 
   if (!canManageProducts(organization.callerRole)) redirect(productsHref);
 
   const { accessToken } = await loadSession(id);
-  const [product, categories] = await Promise.all([
+  const [product, categories, images] = await Promise.all([
     notFoundOnMissing(getProduct(accessToken, id, productId)),
     notFoundOnMissing(listCategoryOptions(accessToken, id)),
+    notFoundOnMissing(listProductImages(accessToken, id, productId)),
   ]);
 
   return (
@@ -50,6 +54,24 @@ export default async function EditProductPage({ params }: { params: RouteParams 
         busyLabel="Saving…"
         cancelHref={productsHref}
       />
+
+      <section aria-labelledby="images-heading" className="flex flex-col gap-6 border-t border-line-subtle pt-8">
+        <div className="flex flex-col gap-1">
+          <h2 id="images-heading" className="text-lg font-medium">
+            Images
+          </h2>
+          <p className="text-secondary">
+            {images.length === 0 ? "No images added." : `${images.length} of ${PRODUCT_IMAGE_LIMIT} images.`}
+          </p>
+        </div>
+        <ProductImageGallery
+          orgId={id}
+          productId={productId}
+          productName={product.name}
+          images={images}
+          canManage={canManageProducts(organization.callerRole)}
+        />
+      </section>
     </>
   );
 }

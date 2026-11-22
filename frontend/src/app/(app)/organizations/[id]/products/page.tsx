@@ -5,6 +5,7 @@ import ProductFilterBar from "@/components/product-filter-bar";
 import ProductTable from "@/components/product-table";
 import { buttonClasses } from "@/components/ui/classes";
 import { listCategoryOptions, listProducts } from "@/lib/product-api";
+import { firstImageSources } from "@/lib/product-thumbnails";
 import { canManageProducts } from "@/lib/product-permissions";
 import {
   parseProductFilters,
@@ -52,6 +53,8 @@ export default async function ProductsPage({
   const products = await notFoundOnMissing(
     listProducts(accessToken, id, filters, page, ORG_PAGE_SIZE),
   );
+  // Bounded: one request per product on this page (at most ORG_PAGE_SIZE, 20).
+  const thumbnails = await firstImageSources(accessToken, id, products.content);
 
   const listPath = `/organizations/${id}/products`;
   const canManage = canManageProducts(organization.callerRole);
@@ -124,6 +127,7 @@ export default async function ProductsPage({
               <ProductTable
                 orgId={id}
                 products={products.content}
+                thumbnails={thumbnails}
                 canManage={canManage}
               />
               {range && (
