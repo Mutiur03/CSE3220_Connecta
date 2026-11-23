@@ -3,11 +3,10 @@ import type { Invitation } from "@/lib/org-api";
 import { formatDate, invitationStatusLabel } from "@/lib/format";
 import { invitationBadgeTone } from "@/lib/invitation-view";
 import { ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
+import { MailIcon } from "./icons";
 import { Badge } from "./ui/badge";
-import { TableScroll } from "./ui/table-scroll";
 import OrgActionButton from "./org-action-button";
 import OrgInviteForm from "./org-invite-form";
-import { tableClass } from "./org-styles";
 
 type Props = {
   orgId: string;
@@ -15,25 +14,59 @@ type Props = {
   roleOptions: OrgRole[];
 };
 
-function RevokeButton({
+function InvitationRow({
   orgId,
   invitation,
-  size = "md",
+  status,
 }: {
   orgId: string;
   invitation: Invitation;
-  size?: "md" | "sm";
+  status: string;
 }) {
+  const pending = status === "Pending";
   return (
-    <OrgActionButton
-      action={revokeInvitation.bind(null, orgId, invitation.id)}
-      label="Revoke"
-      pendingLabel="Revoking…"
-      ariaLabel={`Revoke invitation for ${invitation.email}`}
-      confirm={`Revoke the invitation for ${invitation.email}? Its token will stop working.`}
-      tone="danger"
-      size={size}
-    />
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
+      <div className="flex min-w-0 flex-1 basis-60 items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-9 shrink-0 place-items-center rounded-full border border-line text-secondary [&_svg]:size-4"
+        >
+          <MailIcon />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-primary">{invitation.email}</span>
+          <span className="text-caption text-secondary">
+            Invited as {ROLE_LABELS[invitation.role].toLowerCase()}
+          </span>
+        </span>
+      </div>
+      {/* Fixed columns from sm up; an empty cell keeps its slot so rows stay aligned. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-12 sm:ml-auto sm:grid sm:grid-cols-[9.5rem_8rem_6.5rem] sm:gap-x-3 sm:pl-0">
+        <span className="figure text-caption text-secondary sm:justify-self-end">
+          {/* Only an open invitation has an expiry worth reading. */}
+          {pending && `Expires ${formatDate(invitation.expiresAt)}`}
+        </span>
+        <span className="flex justify-center">
+          <Badge tone={invitationBadgeTone(status)} dot={pending}>
+            {status}
+          </Badge>
+        </span>
+        <div className="w-26 sm:w-auto">
+          {invitation.status === "PENDING" && (
+            <OrgActionButton
+              action={revokeInvitation.bind(null, orgId, invitation.id)}
+              label="Revoke"
+              pendingLabel="Revoking…"
+              ariaLabel={`Revoke invitation for ${invitation.email}`}
+              confirm={`Revoke the invitation for ${invitation.email}? Its link stops working.`}
+              tone="danger"
+              size="sm"
+              block
+            />
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -43,110 +76,37 @@ export default function OrgInvitations({
   roleOptions,
 }: Props) {
   const now = new Date();
-  const rows = invitations.map((invitation) => ({
-    invitation,
-    status: invitationStatusLabel(invitation.status, invitation.expiresAt, now),
-  }));
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <OrgInviteForm
         action={createInvitation.bind(null, orgId)}
         roleOptions={roleOptions}
       />
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-secondary">No invitations yet.</p>
+      {invitations.length === 0 ? (
+        <p className="rounded-control border border-line px-4 py-4 text-secondary">
+          No invitations yet. Enter a teammate&apos;s email above to send the
+          first one.
+        </p>
       ) : (
-        <>
-          <ul className="flex flex-col divide-y divide-line-subtle border-y border-line sm:hidden">
-            {rows.map(({ invitation, status }) => (
-              <li key={invitation.id} className="flex flex-col gap-3 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 break-all font-medium">
-                    {invitation.email}
-                  </p>
-                  <Badge
-                    tone={invitationBadgeTone(status)}
-                    dot={status === "Pending"}
-                  >
-                    {status}
-                  </Badge>
-                </div>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-                  <dt className="text-secondary">Role</dt>
-                  <dd>{ROLE_LABELS[invitation.role]}</dd>
-                  <dt className="text-secondary">Expires</dt>
-                  <dd>{formatDate(invitation.expiresAt)}</dd>
-                </dl>
-                {invitation.status === "PENDING" && (
-                  <RevokeButton orgId={orgId} invitation={invitation} />
-                )}
-              </li>
-            ))}
-          </ul>
-
-          <TableScroll label="Invitations" className="hidden sm:block">
-            <table className={tableClass}>
-              <thead className="border-b border-line text-secondary">
-                <tr>
-                  <th scope="col" className="px-4 py-2 font-medium">
-                    Email
-                  </th>
-                  <th scope="col" className="px-4 py-2 font-medium">
-                    Role
-                  </th>
-                  <th scope="col" className="px-4 py-2 font-medium">
-                    Status
-                  </th>
-                  <th scope="col" className="px-4 py-2 font-medium">
-                    Expires
-                  </th>
-                  <th scope="col" className="px-4 py-2 text-right font-medium">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ invitation, status }) => (
-                  <tr
-                    key={invitation.id}
-                    className="h-14 border-b border-line-subtle transition-colors last:border-b-0 hover:bg-hover/60"
-                  >
-                    <td className="px-4 py-2 align-middle">
-                      {invitation.email}
-                    </td>
-                    <td className="px-4 py-2 align-middle">
-                      {ROLE_LABELS[invitation.role]}
-                    </td>
-                    <td className="px-4 py-2 align-middle">
-                      <Badge
-                        tone={invitationBadgeTone(status)}
-                        dot={status === "Pending"}
-                      >
-                        {status}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2 align-middle text-secondary">
-                      {formatDate(invitation.expiresAt)}
-                    </td>
-                    <td className="px-4 py-2 align-middle">
-                      <div className="flex justify-end">
-                        {invitation.status === "PENDING" && (
-                          <RevokeButton
-                            orgId={orgId}
-                            invitation={invitation}
-                            size="sm"
-                          />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        </>
+        <ul
+          aria-label="Invitations"
+          className="flex flex-col divide-y divide-line-subtle rounded-control border border-line bg-surface"
+        >
+          {invitations.map((invitation) => (
+            <InvitationRow
+              key={invitation.id}
+              orgId={orgId}
+              invitation={invitation}
+              status={invitationStatusLabel(
+                invitation.status,
+                invitation.expiresAt,
+                now,
+              )}
+            />
+          ))}
+        </ul>
       )}
     </div>
   );

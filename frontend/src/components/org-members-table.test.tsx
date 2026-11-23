@@ -8,7 +8,11 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/session", () => ({ getAccessToken: vi.fn() }));
 
-import OrgMembersTable, { rowRights } from "./org-members-table";
+import OrgMembersTable, {
+  memberInitials,
+  rowRights,
+  selfFirst,
+} from "./org-members-table";
 
 const member = (userId: string, role: Member["role"], name = userId): Member =>
   ({
@@ -44,6 +48,36 @@ describe("rowRights", () => {
   });
 });
 
+describe("selfFirst", () => {
+  it("moves your own row to the top and keeps the rest in server order", () => {
+    const rows = ["a", "me", "b", "c"].map((id) => member(id, "AGENT"));
+
+    expect(selfFirst(rows, "me").map((row) => row.userId)).toEqual([
+      "me",
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("leaves the order alone when you are not on this page", () => {
+    const rows = ["a", "b"].map((id) => member(id, "AGENT"));
+
+    expect(selfFirst(rows, "me").map((row) => row.userId)).toEqual(["a", "b"]);
+  });
+});
+
+describe("memberInitials", () => {
+  it("takes up to two initials from the name", () => {
+    expect(memberInitials("ana maria lopez", "a@x.io")).toBe("AM");
+    expect(memberInitials("  Mina ", "m@x.io")).toBe("M");
+  });
+
+  it("falls back to the email when the name is blank", () => {
+    expect(memberInitials("   ", "zed@x.io")).toBe("Z");
+  });
+});
+
 describe("OrgMembersTable markup", () => {
   const members = [
     member("me", "ADMIN", "Mina"),
@@ -59,10 +93,12 @@ describe("OrgMembersTable markup", () => {
       />,
     );
 
-  it("renders one select per layout for the changeable row (card list and table)", () => {
-    // CSS (md:hidden / hidden md:block) shows one copy; the other is out of the a11y tree.
+  it("renders exactly one select, for the changeable row only", () => {
+    // One list serves every width, so each control exists once in the DOM.
     const markup = html("ADMIN");
-    expect(markup.match(/<select/g)).toHaveLength(2);
+    expect(markup.match(/<select/g)).toHaveLength(1);
+    expect(markup).toContain('aria-label="Role for Ana"');
+    expect(markup).not.toContain('aria-label="Role for Mina"');
     expect(markup).not.toContain('aria-label="Remove Mina"');
   });
 
@@ -74,11 +110,11 @@ describe("OrgMembersTable markup", () => {
     expect(markup).toContain('aria-label="Leave organization"');
   });
 
-  it("shows the card list below md and the table from md up", () => {
+  it("renders one labelled list with a row per member and marks your own row", () => {
     const markup = html("ADMIN");
-    expect(markup).toContain("md:hidden");
-    expect(markup).toContain("hidden md:block");
-    expect(markup).toContain('aria-label="Members"');
+    expect(markup).toContain('<ul aria-label="Members"');
+    expect(markup.match(/<li/g)).toHaveLength(members.length);
+    expect(markup).toContain(">You<");
   });
 
   it("keeps zinc and dark pairs out of the members table source", () => {

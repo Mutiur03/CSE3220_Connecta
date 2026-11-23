@@ -10,37 +10,47 @@ type CopyStatus = "idle" | "copied" | "failed";
 
 const STATUS_TEXT: Record<CopyStatus, string> = {
   idle: "",
-  copied: "Token copied.",
-  failed: "Copy failed. Select the token and copy it by hand.",
+  copied: "Link copied.",
+  failed: "Copy failed. Select the link and copy it by hand.",
 };
 
-/** Shows a new invitation token once, with a copy button. Remount it per token (key). */
+/** The page the invitee opens to join. The token is URL-safe, but encode it anyway. */
+export function invitationLink(origin: string, token: string): string {
+  return `${origin}/invitations/accept?token=${encodeURIComponent(token)}`;
+}
+
+/**
+ * Shows a new invitation link once, with a copy button. Remount it per token (key). It only mounts
+ * after the invite action returns, so it always renders in the browser and can read the origin.
+ */
 export default function OrgTokenBox({ token }: { token: string }) {
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const link = invitationLink(origin, token);
 
   async function copy() {
-    setCopyStatus((await copyText(token)) ? "copied" : "failed");
+    setCopyStatus((await copyText(link)) ? "copied" : "failed");
   }
 
   return (
-    <Panel className="flex max-w-xl flex-col gap-3">
-      <p className="text-sm font-medium">
-        Copy this token now. It is shown only once.
+    <Panel className="flex flex-col gap-3">
+      <p className="font-medium">
+        Copy the invitation link now. It is shown only once.
       </p>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
           <Field
             id="invitation-token"
-            label="Invitation token"
+            label="Invitation link"
             readOnly
             autoComplete="off"
-            value={token}
+            value={link}
             onFocus={(event) => event.currentTarget.select()}
-            className="font-mono text-xs"
+            className="figure"
           />
         </div>
         <Button type="button" onClick={copy}>
-          Copy token
+          Copy link
         </Button>
       </div>
       <p
@@ -50,8 +60,9 @@ export default function OrgTokenBox({ token }: { token: string }) {
         {STATUS_TEXT[copyStatus]}
       </p>
       <p className="text-caption text-secondary">
-        Nothing is emailed. Share the token with the invitee, who pastes it at
-        /invitations/accept.
+        When outgoing email is set up, the invitee also gets this link by email.
+        Otherwise send it to them yourself. A new person creates an account on
+        that page; someone with an account signs in first.
       </p>
     </Panel>
   );

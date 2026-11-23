@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRightIcon } from "@/components/icons";
+import { BuildingIcon, ChevronRightIcon } from "@/components/icons";
+import { buttonClasses } from "@/components/ui/classes";
 import { PageHeader } from "@/components/ui/page-header";
 import OrgPagination from "@/components/org-pagination";
 import OrgRoleBadge from "@/components/org-role-badge";
@@ -48,17 +49,26 @@ async function OrganizationList({
         Your organizations
       </h2>
       {result.content.length === 0 ? (
-        <p className="text-secondary">
-          You are not in an organization yet. Create one from the organization
-          menu or{" "}
-          <Link
-            href="/invitations/accept"
-            className="text-accent underline-offset-4 hover:underline"
-          >
-            accept an invitation
-          </Link>
-          .
-        </p>
+        <div className="flex flex-wrap items-start gap-4 rounded-panel border border-line bg-surface p-4 sm:p-5">
+          <span className="grid size-10 shrink-0 place-items-center rounded-control border border-line bg-app text-primary">
+            <BuildingIcon />
+          </span>
+          <div className="flex min-w-0 flex-1 basis-56 flex-col gap-1">
+            <p className="text-lg font-medium">No organizations yet</p>
+            <p className="text-sm text-secondary">
+              Create one from the organization menu in the sidebar, or open the
+              invitation link a teammate sent you.
+            </p>
+          </div>
+          <div className="shrink-0 pl-14 sm:ml-auto sm:pl-0">
+            <Link
+              href="/invitations/accept"
+              className={buttonClasses("secondary")}
+            >
+              Accept an invitation
+            </Link>
+          </div>
+        </div>
       ) : (
         <ul className="divide-y divide-line-subtle overflow-hidden rounded-panel border border-line bg-surface">
           {result.content.map((organization) => (
