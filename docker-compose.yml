@@ -22,6 +22,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://postgres:5432/connecta
+      SPRING_FLYWAY_ENABLED: "true"
     ports:
       - "8080:8080"
     depends_on:
@@ -37,6 +38,37 @@ services:
     ports:
       - "8025:8025"
       - "1025:1025"
+
+  # Local S3 for product images. Start it with: docker compose --profile dev up
+  # Then in backend/.env set S3_ENDPOINT=http://localhost:9000, S3_REGION=us-east-1, S3_BUCKET=connecta,
+  # S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY equal to MINIO_ROOT_USER and MINIO_ROOT_PASSWORD,
+  # S3_PATH_STYLE_ACCESS=true, S3_PUBLIC_BASE_URL=http://localhost:9000/connecta. Console: http://localhost:9001
+  minio:
+    image: minio/minio:latest
+    container_name: connecta-minio
+    profiles: ["dev"]
+    env_file: ./backend/.env
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  # One-shot: creates the S3_BUCKET bucket and makes its objects publicly readable (images are served by URL).
+  minio-init:
+    image: minio/mc:latest
+    container_name: connecta-minio-init
+    profiles: ["dev"]
+    env_file: ./backend/.env
+    depends_on:
+      - minio
+    restart: "no"
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do sleep 1; done;
+      mc mb --ignore-existing local/$$S3_BUCKET;
+      mc anonymous set download local/$$S3_BUCKET"
 
   frontend:
     build:
@@ -57,3 +89,4 @@ services:
 
 volumes:
   postgres-data:
+  minio-data:
