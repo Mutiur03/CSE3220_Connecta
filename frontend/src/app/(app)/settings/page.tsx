@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import PasswordChangeForm from "@/components/password-change-form";
 import SessionList from "@/components/session-list";
 import { Alert } from "@/components/ui/alert";
 import { PageHeader } from "@/components/ui/page-header";
@@ -20,7 +21,10 @@ export default async function SettingsPage() {
         title="Settings"
         description="Your account and the devices signed in to it"
       />
-      <section aria-labelledby="account-heading" className="flex flex-col gap-4">
+      <section
+        aria-labelledby="account-heading"
+        className="flex flex-col gap-4"
+      >
         <h2 id="account-heading" className="text-lg font-medium">
           Account
         </h2>
@@ -34,6 +38,15 @@ export default async function SettingsPage() {
             <dd className="min-w-0 break-all">{user.email}</dd>
           </div>
         </dl>
+      </section>
+      <section
+        aria-labelledby="password-heading"
+        className="flex flex-col gap-4"
+      >
+        <h2 id="password-heading" className="text-lg font-medium">
+          Password
+        </h2>
+        <PasswordChangeForm />
       </section>
       {sessions ? (
         <SessionList sessions={sessions.content} />
