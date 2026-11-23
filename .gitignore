@@ -21,3 +21,6 @@ build/
 *.iml
 .DS_Store
 Thumbs.db
+
+# GeoIP database (see pnpm geoip); never commit it
+backend/geoip/

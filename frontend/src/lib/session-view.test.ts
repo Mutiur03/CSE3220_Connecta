@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deviceLabel } from "./session-view";
+import { deviceKind, deviceLabel } from "./session-view";
 
 const CHROME_WINDOWS =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
@@ -29,5 +29,31 @@ describe("deviceLabel", () => {
   it("falls back when there is no user agent", () => {
     expect(deviceLabel(null)).toBe("Unknown device");
     expect(deviceLabel("node")).toBe("Unknown device");
+  });
+});
+
+describe("deviceKind", () => {
+  it.each([
+    [
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1",
+      "phone",
+    ],
+    [
+      "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/130 Mobile Safari/537.36",
+      "phone",
+    ],
+    ["Mozilla/5.0 (iPad; CPU OS 18_0 like Mac OS X) Safari/604.1", "tablet"],
+    [
+      "Mozilla/5.0 (Linux; Android 14; SM-X900) Chrome/130 Safari/537.36",
+      "tablet",
+    ],
+    [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130 Safari/537.36",
+      "desktop",
+    ],
+    ["curl/8.0", "unknown"],
+    [null, "unknown"],
+  ] as const)("%s -> %s", (agent, kind) => {
+    expect(deviceKind(agent)).toBe(kind);
   });
 });

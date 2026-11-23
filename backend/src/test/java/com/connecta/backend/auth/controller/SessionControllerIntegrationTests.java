@@ -55,7 +55,7 @@ class SessionControllerIntegrationTests {
     }
 
     private RefreshToken token(UUID session, String agent) {
-        return new RefreshToken(jane, "hash", TestClock.NOW.plusSeconds(60), TestClock.NOW, session, agent, "203.0.113.7");
+        return new RefreshToken(jane, "hash", TestClock.NOW.plusSeconds(60), TestClock.NOW, session, agent, "203.0.113.7", "Dhaka, Bangladesh");
     }
 
     @Nested
@@ -71,6 +71,7 @@ class SessionControllerIntegrationTests {
                     .andExpect(jsonPath("$.totalElements").value(2))
                     .andExpect(jsonPath("$.content[0].id").value(CURRENT.toString()))
                     .andExpect(jsonPath("$.content[0].current").value(true))
+                    .andExpect(jsonPath("$.content[0].location").value("Dhaka, Bangladesh"))
                     .andExpect(jsonPath("$.content[1].current").value(false))
                     .andExpect(jsonPath("$.content[0].tokenHash").doesNotExist());
         }

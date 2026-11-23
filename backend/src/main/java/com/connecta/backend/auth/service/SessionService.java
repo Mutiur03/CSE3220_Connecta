@@ -3,6 +3,8 @@ package com.connecta.backend.auth.service;
 import com.connecta.backend.auth.domain.RefreshToken;
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -15,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class SessionService {
 
+    /** At most one write per session in this time, so a busy page does not turn into a write per request. */
+    static final Duration ACTIVITY_INTERVAL = Duration.ofMinutes(1);
+
     private final RefreshTokenRepository tokens;
     private final Clock clock;
 
@@ -22,6 +27,13 @@ public class SessionService {
     @Transactional(readOnly = true)
     public Page<RefreshToken> activeSessions(UUID userId, Pageable pageable) {
         return tokens.findByUserIdAndRevokedAtIsNullAndExpiresAtAfter(userId, clock.instant(), pageable);
+    }
+
+    /** Records that the session just made a request. A revoked or unknown session is left alone. */
+    @Transactional
+    public void touch(UUID userId, UUID sessionId) {
+        Instant now = clock.instant();
+        tokens.touchSession(userId, sessionId, now, now.minus(ACTIVITY_INTERVAL));
     }
 
     @Transactional

@@ -6,6 +6,8 @@ export type DeviceSession = {
   id: string;
   userAgent: string | null;
   ip: string | null;
+  /** "City, Country" from the IP, or null when the server has no GeoIP database or does not know. */
+  location: string | null;
   createdAt: string;
   lastUsedAt: string;
   current: boolean;

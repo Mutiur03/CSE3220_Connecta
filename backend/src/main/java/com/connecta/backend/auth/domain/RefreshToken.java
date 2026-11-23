@@ -57,11 +57,14 @@ public class RefreshToken {
     @Column(name = "ip", length = 45)
     private String ip;
 
+    @Column(name = "location", length = 100)
+    private String location;
+
     @Column(name = "last_used_at", nullable = false)
     private Instant lastUsedAt;
 
     public RefreshToken(User user, String tokenHash, Instant expiresAt, Instant createdAt,
-            UUID sessionId, String userAgent, String ip) {
+            UUID sessionId, String userAgent, String ip, String location) {
         this.user = user;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
@@ -69,6 +72,7 @@ public class RefreshToken {
         this.sessionId = sessionId;
         this.userAgent = userAgent;
         this.ip = ip;
+        this.location = location;
         this.lastUsedAt = createdAt;
     }
 

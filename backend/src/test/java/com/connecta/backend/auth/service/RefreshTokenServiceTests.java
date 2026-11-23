@@ -40,6 +40,9 @@ class RefreshTokenServiceTests {
     @Mock
     RefreshTokenRepository tokens;
 
+    @Mock
+    IpLocator ipLocator;
+
     RefreshTokenService service;
     User user;
 
@@ -47,12 +50,12 @@ class RefreshTokenServiceTests {
     void setUp() {
         JwtProperties props = new JwtProperties(
                 "unit-test-secret-unit-test-secret-0123456789", "connecta", Duration.ofMinutes(15), Duration.ofDays(7));
-        service = new RefreshTokenService(tokens, props, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new RefreshTokenService(tokens, props, Clock.fixed(NOW, ZoneOffset.UTC), ipLocator);
         user = TestUsers.user("jane@example.com", Roles.AGENT);
     }
 
     private RefreshToken stored(String raw, Instant expiresAt) {
-        return new RefreshToken(user, RefreshTokenService.hash(raw), expiresAt, NOW.minusSeconds(60), SESSION, null, null);
+        return new RefreshToken(user, RefreshTokenService.hash(raw), expiresAt, NOW.minusSeconds(60), SESSION, null, null, null);
     }
 
     @Nested
@@ -104,6 +107,8 @@ class RefreshTokenServiceTests {
             RefreshToken old = stored("old-raw", NOW.plusSeconds(3600));
             when(tokens.findByTokenHash(RefreshTokenService.hash("old-raw"))).thenReturn(Optional.of(old));
 
+            when(ipLocator.locate("203.0.113.9")).thenReturn(Optional.of("Dhaka, Bangladesh"));
+
             RefreshTokenService.Issued issued = service.rotate("old-raw", new ClientInfo("Firefox", "203.0.113.9"));
 
             ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
@@ -112,6 +117,7 @@ class RefreshTokenServiceTests {
             assertEquals(SESSION, saved.getValue().getSessionId());
             assertEquals("Firefox", saved.getValue().getUserAgent());
             assertEquals("203.0.113.9", saved.getValue().getIp());
+            assertEquals("Dhaka, Bangladesh", saved.getValue().getLocation());
             assertEquals(NOW, saved.getValue().getLastUsedAt());
         }
 

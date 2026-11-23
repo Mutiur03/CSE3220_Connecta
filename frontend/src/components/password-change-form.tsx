@@ -9,7 +9,8 @@ import { Alert } from "./ui/alert";
 import { Button, PendingLabel } from "./ui/button";
 import { useFocusInvalidField } from "./use-focus-invalid-field";
 
-export default function PasswordChangeForm() {
+/** `email` goes in a hidden username field, so password managers and screen readers know the account. */
+export default function PasswordChangeForm({ email }: { email: string }) {
   const [state, formAction, pending] = useActionState(changePassword, {});
   const formRef = useRef<HTMLFormElement>(null);
   useFocusInvalidField(formRef, state.errors);
@@ -23,6 +24,14 @@ export default function PasswordChangeForm() {
       noValidate
       className="flex max-w-md flex-col gap-3"
     >
+      <input
+        type="text"
+        name="username"
+        value={email}
+        autoComplete="username"
+        readOnly
+        hidden
+      />
       <PasswordField
         id="current-password"
         name="currentPassword"
