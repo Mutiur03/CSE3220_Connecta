@@ -20,12 +20,13 @@ public class TokenService {
 
     public static final String CLAIM_EMAIL = "email";
     public static final String CLAIM_ROLES = "roles";
+    public static final String CLAIM_SESSION = "sid";
 
     private final JwtEncoder encoder;
     private final JwtProperties props;
     private final Clock clock;
 
-    public String createAccessToken(User user) {
+    public String createAccessToken(User user, UUID sessionId) {
         Instant now = clock.instant();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(props.issuer())
@@ -33,6 +34,7 @@ public class TokenService {
                 .issuedAt(now)
                 .expiresAt(now.plus(props.accessTtl()))
                 .id(UUID.randomUUID().toString())
+                .claim(CLAIM_SESSION, sessionId.toString())
                 .claim(CLAIM_EMAIL, user.getEmail())
                 .claim(CLAIM_ROLES, user.getRoleNames().stream().sorted().toList())
                 .build();

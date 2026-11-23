@@ -47,11 +47,29 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public RefreshToken(User user, String tokenHash, Instant expiresAt, Instant createdAt) {
+    /** Constant across rotations: identifies the device, while the token row changes on every refresh. */
+    @Column(name = "session_id", nullable = false, updatable = false)
+    private UUID sessionId;
+
+    @Column(name = "user_agent", length = 255)
+    private String userAgent;
+
+    @Column(name = "ip", length = 45)
+    private String ip;
+
+    @Column(name = "last_used_at", nullable = false)
+    private Instant lastUsedAt;
+
+    public RefreshToken(User user, String tokenHash, Instant expiresAt, Instant createdAt,
+            UUID sessionId, String userAgent, String ip) {
         this.user = user;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
         this.createdAt = createdAt;
+        this.sessionId = sessionId;
+        this.userAgent = userAgent;
+        this.ip = ip;
+        this.lastUsedAt = createdAt;
     }
 
     public boolean isRevoked() {

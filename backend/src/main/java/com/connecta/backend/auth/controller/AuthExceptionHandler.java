@@ -4,6 +4,7 @@ import com.connecta.backend.auth.service.AccountNotAvailableException;
 import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
+import com.connecta.backend.auth.service.SessionNotFoundException;
 import com.connecta.backend.auth.service.SetupRequiredException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -31,5 +32,10 @@ class AuthExceptionHandler {
     @ExceptionHandler(InvalidCredentialsException.class)
     ProblemDetail invalidCredentials(InvalidCredentialsException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
+    }
+
+    @ExceptionHandler(SessionNotFoundException.class)
+    ProblemDetail sessionNotFound(SessionNotFoundException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
     }
 }

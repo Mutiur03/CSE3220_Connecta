@@ -1,5 +1,7 @@
 package com.connecta.backend.auth.service;
 
+import org.springframework.data.domain.PageRequest;
+import com.connecta.backend.auth.dto.ClientInfo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -57,12 +59,15 @@ class RefreshTokenServiceIntegrationTests {
     @Autowired
     SetupService setup;
 
+    @Autowired
+    SessionService sessionService;
+
     private TokenResponse registerAndLogin(String email) {
         if (setup.status().setupRequired()) {
             setup.completeSetup(new RegisterRequest("owner@example.com", "correct-password", "Owner"));
         }
         auth.register(new RegisterRequest(email, "correct-password", "Jane"));
-        return auth.login(new LoginRequest(email, "correct-password"));
+        return auth.login(new LoginRequest(email, "correct-password"), ClientInfo.UNKNOWN);
     }
 
     private boolean isRevoked(String rawToken) {
@@ -73,7 +78,7 @@ class RefreshTokenServiceIntegrationTests {
     void rotationPersistsARevokedOldTokenAndALiveNewOne() {
         TokenResponse first = registerAndLogin("rotate@example.com");
 
-        TokenResponse second = auth.refresh(first.refreshToken());
+        TokenResponse second = auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN);
 
         assertNotEquals(first.refreshToken(), second.refreshToken());
         assertTrue(isRevoked(first.refreshToken()));
@@ -83,12 +88,29 @@ class RefreshTokenServiceIntegrationTests {
     @Test
     void reusingARotatedTokenRevokesTheWholeSessionAndKeepsTheRevocation() {
         TokenResponse first = registerAndLogin("reuse@example.com");
-        TokenResponse second = auth.refresh(first.refreshToken());
+        TokenResponse second = auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN);
 
-        assertThrows(InvalidTokenException.class, () -> auth.refresh(first.refreshToken()));
+        assertThrows(InvalidTokenException.class, () -> auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN));
 
         assertTrue(isRevoked(second.refreshToken()));
-        assertThrows(InvalidTokenException.class, () -> auth.refresh(second.refreshToken()));
+        assertThrows(InvalidTokenException.class, () -> auth.refresh(second.refreshToken(), ClientInfo.UNKNOWN));
+    }
+
+    @Test
+    void rotationKeepsOneSessionPerDeviceAndRevokingItEndsTheChain() {
+        TokenResponse first = registerAndLogin("sessions@example.com");
+        TokenResponse second = auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN);
+        var userId = first.user().id();
+        var sessionId = tokens.findByTokenHash(RefreshTokenService.hash(second.refreshToken())).orElseThrow().getSessionId();
+
+        var active = sessionService.activeSessions(userId, PageRequest.of(0, 10));
+        assertEquals(1, active.getTotalElements());
+        assertEquals(sessionId, active.getContent().get(0).getSessionId());
+
+        sessionService.revoke(userId, sessionId);
+
+        assertThrows(InvalidTokenException.class, () -> auth.refresh(second.refreshToken(), ClientInfo.UNKNOWN));
+        assertThrows(SessionNotFoundException.class, () -> sessionService.revoke(userId, sessionId));
     }
 
     @Test
