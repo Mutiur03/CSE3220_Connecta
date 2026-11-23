@@ -24,6 +24,9 @@ vi.mock("./api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("./session", () => session);
+vi.mock("./client-headers", () => ({
+  forwardedClientHeaders: async () => ({ "User-Agent": "test-agent" }),
+}));
 
 import { ApiError } from "./api";
 import {
@@ -56,7 +59,9 @@ describe("login", () => {
     await expect(login({}, form(" a@b.co ", "secret"))).rejects.toThrow(
       "NEXT_REDIRECT /",
     );
-    expect(api.login).toHaveBeenCalledWith("a@b.co", "secret");
+    expect(api.login).toHaveBeenCalledWith("a@b.co", "secret", {
+      "User-Agent": "test-agent",
+    });
     expect(session.setSessionCookies).toHaveBeenCalled();
   });
 
@@ -137,7 +142,9 @@ describe("signup", () => {
       "longenough",
       "Maya Rahman",
     );
-    expect(api.login).toHaveBeenCalledWith("maya@b.co", "longenough");
+    expect(api.login).toHaveBeenCalledWith("maya@b.co", "longenough", {
+      "User-Agent": "test-agent",
+    });
     expect(session.setSessionCookies).toHaveBeenCalled();
   });
 

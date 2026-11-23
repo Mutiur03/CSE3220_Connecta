@@ -9,6 +9,7 @@ import {
   register as apiRegister,
   setupOwner as apiSetupOwner,
 } from "./api";
+import { forwardedClientHeaders } from "./client-headers";
 import { safeRedirectPath } from "./redirect";
 import {
   clearSessionCookies,
@@ -43,7 +44,9 @@ export async function login(
   if (Object.keys(errors).length > 0) return { errors, email };
 
   try {
-    await setSessionCookies(await apiLogin(email, password));
+    await setSessionCookies(
+      await apiLogin(email, password, await forwardedClientHeaders()),
+    );
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       return { message: "Invalid email or password.", email };
@@ -91,7 +94,9 @@ async function createAccountAndSignIn(
 
   try {
     await create(email, password, fullName);
-    await setSessionCookies(await apiLogin(email, password));
+    await setSessionCookies(
+      await apiLogin(email, password, await forwardedClientHeaders()),
+    );
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       return onConflict(echo);
