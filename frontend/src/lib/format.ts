@@ -25,3 +25,28 @@ export function formatDateTime(iso: string): string {
     timeStyle: "short",
   });
 }
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const RELATIVE_LIMIT_DAYS = 7;
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+/**
+ * "5 minutes ago", "yesterday", then a date after a week. Relative wording needs no time zone, so it can be
+ * built on the server and read the same everywhere.
+ */
+export function formatRelative(iso: string, now: Date): string {
+  const elapsed = Math.max(0, now.getTime() - new Date(iso).getTime());
+  if (elapsed < MINUTE_MS) return "just now";
+  if (elapsed < HOUR_MS) {
+    return relative.format(-Math.floor(elapsed / MINUTE_MS), "minute");
+  }
+  if (elapsed < DAY_MS) {
+    return relative.format(-Math.floor(elapsed / HOUR_MS), "hour");
+  }
+  if (elapsed < RELATIVE_LIMIT_DAYS * DAY_MS) {
+    return relative.format(-Math.floor(elapsed / DAY_MS), "day");
+  }
+  return formatDate(iso);
+}

@@ -30,3 +30,16 @@ export function deviceLabel(userAgent: string | null): string {
   if (browser && system) return `${browser} on ${system}`;
   return browser ?? system ?? UNKNOWN_DEVICE;
 }
+
+export type DeviceKind = "phone" | "tablet" | "desktop" | "unknown";
+
+/** Which icon a device gets. Android tablets omit "Mobile" from their User-Agent. */
+export function deviceKind(userAgent: string | null): DeviceKind {
+  if (!userAgent) return "unknown";
+  if (/iPad|Tablet/.test(userAgent)) return "tablet";
+  if (/iPhone|iPod|Android.*Mobile/.test(userAgent)) return "phone";
+  if (/Android/.test(userAgent)) return "tablet";
+  return /Windows|Macintosh|Mac OS X|CrOS|Linux/.test(userAgent)
+    ? "desktop"
+    : "unknown";
+}
