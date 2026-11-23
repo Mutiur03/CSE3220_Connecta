@@ -56,10 +56,10 @@ export default async function UserPanel() {
           Open organizations
         </Link>
         <Link
-          href="/account/sessions"
+          href="/settings"
           className="text-sm text-accent underline-offset-4 hover:underline"
         >
-          Manage signed-in devices
+          Account settings
         </Link>
       </div>
     </div>

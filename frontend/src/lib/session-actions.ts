@@ -7,7 +7,7 @@ import type { OrgActionState } from "./org-actions";
 import { getAccessToken } from "./session";
 import * as sessionApi from "./session-api";
 
-const SESSIONS_PAGE = "/account/sessions";
+const SESSIONS_PAGE = "/settings";
 
 /** Runs one backend call; a failure becomes a message for the button's alert line. */
 async function attempt(
