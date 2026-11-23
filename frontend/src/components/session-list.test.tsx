@@ -40,7 +40,9 @@ describe("SessionList", () => {
     expect(html).toContain("Chrome on Windows");
     expect(html).toContain("This device");
     expect(html).toContain("Firefox on Linux");
-    expect(html).toContain('aria-label="Sign out Firefox on Linux"');
+    expect(html).toContain(
+      'aria-label="Sign out Firefox on Linux, 203.0.113.7, last active 15 minutes ago"',
+    );
     expect(html).not.toContain('aria-label="Sign out Chrome on Windows"');
     expect(html).toContain("Sign out other devices");
   });

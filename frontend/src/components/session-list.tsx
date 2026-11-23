@@ -6,6 +6,16 @@ import DeviceIcon from "./device-icon";
 import OrgActionButton from "./org-action-button";
 import { Badge } from "./ui/badge";
 
+/** Two unknown devices must not both read "Sign out Unknown device": add what tells them apart. */
+function signOutLabel(session: DeviceSession, now: Date): string {
+  const details = [
+    session.location,
+    session.ip,
+    `last active ${formatRelative(session.lastUsedAt, now)}`,
+  ].filter(Boolean);
+  return `Sign out ${deviceLabel(session.userAgent)}, ${details.join(", ")}`;
+}
+
 /** Rows, not cards: one device per row, the current one marked and without a sign-out button. */
 export default function SessionList({
   sessions,
@@ -78,7 +88,7 @@ export default function SessionList({
                   action={revokeSession.bind(null, session.id)}
                   label="Sign out"
                   pendingLabel="Signing out…"
-                  ariaLabel={`Sign out ${deviceLabel(session.userAgent)}`}
+                  ariaLabel={signOutLabel(session, now)}
                   confirm="This device will have to sign in again."
                   tone="danger"
                   size="sm"

@@ -58,7 +58,7 @@ export default async function SettingsPage() {
         title="Password"
         description="Use a long one you do not use anywhere else"
       >
-        <PasswordChangeForm />
+        <PasswordChangeForm email={user.email} />
       </SettingsSection>
       <SettingsSection
         id="sessions-heading"
