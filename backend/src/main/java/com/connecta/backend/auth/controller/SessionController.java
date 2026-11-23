@@ -70,7 +70,6 @@ public class SessionController {
 
     // A token minted before sessions existed has no sid: current is then unknown and revokeOthers revokes nothing.
     private static UUID currentSession(Jwt jwt) {
-        String sid = jwt.getClaimAsString(TokenService.CLAIM_SESSION);
-        return sid == null ? null : UUID.fromString(sid);
+        return TokenService.sessionId(jwt);
     }
 }

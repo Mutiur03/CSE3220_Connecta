@@ -63,8 +63,13 @@ public class RefreshTokenService {
         RefreshToken stored = tokens.findByTokenHash(hash(rawToken)).orElseThrow(InvalidTokenException::new);
         User user = stored.getUser();
         if (stored.isRevoked()) {
-            log.warn("Refresh token reuse detected, revoking all sessions of user {}", user.getId());
-            tokens.revokeAllForUser(user.getId(), now);
+            // Only a rotated token was ever handed on, so only its replay means a leak. A token revoked by
+            // logout, "sign out this device" or a password change has no successor: a plain rejection,
+            // so a signed-out device cannot take the user's other sessions down with it.
+            if (wasRotated(stored)) {
+                log.warn("Refresh token reuse detected, revoking all sessions of user {}", user.getId());
+                tokens.revokeAllForUser(user.getId(), now);
+            }
             throw new InvalidTokenException();
         }
         if (stored.isExpired(now) || !user.isEnabled()) {
@@ -73,6 +78,11 @@ public class RefreshTokenService {
         }
         stored.revoke(now);
         return issue(user, stored.getSessionId(), client);
+    }
+
+    private boolean wasRotated(RefreshToken token) {
+        return tokens.existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(
+                token.getSessionId(), token.getCreatedAt(), token.getId());
     }
 
     /** Logout. Unknown or already revoked tokens are ignored, so it is safe to call twice. */

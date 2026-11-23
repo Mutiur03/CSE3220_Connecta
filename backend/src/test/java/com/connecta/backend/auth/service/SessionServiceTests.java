@@ -76,4 +76,15 @@ class SessionServiceTests {
             verify(tokens).revokeOtherSessions(USER, SESSION, TestClock.NOW);
         }
     }
+
+    @Nested
+    class RevokeAll {
+
+        @Test
+        void revokesEverySessionIncludingTheCurrentOne() {
+            service().revokeAll(USER);
+
+            verify(tokens).revokeAllForUser(USER, TestClock.NOW);
+        }
+    }
 }

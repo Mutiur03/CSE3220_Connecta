@@ -62,6 +62,10 @@ public class User {
         this.fullName = fullName.trim();
     }
 
+    public void changePasswordHash(String newPasswordHash) {
+        this.passwordHash = newPasswordHash;
+    }
+
     /** Emails are stored trimmed and lower-case so lookups are case-insensitive. */
     public static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
