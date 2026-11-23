@@ -1,0 +1,39 @@
+package com.connecta.backend.auth.service;
+
+import com.connecta.backend.auth.domain.RefreshToken;
+import com.connecta.backend.auth.repository.RefreshTokenRepository;
+import java.time.Clock;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** A user's own signed-in devices. Every call is scoped to the user id, so other users' sessions are invisible. */
+@Service
+@RequiredArgsConstructor
+public class SessionService {
+
+    private final RefreshTokenRepository tokens;
+    private final Clock clock;
+
+    /** Rotation revokes the old token, so each live session has exactly one active token row. */
+    @Transactional(readOnly = true)
+    public Page<RefreshToken> activeSessions(UUID userId, Pageable pageable) {
+        return tokens.findByUserIdAndRevokedAtIsNullAndExpiresAtAfter(userId, clock.instant(), pageable);
+    }
+
+    @Transactional
+    public void revoke(UUID userId, UUID sessionId) {
+        if (tokens.revokeSession(userId, sessionId, clock.instant()) == 0) {
+            throw new SessionNotFoundException();
+        }
+    }
+
+    /** "Log out everywhere else". Succeeds with nothing to revoke. */
+    @Transactional
+    public void revokeOthers(UUID userId, UUID currentSessionId) {
+        tokens.revokeOtherSessions(userId, currentSessionId, clock.instant());
+    }
+}

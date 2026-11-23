@@ -102,7 +102,11 @@ erDiagram
     USER_ROLES { uuid user_id FK
         uuid role_id FK }
     REFRESH_TOKENS { uuid id PK
-        uuid user_id FK }
+        uuid user_id FK
+        uuid session_id "one per device, kept across rotations"
+        string user_agent
+        string ip
+        timestamptz last_used_at }
     ORGANIZATIONS ||--o{ MEMBERSHIPS : has
     USERS ||--o{ MEMBERSHIPS : joins
     ROLES ||--o{ MEMBERSHIPS : held_in
@@ -243,6 +247,9 @@ erDiagram
 | POST | `/api/auth/refresh` | public | 200 | Rotate the refresh token (single use). |
 | POST | `/api/auth/logout` | public | 204 | Revoke the refresh token. |
 | GET | `/api/auth/me` | authenticated | 200 | Current user. |
+| GET | `/api/auth/sessions` | authenticated | 200 | The caller's active sessions (devices), paginated, with a `current` flag. |
+| DELETE | `/api/auth/sessions/{id}` | authenticated | 204 | Revoke one of the caller's sessions. `404` for an unknown or another user's session. |
+| DELETE | `/api/auth/sessions` | authenticated | 204 | Revoke every session except the current one. |
 | GET | `/api/organizations` | authenticated | 200 | Organizations the caller belongs to (`page`, `size` max 100). |
 | POST | `/api/organizations` | authenticated | 201 | Create an organization; the caller becomes its `ADMIN`. |
 | GET | `/api/organizations/{id}` | member | 200 | One organization. Non-members get `404`. |

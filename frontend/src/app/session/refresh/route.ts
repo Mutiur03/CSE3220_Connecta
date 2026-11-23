@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { ApiError, refresh } from "@/lib/api";
+import { forwardedClientHeaders } from "@/lib/client-headers";
 import { redirectTo } from "@/lib/redirect-response";
 import { safeRedirectPath, UNAVAILABLE_REASON } from "@/lib/redirect";
 import {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
   if (!refreshToken) return redirectTo("/login");
 
   try {
-    const tokens = await refresh(refreshToken);
+    const tokens = await refresh(refreshToken, await forwardedClientHeaders());
     const secure = process.env.NODE_ENV === "production";
     const response = redirectTo(next);
     response.cookies.set(

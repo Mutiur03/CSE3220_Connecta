@@ -1,6 +1,8 @@
 package com.connecta.backend.auth.controller;
 
+import com.connecta.backend.auth.dto.ClientInfo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -117,7 +119,7 @@ class AuthControllerIntegrationTests {
 
         @Test
         void loginReturnsBothTokensAndTheUser() throws Exception {
-            when(authService.login(any(LoginRequest.class))).thenReturn(tokens());
+            when(authService.login(any(LoginRequest.class), any(ClientInfo.class))).thenReturn(tokens());
 
             mvc.perform(json("/api/auth/login", VALID_LOGIN))
                     .andExpect(status().isOk())
@@ -130,7 +132,7 @@ class AuthControllerIntegrationTests {
 
         @Test
         void badCredentialsReturn401() throws Exception {
-            when(authService.login(any(LoginRequest.class))).thenThrow(new InvalidCredentialsException());
+            when(authService.login(any(LoginRequest.class), any(ClientInfo.class))).thenThrow(new InvalidCredentialsException());
 
             mvc.perform(json("/api/auth/login", VALID_LOGIN))
                     .andExpect(status().isUnauthorized())
@@ -152,7 +154,7 @@ class AuthControllerIntegrationTests {
 
         @Test
         void refreshReturnsNewTokens() throws Exception {
-            when(authService.refresh("some-refresh-token")).thenReturn(tokens());
+            when(authService.refresh(eq("some-refresh-token"), any(ClientInfo.class))).thenReturn(tokens());
 
             mvc.perform(json("/api/auth/refresh", REFRESH_BODY))
                     .andExpect(status().isOk())
@@ -162,7 +164,7 @@ class AuthControllerIntegrationTests {
 
         @Test
         void invalidRefreshTokenReturns401() throws Exception {
-            when(authService.refresh(any())).thenThrow(new InvalidTokenException());
+            when(authService.refresh(any(), any(ClientInfo.class))).thenThrow(new InvalidTokenException());
 
             mvc.perform(json("/api/auth/refresh", REFRESH_BODY))
                     .andExpect(status().isUnauthorized())
@@ -220,8 +222,8 @@ class AuthControllerIntegrationTests {
         @Test
         void loginAndRefreshIgnoreAStaleAccessToken() throws Exception {
             String expired = TestTokens.expiredBearer(jwtProperties, TestUsers.user("jane@example.com", Roles.AGENT));
-            when(authService.login(any(LoginRequest.class))).thenReturn(tokens());
-            when(authService.refresh("some-refresh-token")).thenReturn(tokens());
+            when(authService.login(any(LoginRequest.class), any(ClientInfo.class))).thenReturn(tokens());
+            when(authService.refresh(eq("some-refresh-token"), any(ClientInfo.class))).thenReturn(tokens());
 
             mvc.perform(json("/api/auth/login", VALID_LOGIN).header("Authorization", expired))
                     .andExpect(status().isOk());

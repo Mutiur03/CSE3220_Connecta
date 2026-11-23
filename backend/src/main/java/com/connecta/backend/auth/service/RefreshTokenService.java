@@ -1,5 +1,6 @@
 package com.connecta.backend.auth.service;
 
+import com.connecta.backend.auth.dto.ClientInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import com.connecta.backend.auth.domain.RefreshToken;
@@ -14,6 +15,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,8 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class RefreshTokenService {
 
-    /** A freshly issued raw token plus the user it belongs to. */
-    public record Issued(User user, String rawToken) {
+    /** A freshly issued raw token, the user it belongs to and the session (device) it continues. */
+    public record Issued(User user, String rawToken, UUID sessionId) {
     }
 
     private static final int TOKEN_BYTES = 32;
@@ -38,19 +40,25 @@ public class RefreshTokenService {
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
+    /** Starts a new session (a login). */
     @Transactional
-    public String issue(User user) {
+    public Issued issue(User user, ClientInfo client) {
+        return issue(user, UUID.randomUUID(), client);
+    }
+
+    private Issued issue(User user, UUID sessionId, ClientInfo client) {
         byte[] bytes = new byte[TOKEN_BYTES];
         random.nextBytes(bytes);
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         Instant now = clock.instant();
-        tokens.save(new RefreshToken(user, hash(raw), now.plus(props.refreshTtl()), now));
-        return raw;
+        tokens.save(new RefreshToken(user, hash(raw), now.plus(props.refreshTtl()), now,
+                sessionId, client.userAgent(), client.ip()));
+        return new Issued(user, raw, sessionId);
     }
 
     // noRollbackFor: the revocations below must be committed even though we then reject the request.
     @Transactional(noRollbackFor = InvalidTokenException.class)
-    public Issued rotate(String rawToken) {
+    public Issued rotate(String rawToken, ClientInfo client) {
         Instant now = clock.instant();
         RefreshToken stored = tokens.findByTokenHash(hash(rawToken)).orElseThrow(InvalidTokenException::new);
         User user = stored.getUser();
@@ -64,7 +72,7 @@ public class RefreshTokenService {
             throw new InvalidTokenException();
         }
         stored.revoke(now);
-        return new Issued(user, issue(user));
+        return issue(user, stored.getSessionId(), client);
     }
 
     /** Logout. Unknown or already revoked tokens are ignored, so it is safe to call twice. */
