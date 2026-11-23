@@ -140,6 +140,17 @@ export const PackageIcon = () => (
   </Icon>
 );
 
+export const PackageSearchIcon = () => (
+  <Icon>
+    <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14" />
+    <path d="m7.5 4.27 9 5.15" />
+    <path d="M3.29 7 12 12l8.71-5" />
+    <path d="M12 22V12" />
+    <circle cx="18.5" cy="15.5" r="2.5" />
+    <path d="M20.27 17.27 22 19" />
+  </Icon>
+);
+
 export const TagIcon = () => (
   <Icon>
     <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
@@ -152,6 +163,15 @@ export const ArchiveIcon = () => (
     <rect width="20" height="5" x="2" y="3" rx="1" />
     <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
     <path d="M10 12h4" />
+  </Icon>
+);
+
+export const ArrowLeftRightIcon = () => (
+  <Icon>
+    <path d="M8 3 4 7l4 4" />
+    <path d="M4 7h16" />
+    <path d="m16 21 4-4-4-4" />
+    <path d="M20 17H4" />
   </Icon>
 );
 
@@ -169,6 +189,28 @@ export const SettingsIcon = () => (
     <path d="M14 17H5" />
     <circle cx="17" cy="17" r="3" />
     <circle cx="7" cy="7" r="3" />
+  </Icon>
+);
+
+// Channel glyphs are drawn in the current text colour: channel identity is a detail, never brand colour.
+export const FacebookIcon = () => (
+  <Icon>
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </Icon>
+);
+
+export const InstagramIcon = () => (
+  <Icon>
+    <rect width="20" height="20" x="2" y="2" rx="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <path d="M17.5 6.5h.01" />
+  </Icon>
+);
+
+export const CircleCheckIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="10" />
+    <path d="m9 12 2 2 4-4" />
   </Icon>
 );
 

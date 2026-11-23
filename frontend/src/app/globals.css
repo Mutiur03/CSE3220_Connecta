@@ -8,8 +8,9 @@
  *
  * Brief tokens: bg-app, bg-surface, bg-hover, bg-selected, border (line), border-subtle
  * (line-subtle), text-primary, text-secondary, accent, highlight, danger. Added for controls:
- * line-strong, a darker boundary that gives inputs and buttons 3:1 non-text contrast, which the
- * brief's hairline border does not reach. success, accent-ink and on-danger are paired text.
+ * line-strong, a darker boundary with 3:1 non-text contrast, used for a field on hover and for
+ * outlined controls. line-field is the softer resting border of an input; a focused field turns
+ * its border to the accent (3:1) and adds a soft halo. success, accent-ink and on-danger are paired text.
  */
 /* light-dark() picks the first value in a light scheme, the second in a dark one. The scheme
  * follows the OS unless the theme toggle pins data-theme on <html>. */
@@ -22,6 +23,7 @@
   --line: light-dark(#e3e3e1, #2e2e2e);
   --line-subtle: light-dark(#eeeeec, #272727);
   --line-strong: light-dark(#82827e, #6e6e6e);
+  --line-field: light-dark(#d4d4d0, #3a3a3a);
   --primary: light-dark(#151515, #ededed);
   --secondary: light-dark(#62625e, #a3a3a3);
   --accent: light-dark(#16793f, #4cc38a);
@@ -51,6 +53,7 @@
   --color-line: var(--line);
   --color-line-subtle: var(--line-subtle);
   --color-line-strong: var(--line-strong);
+  --color-line-field: var(--line-field);
   --color-primary: var(--primary);
   --color-secondary: var(--secondary);
   --color-accent: var(--accent);
@@ -141,8 +144,22 @@
 
 /*
  * Select menus (ui/select.tsx). Customizable select: the button and the option list follow the
- * tokens, and the list opens in the top layer. Browsers without it keep a plain select.
+ * tokens, and the list opens in the top layer. Browsers without it keep the native option list,
+ * but never the native arrow: the same chevron is drawn as a background instead.
  */
+@supports not (appearance: base-select) {
+  .select {
+    appearance: none;
+    padding-right: 2.25rem;
+    /* A mid grey (#8a8a86) reads on both the light and the dark surface; a data URL cannot use tokens. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a8a86' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+    cursor: pointer;
+  }
+}
+
 @supports (appearance: base-select) {
   .select,
   .select::picker(select) {
@@ -157,8 +174,15 @@
     cursor: pointer;
   }
 
+  /* The browser's own arrow swapped for the icon set's chevron (Lucide chevron-down, 1.75 stroke). */
   .select::picker-icon {
-    color: var(--secondary);
+    content: "";
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    background-color: var(--secondary);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+      center / contain no-repeat;
     transition: rotate 150ms var(--ease-out);
   }
 

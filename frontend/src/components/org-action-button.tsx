@@ -18,6 +18,8 @@ type Props = {
   tone?: "neutral" | "danger";
   /** "sm" inside a table row. */
   size?: "md" | "sm";
+  /** Fill the width of the cell, so buttons in one column share a width. */
+  block?: boolean;
 };
 
 export default function OrgActionButton({
@@ -28,6 +30,7 @@ export default function OrgActionButton({
   confirm,
   tone = "neutral",
   size = "md",
+  block = false,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -35,11 +38,15 @@ export default function OrgActionButton({
   const danger = tone === "danger";
 
   return (
-    <form action={formAction} className="flex flex-col items-start gap-1">
+    <form
+      action={formAction}
+      className={`flex flex-col items-start gap-1 ${block ? "w-full" : ""}`}
+    >
       <Button
         type={confirm ? "button" : "submit"}
         variant={danger ? "danger" : "secondary"}
         size={size}
+        block={block}
         disabled={pending}
         aria-label={ariaLabel}
         onClick={confirm ? () => dialogRef.current?.showModal() : undefined}

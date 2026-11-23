@@ -29,8 +29,16 @@ export const buttonClasses = (
   size: ButtonSize = "md",
 ) => `${BUTTON_BASE} ${BUTTON_SIZES[size]} ${BUTTON_TONES[tone]}`;
 
-export const fieldClasses =
-  "min-h-10 w-full min-w-0 rounded-control border border-line-strong bg-surface px-3 py-2 text-sm text-primary transition-colors duration-150 ease-out placeholder:text-secondary hover:border-secondary motion-reduce:transition-none aria-invalid:border-danger pointer-coarse:min-h-11";
+// Fields rest on a soft border, darken on hover, and on focus take the accent border plus a soft
+// halo instead of the global offset outline (which reads as a second box around an input).
+const FIELD_BASE =
+  "w-full min-w-0 rounded-control border border-line-field bg-surface text-sm text-primary shadow-[0_1px_1px_rgb(0_0_0/0.03)] transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-secondary hover:border-line-strong focus:border-accent focus:shadow-none focus:ring-3 focus:ring-accent/20 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-line-field aria-invalid:border-danger aria-invalid:focus:ring-danger/20 motion-reduce:transition-none pointer-coarse:min-h-11";
+
+/** 40px, the height of a md button. */
+export const fieldClasses = `${FIELD_BASE} min-h-10 px-3 py-2`;
+
+/** 32px, for a field in a table row next to size="sm" buttons. */
+export const fieldSmClasses = `${FIELD_BASE} min-h-8 px-2.5 py-1`;
 
 // Badges are full-radius tags. Neutral sits on bg-hover; success and danger are a 12% tint of
 // their own colour, the way a change reads on a stat ("+38%", "-67%").
@@ -60,4 +68,4 @@ export const panelClasses =
 
 // A table sits in the same bordered panel as the list rows, so its edges are rounded and padded.
 export const tableScrollClasses =
-  "overflow-x-auto rounded-panel border border-line bg-surface";
+  "relative overflow-x-auto rounded-panel border border-line bg-surface";

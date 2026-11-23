@@ -39,6 +39,7 @@ Added by us, not in the brief:
 | Token | Utility | Light | Dark | Why |
 |---|---|---|---|---|
 | line-strong | `border-line-strong` | `#82827e` | `#6e6e6e` | The brief's hairline is about 1.3:1 on white. Inputs and buttons need 3:1 (WCAG 1.4.11), so controls use this. Dividers keep `line` and `line-subtle`. |
+| line-field | `border-line-field` | `#d4d4d0` | `#3a3a3a` | Resting border of an input, select or textarea, softer than `line-strong`. A field darkens to `line-strong` on hover; on focus its border turns to the accent (3:1) with a 3px accent halo at 20%, instead of the global offset outline. Buttons and links keep the outline. |
 | accent-hover | `bg-accent-hover` | `#0f5f31` | `#6ad3a0` | Hover for the primary button. |
 | accent-ink | `text-accent-ink` | `#ffffff` | `#0e0f13` | Text on the accent. |
 | danger-solid, on-danger | `bg-danger-solid`, `text-on-danger` | `#b42318`, `#ffffff` | `#c2362f`, `#ffffff` | Destructive fill. |
