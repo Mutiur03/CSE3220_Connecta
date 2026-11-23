@@ -20,7 +20,11 @@ const EMPTY_FORM = {
   categoryId: "",
 };
 
-export default async function NewProductPage({ params }: { params: RouteParams }) {
+export default async function NewProductPage({
+  params,
+}: {
+  params: RouteParams;
+}) {
   const { id } = await params;
   const organization = await loadOrganization(id);
   const productsHref = `/organizations/${id}/products`;
@@ -28,15 +32,24 @@ export default async function NewProductPage({ params }: { params: RouteParams }
   if (!canManageProducts(organization.callerRole)) redirect(productsHref);
 
   const { accessToken } = await loadSession(id);
-  const categories = await notFoundOnMissing(listCategoryOptions(accessToken, id));
+  const categories = await notFoundOnMissing(
+    listCategoryOptions(accessToken, id),
+  );
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href={productsHref} className="text-sm text-secondary underline-offset-4 hover:underline">
+      <header className="flex flex-col gap-1">
+        <Link
+          href={productsHref}
+          className="self-start text-sm text-secondary underline-offset-4 hover:underline"
+        >
           Products
         </Link>
         <h1 className="text-display font-medium">New product</h1>
+        <p className="text-secondary">
+          Stock starts at 0. Record what you have on the product&apos;s page
+          once it is created.
+        </p>
       </header>
       <ProductForm
         action={createProduct.bind(null, id)}

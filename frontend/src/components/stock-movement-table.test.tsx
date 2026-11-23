@@ -22,14 +22,18 @@ const props = {
 
 describe("StockMovementTable", () => {
   it("shows an empty state with a next step when there are no movements", () => {
-    const markup = renderToStaticMarkup(<StockMovementTable movements={[]} {...props} />);
+    const markup = renderToStaticMarkup(
+      <StockMovementTable movements={[]} {...props} />,
+    );
     expect(markup).toContain("No stock movements yet");
     expect(markup).toContain('href="/organizations/org-1/products"');
     expect(markup).not.toContain("<table");
   });
 
   it("shows type, signed change, stock after and who made it, with the product linked", () => {
-    const markup = renderToStaticMarkup(<StockMovementTable movements={[movement]} {...props} />);
+    const markup = renderToStaticMarkup(
+      <StockMovementTable movements={[movement]} {...props} />,
+    );
     expect(markup).toContain("Issued");
     expect(markup).toContain("-3");
     expect(markup).toContain(">9<");
@@ -39,8 +43,21 @@ describe("StockMovementTable", () => {
 
   it("shows a dash when the person who made the movement is gone", () => {
     const markup = renderToStaticMarkup(
-      <StockMovementTable movements={[{ ...movement, createdBy: null }]} {...props} />,
+      <StockMovementTable
+        movements={[{ ...movement, createdBy: null }]}
+        {...props}
+      />,
     );
     expect(markup).toContain("—");
+  });
+
+  it("shows the reason under the type when one was given", () => {
+    const markup = renderToStaticMarkup(
+      <StockMovementTable
+        movements={[{ ...movement, reason: "Damaged in transit" }]}
+        {...props}
+      />,
+    );
+    expect(markup).toContain("Damaged in transit");
   });
 });

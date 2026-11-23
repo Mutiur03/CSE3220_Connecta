@@ -71,10 +71,16 @@ describe("ProductImageGallery", () => {
     );
   });
 
-  it("shows the placeholder tile in the empty state, and no thumbnails", () => {
-    const markup = html(true, []);
+  it("shows the placeholder tile in an empty gallery a member cannot add to, and no thumbnails", () => {
+    const markup = html(false, []);
     expect(markup).toContain('role="img" aria-label="No image"');
     expect(markup).not.toContain("<img");
+  });
+
+  it("gives an ADMIN the upload tile as the empty state, without a second placeholder tile", () => {
+    const markup = html(true, []);
+    expect(markup).not.toContain('role="img" aria-label="No image"');
+    expect(markup).toContain("Add images");
   });
 
   it("names each thumbnail button by product, position and count", () => {
