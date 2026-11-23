@@ -1,6 +1,7 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { Product } from "@/lib/product-api";
-import { formatPrice } from "@/lib/format";
+import { formatDate, formatPrice } from "@/lib/format";
 import { buttonClasses } from "./ui/classes";
 import { StockStatusBadge } from "./stock-status-badge";
 
@@ -13,43 +14,78 @@ type Props = {
 
 const DASH = "—";
 
-/** The product's facts as a label and value grid, with its description and the edit link. */
+/** The product's facts as label and value rows, its description, and the edit link. */
 export default function ProductSummary({ orgId, product, canManage }: Props) {
-  const facts: { label: string; value: React.ReactNode }[] = [
-    { label: "SKU", value: product.sku ?? DASH },
+  const facts: { label: string; value: ReactNode }[] = [
+    {
+      label: "Unit price",
+      value: <span className="figure">{formatPrice(product.unitPrice)}</span>,
+    },
+    {
+      label: "Stock on hand",
+      value: <span className="figure">{product.stockQuantity}</span>,
+    },
+    {
+      label: "Reorder level",
+      value: <span className="figure">{product.reorderLevel}</span>,
+    },
+    {
+      label: "Stock status",
+      value: <StockStatusBadge status={product.stockStatus} />,
+    },
     { label: "Category", value: product.categoryName ?? DASH },
-    { label: "Unit price", value: formatPrice(product.unitPrice) },
-    { label: "Stock on hand", value: <span className="tabular-nums">{product.stockQuantity}</span> },
-    { label: "Reorder level", value: <span className="tabular-nums">{product.reorderLevel}</span> },
-    { label: "Stock status", value: <StockStatusBadge status={product.stockStatus} /> },
+    {
+      label: "SKU",
+      value: <span className="figure text-caption">{product.sku ?? DASH}</span>,
+    },
+    {
+      label: "Last updated",
+      value: (
+        <time
+          dateTime={product.updatedAt}
+          className="figure text-caption text-secondary"
+        >
+          {formatDate(product.updatedAt)}
+        </time>
+      ),
+    },
   ];
 
   return (
-    <section aria-labelledby="product-summary-heading" className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <h2 id="product-summary-heading" className="sr-only">
-          Product details
+    <section
+      aria-labelledby="product-summary-heading"
+      className="flex flex-col gap-3"
+    >
+      <div className="flex min-h-10 items-center justify-between gap-4">
+        <h2 id="product-summary-heading" className="text-lg font-medium">
+          Details
         </h2>
         {canManage && (
           <Link
             href={`/organizations/${orgId}/products/${product.id}/edit`}
-            aria-label={`Edit ${product.name}`}
             className={buttonClasses("secondary")}
           >
             Edit product
           </Link>
         )}
       </div>
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-3">
+      <dl className="flex flex-col divide-y divide-line-subtle rounded-control border border-line">
         {facts.map((fact) => (
-          <div key={fact.label} className="flex flex-col gap-1">
+          <div
+            key={fact.label}
+            className="flex min-h-11 items-center justify-between gap-4 px-4 py-2"
+          >
             <dt className="text-sm text-secondary">{fact.label}</dt>
-            <dd className="text-primary">{fact.value}</dd>
+            <dd className="min-w-0 truncate text-right text-primary">
+              {fact.value}
+            </dd>
           </div>
         ))}
       </dl>
       {product.description && (
-        <p className="max-w-2xl whitespace-pre-line text-primary">{product.description}</p>
+        <p className="whitespace-pre-line text-sm text-primary">
+          {product.description}
+        </p>
       )}
     </section>
   );

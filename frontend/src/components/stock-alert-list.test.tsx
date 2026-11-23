@@ -28,7 +28,12 @@ const base = {
 describe("StockAlertList", () => {
   it("shows the empty text when no product is in this status", () => {
     const markup = renderToStaticMarkup(
-      <StockAlertList {...base} products={[]} total={0} emptyText="No products are out of stock." />,
+      <StockAlertList
+        {...base}
+        products={[]}
+        total={0}
+        emptyText="No products are out of stock."
+      />,
     );
     expect(markup).toContain("No products are out of stock.");
     expect(markup).not.toContain("View all");
@@ -36,10 +41,43 @@ describe("StockAlertList", () => {
 
   it("links each product and the full filtered list when there are more than shown", () => {
     const markup = renderToStaticMarkup(
-      <StockAlertList {...base} products={[product]} total={14} emptyText="none" />,
+      <StockAlertList
+        {...base}
+        products={[product]}
+        total={14}
+        emptyText="none"
+      />,
     );
     expect(markup).toContain('href="/organizations/org-1/products/p-1"');
     expect(markup).toContain("View all 14");
     expect(markup).toContain(`href="${base.viewAllHref}"`);
+    expect(markup).toContain("None left, reorder at 5");
+  });
+
+  it("leaves out the view-all link when every product is already shown", () => {
+    const markup = renderToStaticMarkup(
+      <StockAlertList
+        {...base}
+        products={[product]}
+        total={1}
+        emptyText="none"
+      />,
+    );
+    expect(markup).not.toContain("View all");
+  });
+
+  it("shows an error instead of the empty text when the list failed to load", () => {
+    const markup = renderToStaticMarkup(
+      <StockAlertList
+        {...base}
+        products={[]}
+        total={0}
+        failed
+        emptyText="No products are out of stock."
+      />,
+    );
+    expect(markup).toContain('role="alert"');
+    expect(markup).toContain("could not be loaded");
+    expect(markup).not.toContain("No products are out of stock.");
   });
 });

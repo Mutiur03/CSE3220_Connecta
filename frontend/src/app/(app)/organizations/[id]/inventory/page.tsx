@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PackageIcon } from "@/components/icons";
 import { InventorySummaryStats } from "@/components/inventory-summary-stats";
 import { StockAlertList } from "@/components/stock-alert-list";
 import { StockMovementTable } from "@/components/stock-movement-table";
@@ -23,16 +24,37 @@ type RouteParams = Promise<{ id: string }>;
 export const metadata: Metadata = { title: "Inventory" };
 
 // Every section loads in parallel with the organization, and a failed section shows its own alert.
-export default async function InventoryPage({ params }: { params: RouteParams }) {
+export default async function InventoryPage({
+  params,
+}: {
+  params: RouteParams;
+}) {
   const { id } = await params;
   const { accessToken } = await loadSession(id);
-  const [organization, summary, lowStock, outOfStock, movements] = await Promise.all([
-    loadOrganization(id),
-    section(getInventorySummary(accessToken, id)),
-    section(listProducts(accessToken, id, { stockStatus: "LOW_STOCK" }, 0, ALERT_LIST_SIZE)),
-    section(listProducts(accessToken, id, { stockStatus: "OUT_OF_STOCK" }, 0, ALERT_LIST_SIZE)),
-    section(listStockMovements(accessToken, id, 0, RECENT_MOVEMENTS_SIZE)),
-  ]);
+  const [organization, summary, lowStock, outOfStock, movements] =
+    await Promise.all([
+      loadOrganization(id),
+      section(getInventorySummary(accessToken, id)),
+      section(
+        listProducts(
+          accessToken,
+          id,
+          { stockStatus: "LOW_STOCK" },
+          0,
+          ALERT_LIST_SIZE,
+        ),
+      ),
+      section(
+        listProducts(
+          accessToken,
+          id,
+          { stockStatus: "OUT_OF_STOCK" },
+          0,
+          ALERT_LIST_SIZE,
+        ),
+      ),
+      section(listStockMovements(accessToken, id, 0, RECENT_MOVEMENTS_SIZE)),
+    ]);
 
   const links = inventoryLinks(id);
   const canManage = canManageProducts(organization.callerRole);
@@ -44,11 +66,15 @@ export default async function InventoryPage({ params }: { params: RouteParams })
         <div className="flex flex-col gap-1">
           <Link
             href={`/organizations/${id}`}
-            className="text-sm text-secondary underline-offset-4 hover:underline"
+            className="self-start text-sm text-secondary underline-offset-4 hover:underline"
           >
             {organization.name}
           </Link>
           <h1 className="text-display font-medium">Inventory</h1>
+          <p className="text-secondary">
+            Stock across your products, what needs restocking, and the latest
+            changes
+          </p>
         </div>
         <Link href={links.products} className={buttonClasses("secondary")}>
           All products
@@ -58,17 +84,24 @@ export default async function InventoryPage({ params }: { params: RouteParams })
       {summary.ok ? (
         <InventorySummaryStats summary={summary.value} links={links} />
       ) : (
-        <Alert tone="danger">Inventory totals could not be loaded. Refresh the page to try again.</Alert>
+        <Alert tone="danger">
+          Inventory totals could not be loaded. Refresh the page to try again.
+        </Alert>
       )}
 
       {summary.ok && !hasProducts ? (
-        <div className="flex flex-col items-start gap-2 border-t border-line-subtle pt-8">
-          <p className="font-medium">No products yet</p>
-          <p className="text-secondary">
-            {canManage
-              ? "Add a product with its stock level to start tracking inventory."
-              : "An admin of this organization adds products, and their stock shows here."}
-          </p>
+        <div className="flex flex-wrap items-start gap-x-4 gap-y-3 rounded-control border border-line p-4">
+          <span className="grid size-10 shrink-0 place-items-center rounded-control border border-line bg-app text-primary">
+            <PackageIcon />
+          </span>
+          <div className="flex min-w-0 flex-1 basis-56 flex-col gap-1">
+            <p className="font-medium">No products yet</p>
+            <p className="text-sm text-secondary">
+              {canManage
+                ? "Add a product with its stock level and reorder level to start tracking inventory."
+                : "An admin of this organization adds products, and their stock shows here."}
+            </p>
+          </div>
           {canManage && (
             <Link href={links.newProduct} className={buttonClasses("primary")}>
               New product
@@ -77,20 +110,33 @@ export default async function InventoryPage({ params }: { params: RouteParams })
         </div>
       ) : (
         <>
-          <div className="grid gap-10 border-t border-line-subtle pt-8 md:grid-cols-2">
+          <div className="grid gap-8 md:grid-cols-2">
             <StockAlertList
               headingId="low-stock-heading"
               title="Low stock"
-              {...alertProps(lowStock, links.lowStock, links.product, "No products are low on stock.")}
+              {...alertProps(
+                lowStock,
+                links.lowStock,
+                links.product,
+                "Every product is above its reorder level.",
+              )}
             />
             <StockAlertList
               headingId="out-of-stock-heading"
               title="Out of stock"
-              {...alertProps(outOfStock, links.outOfStock, links.product, "No products are out of stock.")}
+              {...alertProps(
+                outOfStock,
+                links.outOfStock,
+                links.product,
+                "Every product has stock on hand.",
+              )}
             />
           </div>
 
-          <section aria-labelledby="movements-heading" className="flex flex-col gap-3 pt-2">
+          <section
+            aria-labelledby="movements-heading"
+            className="flex flex-col gap-3"
+          >
             <h2 id="movements-heading" className="text-lg font-medium">
               Recent movements
             </h2>
@@ -101,7 +147,10 @@ export default async function InventoryPage({ params }: { params: RouteParams })
                 productsHref={links.products}
               />
             ) : (
-              <Alert tone="danger">Recent movements could not be loaded. Refresh the page to try again.</Alert>
+              <Alert tone="danger">
+                Recent movements could not be loaded. Refresh the page to try
+                again.
+              </Alert>
             )}
           </section>
         </>
@@ -117,18 +166,10 @@ function alertProps(
   productHref: (productId: string) => string,
   emptyText: string,
 ) {
-  if (!result.ok) {
-    return {
-      products: [],
-      total: 0,
-      emptyText: "This list could not be loaded. Refresh the page to try again.",
-      viewAllHref,
-      productHref,
-    };
-  }
   return {
-    products: result.value.content,
-    total: result.value.totalElements,
+    products: result.ok ? result.value.content : [],
+    total: result.ok ? result.value.totalElements : 0,
+    failed: !result.ok,
     emptyText,
     viewAllHref,
     productHref,

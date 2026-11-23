@@ -19,7 +19,11 @@ type Props = {
 
 // A plain GET form: the filters live in the URL, so a filtered list can be shared, reloaded and
 // paged without JavaScript. Submitting drops the page number, so a new search starts on page 1.
-export default function ProductFilterBar({ listPath, filters, categories }: Props) {
+export default function ProductFilterBar({
+  listPath,
+  filters,
+  categories,
+}: Props) {
   const clearSearchHref = productsHref(listPath, { ...filters, q: undefined });
 
   return (
@@ -28,36 +32,36 @@ export default function ProductFilterBar({ listPath, filters, categories }: Prop
       aria-label="Filter products"
       method="get"
       action={listPath}
-      className="flex flex-wrap items-end gap-3"
+      className="flex flex-wrap items-center gap-2"
     >
-      <div className="flex min-w-56 flex-1 flex-col gap-1">
-        <label htmlFor="product-search" className="text-sm font-medium text-primary">
+      {/* The labels are for screen readers: the placeholder and each "All ..." option already say
+          what the control filters, so the row stays one line on a desktop. */}
+      <div className="flex min-w-56 flex-[2_1_16rem] items-center gap-2">
+        <label htmlFor="product-search" className="sr-only">
           Search
         </label>
-        <div className="flex items-center gap-2">
-          <input
-            id="product-search"
-            name="q"
-            type="search"
-            defaultValue={filters.q ?? ""}
-            placeholder="Name or SKU"
-            maxLength={PRODUCT_QUERY_MAX_LENGTH}
-            autoComplete="off"
-            className={`${fieldClasses} [&::-webkit-search-cancel-button]:appearance-none`}
-          />
-          {filters.q && (
-            <Link
-              href={clearSearchHref}
-              aria-label="Clear search"
-              className={buttonClasses("secondary")}
-            >
-              Clear
-            </Link>
-          )}
-        </div>
+        <input
+          id="product-search"
+          name="q"
+          type="search"
+          defaultValue={filters.q ?? ""}
+          placeholder="Search by name or SKU"
+          maxLength={PRODUCT_QUERY_MAX_LENGTH}
+          autoComplete="off"
+          className={`${fieldClasses} [&::-webkit-search-cancel-button]:appearance-none`}
+        />
+        {filters.q && (
+          <Link
+            href={clearSearchHref}
+            aria-label="Clear search"
+            className={buttonClasses("secondary")}
+          >
+            Clear
+          </Link>
+        )}
       </div>
-      <div className="flex min-w-44 flex-col gap-1">
-        <label htmlFor="product-category" className="text-sm font-medium text-primary">
+      <div className="flex min-w-40 flex-[1_1_10rem]">
+        <label htmlFor="product-category" className="sr-only">
           Category
         </label>
         <Select
@@ -74,8 +78,8 @@ export default function ProductFilterBar({ listPath, filters, categories }: Prop
           ))}
         </Select>
       </div>
-      <div className="flex min-w-44 flex-col gap-1">
-        <label htmlFor="product-stock" className="text-sm font-medium text-primary">
+      <div className="flex min-w-40 flex-[1_1_10rem]">
+        <label htmlFor="product-stock" className="sr-only">
           Stock status
         </label>
         <Select
@@ -97,7 +101,10 @@ export default function ProductFilterBar({ listPath, filters, categories }: Prop
           Apply
         </button>
         {hasProductFilters(filters) && (
-          <Link href={listPath} className="text-sm text-secondary underline-offset-4 hover:underline">
+          <Link
+            href={listPath}
+            className="text-sm text-secondary underline-offset-4 hover:text-primary hover:underline"
+          >
             Reset filters
           </Link>
         )}

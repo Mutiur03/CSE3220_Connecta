@@ -146,7 +146,7 @@ export default function ProductImageUploadForm({ action, existing }: Props) {
             disabled={atLimit || pending}
             aria-describedby={describedBy}
             onClick={() => inputRef.current?.click()}
-            className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-control border border-dashed border-line bg-hover px-2 text-center text-sm text-secondary transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-control border border-dashed border-line-strong bg-app px-2 text-center text-sm text-secondary transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ImageIcon />
             {files.length > 0 ? "Change images" : "Add images"}
@@ -185,7 +185,7 @@ export default function ProductImageUploadForm({ action, existing }: Props) {
         <p className="text-sm text-secondary">{IMAGE_LIMIT_MESSAGE}</p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" variant="primary" disabled={atLimit || pending}>
+        <Button type="submit" variant="secondary" disabled={atLimit || pending}>
           <PendingLabel
             pending={pending}
             busy="Uploading…"
