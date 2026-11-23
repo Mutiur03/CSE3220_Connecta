@@ -15,6 +15,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
+    /** True when the session has another token issued at or after this one: it was rotated away. */
+    boolean existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(UUID sessionId, Instant createdAt, UUID id);
+
     @Modifying(clearAutomatically = true)
     @Query("update RefreshToken t set t.revokedAt = :now where t.user.id = :userId and t.revokedAt is null")
     int revokeAllForUser(@Param("userId") UUID userId, @Param("now") Instant now);

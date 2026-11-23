@@ -138,9 +138,22 @@ class RefreshTokenServiceTests {
             RefreshToken used = stored("used-raw", NOW.plusSeconds(3600));
             used.revoke(NOW.minusSeconds(30));
             when(tokens.findByTokenHash(RefreshTokenService.hash("used-raw"))).thenReturn(Optional.of(used));
+            when(tokens.existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(any(), any(), any())).thenReturn(true);
 
             assertThrows(InvalidTokenException.class, () -> service.rotate("used-raw", ClientInfo.UNKNOWN));
             verify(tokens).revokeAllForUser(user.getId(), NOW);
+            verify(tokens, never()).save(any());
+        }
+
+        @Test
+        void aTokenRevokedWithoutBeingRotatedIsRejectedAndTouchesNoOtherSession() {
+            RefreshToken signedOut = stored("out-raw", NOW.plusSeconds(3600));
+            signedOut.revoke(NOW.minusSeconds(30));
+            when(tokens.findByTokenHash(RefreshTokenService.hash("out-raw"))).thenReturn(Optional.of(signedOut));
+            when(tokens.existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(any(), any(), any())).thenReturn(false);
+
+            assertThrows(InvalidTokenException.class, () -> service.rotate("out-raw", ClientInfo.UNKNOWN));
+            verify(tokens, never()).revokeAllForUser(any(), any());
             verify(tokens, never()).save(any());
         }
 

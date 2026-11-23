@@ -250,6 +250,7 @@ erDiagram
 | GET | `/api/auth/sessions` | authenticated | 200 | The caller's active sessions (devices), paginated, with a `current` flag. |
 | DELETE | `/api/auth/sessions/{id}` | authenticated | 204 | Revoke one of the caller's sessions. `404` for an unknown or another user's session. |
 | DELETE | `/api/auth/sessions` | authenticated | 204 | Revoke every session except the current one. |
+| PUT | `/api/auth/password` | authenticated | 204 | Change the caller's password (`currentPassword`, `newPassword`) and sign out their other devices. `422` for a wrong current password or an unchanged one. |
 | GET | `/api/organizations` | authenticated | 200 | Organizations the caller belongs to (`page`, `size` max 100). |
 | POST | `/api/organizations` | authenticated | 201 | Create an organization; the caller becomes its `ADMIN`. |
 | GET | `/api/organizations/{id}` | member | 200 | One organization. Non-members get `404`. |

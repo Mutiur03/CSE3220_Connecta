@@ -47,6 +47,13 @@ public class UserService {
         return users.existsByRolesName(Roles.OWNER);
     }
 
+    /** Stores an already-encoded password. Checking the old password is the caller's job. */
+    @Transactional
+    public void changePasswordHash(User user, String newPasswordHash) {
+        user.changePasswordHash(newPasswordHash);
+        users.saveAndFlush(user);
+    }
+
     /**
      * Stores a new user holding one global role. Flushes so a concurrent duplicate email surfaces here as
      * a DataIntegrityViolationException and not at commit.

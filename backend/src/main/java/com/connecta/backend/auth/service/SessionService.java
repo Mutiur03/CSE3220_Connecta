@@ -31,6 +31,12 @@ public class SessionService {
         }
     }
 
+    /** Every session of the user, including the caller's own. */
+    @Transactional
+    public void revokeAll(UUID userId) {
+        tokens.revokeAllForUser(userId, clock.instant());
+    }
+
     /** "Log out everywhere else". Succeeds with nothing to revoke. */
     @Transactional
     public void revokeOthers(UUID userId, UUID currentSessionId) {

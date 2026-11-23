@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -40,6 +41,12 @@ public class TokenService {
                 .build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
+    }
+
+    /** The session an access token belongs to, or null for a token issued before sessions existed. */
+    public static UUID sessionId(Jwt jwt) {
+        String sid = jwt.getClaimAsString(CLAIM_SESSION);
+        return sid == null ? null : UUID.fromString(sid);
     }
 
     public long accessTtlSeconds() {

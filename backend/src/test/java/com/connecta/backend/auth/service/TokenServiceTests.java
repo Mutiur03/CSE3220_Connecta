@@ -52,4 +52,16 @@ class TokenServiceTests {
 
         assertNotEquals(a, b);
     }
+
+    @Test
+    void sessionIdReadsTheSidClaimAndIsNullForOldTokens() {
+        java.util.UUID session = java.util.UUID.randomUUID();
+        TokenService service = service(TestClock.FIXED);
+        User user = TestUsers.user("jane@example.com", Roles.AGENT);
+        Jwt jwt = config.jwtDecoder(PROPS, TestClock.FIXED).decode(service.createAccessToken(user, session));
+        Jwt withoutSid = Jwt.withTokenValue("t").header("alg", "none").claim("sub", "x").build();
+
+        assertEquals(session, TokenService.sessionId(jwt));
+        org.junit.jupiter.api.Assertions.assertNull(TokenService.sessionId(withoutSid));
+    }
 }
