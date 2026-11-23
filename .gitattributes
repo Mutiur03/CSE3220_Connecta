@@ -1,0 +1,2 @@
+# A CRLF checkout would break shell scripts run inside Linux containers.
+*.sh text eol=lf

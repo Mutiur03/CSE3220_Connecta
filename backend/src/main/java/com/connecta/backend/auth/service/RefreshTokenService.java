@@ -38,6 +38,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository tokens;
     private final JwtProperties props;
     private final Clock clock;
+    private final IpLocator ipLocator;
     private final SecureRandom random = new SecureRandom();
 
     /** Starts a new session (a login). */
@@ -52,7 +53,8 @@ public class RefreshTokenService {
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         Instant now = clock.instant();
         tokens.save(new RefreshToken(user, hash(raw), now.plus(props.refreshTtl()), now,
-                sessionId, client.userAgent(), client.ip()));
+                sessionId, client.userAgent(), client.ip(),
+                ipLocator.locate(client.ip()).orElse(null)));
         return new Issued(user, raw, sessionId);
     }
 
