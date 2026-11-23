@@ -1,6 +1,8 @@
 package com.connecta.backend.config;
 
 import com.connecta.backend.auth.controller.ProblemDetailAccessHandlers;
+import com.connecta.backend.auth.controller.SessionActivityFilter;
+import com.connecta.backend.auth.service.SessionService;
 import com.connecta.backend.auth.service.TokenService;
 import com.connecta.backend.user.domain.Roles;
 import java.util.Arrays;
@@ -21,6 +23,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -60,7 +63,7 @@ class SecurityConfig {
     private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, SessionService sessions) throws Exception {
         ProblemDetailAccessHandlers errors = new ProblemDetailAccessHandlers();
         return http
                 .cors(Customizer.withDefaults())
@@ -85,6 +88,7 @@ class SecurityConfig {
                         .jwt(j -> j.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(errors)
                         .accessDeniedHandler(errors))
+                .addFilterAfter(new SessionActivityFilter(sessions), BearerTokenAuthenticationFilter.class)
                 .exceptionHandling(e -> e.authenticationEntryPoint(errors).accessDeniedHandler(errors))
                 .build();
     }

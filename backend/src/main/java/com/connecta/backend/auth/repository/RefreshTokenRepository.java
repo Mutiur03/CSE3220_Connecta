@@ -34,6 +34,14 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
             + " where t.user.id = :userId and t.sessionId <> :sessionId and t.revokedAt is null")
     int revokeOtherSessions(@Param("userId") UUID userId, @Param("sessionId") UUID sessionId, @Param("now") Instant now);
 
+    /** Stamps the session's live token as used, unless it was already stamped after {@code staleBefore}. */
+    @Modifying(clearAutomatically = true)
+    @Query("update RefreshToken t set t.lastUsedAt = :now"
+            + " where t.user.id = :userId and t.sessionId = :sessionId and t.revokedAt is null"
+            + " and t.lastUsedAt < :staleBefore")
+    int touchSession(@Param("userId") UUID userId, @Param("sessionId") UUID sessionId,
+            @Param("now") Instant now, @Param("staleBefore") Instant staleBefore);
+
     @Modifying
     int deleteByExpiresAtBefore(Instant cutoff);
 }
