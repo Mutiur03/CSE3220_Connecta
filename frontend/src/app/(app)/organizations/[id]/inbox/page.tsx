@@ -4,7 +4,6 @@ import { InboxIcon } from "@/components/icons";
 import ConversationList from "@/components/conversation-list";
 import InboxFilterBar from "@/components/inbox-filter-bar";
 import OrgPagination from "@/components/org-pagination";
-import { buttonClasses } from "@/components/ui/classes";
 import { listConversations } from "@/lib/inbox-api";
 import {
   hasInboxFilters,
@@ -92,11 +91,6 @@ export default async function InboxPage({
                   : "Messages that customers send to a connected Instagram or Messenger account appear here."}
               </p>
             </div>
-            {filtered && (
-              <Link href={listPath} className={buttonClasses("secondary")}>
-                Reset filters
-              </Link>
-            )}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
