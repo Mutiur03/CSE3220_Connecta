@@ -205,10 +205,14 @@ erDiagram
         string external_message_id "unique per organization and object"
         timestamp processed_at }
     ORGANIZATIONS ||--o{ CONVERSATIONS : owns
+    META_CONNECTED_PAGES |o--o{ CONVERSATIONS : "receives (SET NULL)"
+    META_CONNECTED_ACCOUNTS |o--o{ CONVERSATIONS : "receives (SET NULL)"
     CONVERSATIONS { uuid id PK
         uuid organization_id FK
         string channel "INSTAGRAM or MESSENGER"
         string external_thread_id "unique per organization and channel"
+        uuid meta_page_id FK "nullable, the Page of a Messenger conversation"
+        uuid instagram_account_id FK "nullable, the account of an Instagram conversation"
         timestamp last_message_at "nullable" }
     ORGANIZATIONS ||--o{ PARTICIPANTS : owns
     PARTICIPANTS { uuid id PK
@@ -289,7 +293,7 @@ erDiagram
 | GET | `/api/organizations/{id}/conversations/{conversationId}/messages` | `ADMIN` or `AGENT` of it | 200 | Message history, newest first (`page`, `size` max 100). |
 | PATCH | `/api/organizations/{id}/conversations/{conversationId}` | `ADMIN` or `AGENT` of it | 200 | Set the status (`OPEN` or `CLOSED`). `400` on a missing or unknown status. |
 | POST | `/api/organizations/{id}/realtime/tickets` | `ADMIN` or `AGENT` of it | 201 | A single-use ticket for the live inbox WebSocket: `{"ticket", "expiresInSeconds"}` (30 s). Non-member or another organization `404`. See Realtime below. |
-| POST | `/api/organizations/{id}/conversations/{conversationId}/messages` | `ADMIN` or `AGENT` of it | 201 | Send a reply `{text}` (1-1000 chars) through the conversation's channel (Messenger or Instagram) and store it as an outbound message; `Location` header and the message (`id`, `direction`, `text`, `sentAt`, `senderId`, `senderName`) in the body. `400` blank or too long, `404` non-member or another organization, `422` channel not connected or Meta's reply window closed, `502` Meta failed (nothing stored). |
+| POST | `/api/organizations/{id}/conversations/{conversationId}/messages` | `ADMIN` or `AGENT` of it | 201 | Send a reply `{text}` (1-1000 chars) through the conversation's channel (Messenger or Instagram) and store it as an outbound message; `Location` header and the message (`id`, `direction`, `text`, `sentAt`, `senderId`, `senderName`) in the body. `400` blank or too long, `404` non-member or another organization, `422` channel not connected, conversation not linked to one of several accounts, or Meta's reply window closed, `502` Meta failed (nothing stored). |
 | POST | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Start connecting Meta. Returns `{"authorizationUrl"}`, the Facebook login dialog with a signed, 10-minute state. `503` if the Meta app is not configured. |
 | GET | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Whether the organization is connected: `{"connected", "connectedAt", "expiresAt"}`. No token is returned. |
 | GET | `/api/meta/oauth/callback` | public (the signed state is the check) | 302 | Meta's redirect target. Exchanges the code for a long-lived token and stores it encrypted, then redirects the browser to the Integrations page (`?facebook=connected`). A failure redirects back with `metaError` (`denied`, `invalid_state`, `forbidden`, `meta_failed`, `not_configured`). |

@@ -13,6 +13,8 @@ public interface MetaConnectedPageRepository extends JpaRepository<MetaConnected
     /** One organization's connected Pages. Scoped by organization, so no other tenant's Page is returned. */
     Page<MetaConnectedPage> findByOrganizationId(UUID organizationId, Pageable pageable);
 
+    Optional<MetaConnectedPage> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
     Optional<MetaConnectedPage> findByOrganizationIdAndPageId(UUID organizationId, String pageId);
 
     /**

@@ -2,6 +2,7 @@ package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.MetaProperties;
 import com.connecta.backend.inbox.domain.Channel;
+import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import java.util.UUID;
@@ -40,13 +41,19 @@ class InstagramChannelClient extends GraphMessagingClient {
     }
 
     @Override
-    public String send(UUID organizationId, String recipientId, String text) {
-        // The organization's first account sends until a conversation records its account (#243).
-        MetaConnectedAccount account = accounts.findByOrganizationIdAndPlatform(organizationId,
-                MetaConnectedAccount.PLATFORM_INSTAGRAM, PageRequest.of(0, 1)).stream()
-                .findFirst().orElseThrow(ChannelNotConnectedException::new);
-        String token = cipher.decrypt(account.getAccessTokenEncrypted());
+    public String send(Conversation conversation, String text) {
+        String token = cipher.decrypt(accountOf(conversation).getAccessTokenEncrypted());
         return post(graph.post().uri("/me/messages").header(HttpHeaders.AUTHORIZATION, "Bearer " + token),
-                payload(recipientId, text));
+                payload(conversation.getExternalThreadId(), text));
+    }
+
+    private MetaConnectedAccount accountOf(Conversation conversation) {
+        UUID organizationId = conversation.getOrganization().getId();
+        if (conversation.getInstagramAccount() != null) {
+            return accounts.findByIdAndOrganizationId(conversation.getInstagramAccount().getId(), organizationId)
+                    .orElseThrow(ChannelNotConnectedException::new);
+        }
+        return onlyAccount(accounts.findByOrganizationIdAndPlatform(organizationId,
+                MetaConnectedAccount.PLATFORM_INSTAGRAM, PageRequest.of(0, 2)).getContent());
     }
 }

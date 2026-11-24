@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.domain;
 
+import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.user.domain.User;
 import jakarta.persistence.Column;
@@ -22,7 +23,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "meta_connected_pages")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MetaConnectedPage {
+public class MetaConnectedPage implements ConnectedChannelAccount {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -66,6 +67,11 @@ public class MetaConnectedPage {
         if (createdAt == null) {
             this.createdAt = now;
         }
+    }
+
+    @Override
+    public void linkTo(Conversation conversation) {
+        conversation.linkToPage(this);
     }
 
     @Override

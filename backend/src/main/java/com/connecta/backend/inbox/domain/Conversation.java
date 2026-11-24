@@ -1,5 +1,7 @@
 package com.connecta.backend.inbox.domain;
 
+import com.connecta.backend.meta.domain.MetaConnectedAccount;
+import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.org.domain.Organization;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -49,6 +51,16 @@ public class Conversation {
     @Column(nullable = false, length = 16)
     private ConversationStatus status = ConversationStatus.OPEN;
 
+    /** The Facebook Page this Messenger conversation belongs to. Null on older rows or once the Page is removed. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "meta_page_id")
+    private MetaConnectedPage metaPage;
+
+    /** The Instagram account this conversation belongs to. Null on older rows or once the account is removed. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "instagram_account_id")
+    private MetaConnectedAccount instagramAccount;
+
     @Column(name = "last_message_at")
     private Instant lastMessageAt;
 
@@ -62,6 +74,14 @@ public class Conversation {
         this.organization = organization;
         this.channel = channel;
         this.externalThreadId = externalThreadId;
+    }
+
+    public void linkToPage(MetaConnectedPage page) {
+        this.metaPage = page;
+    }
+
+    public void linkToInstagramAccount(MetaConnectedAccount account) {
+        this.instagramAccount = account;
     }
 
     /** Moves the last-message time forward only, so a late or retried older message cannot rewind it. */

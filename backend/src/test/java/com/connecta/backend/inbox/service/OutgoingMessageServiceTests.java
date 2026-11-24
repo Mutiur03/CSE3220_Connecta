@@ -76,14 +76,14 @@ class OutgoingMessageServiceTests {
         @Test
         void loadsTheConversationSendsThroughMetaThenRecordsInThatOrder() {
             conversationFound();
-            when(client.send(organizationId, "psid-1", "hello")).thenReturn("mid.1");
+            when(client.send(thread, "hello")).thenReturn("mid.1");
             when(recorder.record(subject, organizationId, conversationId, "mid.1", "hello")).thenReturn(stored);
 
             MessageResponse sent = service.send(subject, organizationId, conversationId, "hello");
 
             InOrder order = inOrder(conversations, client, recorder);
             order.verify(conversations).find(subject, organizationId, conversationId);
-            order.verify(client).send(organizationId, "psid-1", "hello");
+            order.verify(client).send(thread, "hello");
             order.verify(recorder).record(subject, organizationId, conversationId, "mid.1", "hello");
             assertEquals(stored, sent);
         }
@@ -91,7 +91,7 @@ class OutgoingMessageServiceTests {
         @Test
         void callsMetaWithoutAnActiveTransaction() {
             conversationFound();
-            when(client.send(any(), any(), any())).thenAnswer(call -> {
+            when(client.send(any(), any())).thenAnswer(call -> {
                 assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
                 return "mid.1";
             });
@@ -99,7 +99,7 @@ class OutgoingMessageServiceTests {
 
             service.send(subject, organizationId, conversationId, "hello");
 
-            verify(client).send(organizationId, "psid-1", "hello");
+            verify(client).send(thread, "hello");
         }
 
         @Test
@@ -120,7 +120,7 @@ class OutgoingMessageServiceTests {
         @Test
         void aConstraintViolationFallsBackToTheStoredRowInANewTransaction() {
             conversationFound();
-            when(client.send(any(), any(), any())).thenReturn("mid.1");
+            when(client.send(any(), any())).thenReturn("mid.1");
             when(recorder.record(subject, organizationId, conversationId, "mid.1", "hello"))
                     .thenThrow(new DataIntegrityViolationException("uq_messages_external"));
             when(recorder.attributeStored(subject, organizationId, "mid.1")).thenReturn(Optional.of(stored));
@@ -131,7 +131,7 @@ class OutgoingMessageServiceTests {
         @Test
         void aViolationWithNoStoredRowIsRethrown() {
             conversationFound();
-            when(client.send(any(), any(), any())).thenReturn("mid.1");
+            when(client.send(any(), any())).thenReturn("mid.1");
             DataIntegrityViolationException other = new DataIntegrityViolationException("not null");
             when(recorder.record(any(), any(), any(), any(), any())).thenThrow(other);
             when(recorder.attributeStored(subject, organizationId, "mid.1")).thenReturn(Optional.empty());
@@ -171,7 +171,7 @@ class OutgoingMessageServiceTests {
         @Test
         void aChannelWithoutAConnectedAccountStoresNothing() {
             conversationFound();
-            when(client.send(any(), any(), any())).thenThrow(new ChannelNotConnectedException());
+            when(client.send(any(), any())).thenThrow(new ChannelNotConnectedException());
 
             assertThrows(ChannelNotConnectedException.class,
                     () -> service.send(subject, organizationId, conversationId, "hi"));
@@ -182,7 +182,7 @@ class OutgoingMessageServiceTests {
         @Test
         void aMetaFailureStoresNothing() {
             conversationFound();
-            when(client.send(any(), any(), any())).thenThrow(new ChannelSendFailedException("boom"));
+            when(client.send(any(), any())).thenThrow(new ChannelSendFailedException("boom"));
 
             assertThrows(ChannelSendFailedException.class,
                     () -> service.send(subject, organizationId, conversationId, "hi"));
@@ -194,7 +194,7 @@ class OutgoingMessageServiceTests {
         @Test
         void aClosedReplyWindowStoresNothing() {
             conversationFound();
-            when(client.send(any(), any(), any())).thenThrow(new MessagingWindowClosedException());
+            when(client.send(any(), any())).thenThrow(new MessagingWindowClosedException());
 
             assertThrows(MessagingWindowClosedException.class,
                     () -> service.send(subject, organizationId, conversationId, "hi"));

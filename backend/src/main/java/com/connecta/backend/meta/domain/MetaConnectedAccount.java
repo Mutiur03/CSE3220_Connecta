@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.domain;
 
+import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.user.domain.User;
 import jakarta.persistence.Column;
@@ -22,7 +23,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "meta_connected_accounts")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MetaConnectedAccount {
+public class MetaConnectedAccount implements ConnectedChannelAccount {
 
     public static final String PLATFORM_INSTAGRAM = "INSTAGRAM";
 
@@ -72,6 +73,11 @@ public class MetaConnectedAccount {
         if (createdAt == null) {
             this.createdAt = now;
         }
+    }
+
+    @Override
+    public void linkTo(Conversation conversation) {
+        conversation.linkToInstagramAccount(this);
     }
 
     @Override

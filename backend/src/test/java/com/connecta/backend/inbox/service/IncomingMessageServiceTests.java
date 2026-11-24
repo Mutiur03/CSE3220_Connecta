@@ -21,6 +21,8 @@ import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
 import com.connecta.backend.inbox.repository.ConversationRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
+import com.connecta.backend.meta.domain.MetaConnectedAccount;
+import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
@@ -49,6 +51,9 @@ class IncomingMessageServiceTests {
 
     private Organization acme;
     private Organization other;
+    private MetaConnectedPage acmePage;
+    private MetaConnectedPage otherPage;
+    private MetaConnectedAccount acmeInstagram;
 
     @BeforeEach
     void setUp() {
@@ -60,6 +65,9 @@ class IncomingMessageServiceTests {
         service = new IncomingMessageService(participants, conversations, links, messages, publisher);
         acme = organization();
         other = organization();
+        acmePage = new MetaConnectedPage(acme, "page-1");
+        otherPage = new MetaConnectedPage(other, "page-1");
+        acmeInstagram = new MetaConnectedAccount(acme, MetaConnectedAccount.PLATFORM_INSTAGRAM, "ig-1");
         when(participants.save(any(Participant.class))).thenAnswer(call -> withId(call.getArgument(0)));
         when(conversations.save(any(Conversation.class))).thenAnswer(call -> withId(call.getArgument(0)));
         when(messages.save(any(Message.class))).thenAnswer(call -> withId(call.getArgument(0)));
@@ -95,7 +103,7 @@ class IncomingMessageServiceTests {
 
         @Test
         void createsTheCustomerTheConversationAndTheLinkBetweenThem() {
-            service.receive(acme, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
 
             ArgumentCaptor<Participant> customer = ArgumentCaptor.forClass(Participant.class);
             verify(participants).save(customer.capture());
@@ -111,7 +119,7 @@ class IncomingMessageServiceTests {
 
         @Test
         void savesAnInboundMessageFromTheCustomer() {
-            service.receive(acme, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
 
             ArgumentCaptor<Message> saved = ArgumentCaptor.forClass(Message.class);
             verify(messages).save(saved.capture());
@@ -125,7 +133,7 @@ class IncomingMessageServiceTests {
 
         @Test
         void publishesAnEventMarkingTheConversationAsNew() {
-            service.receive(acme, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
 
             MessageReceivedEvent event = publishedEvent();
             assertEquals(acme.getId(), event.organizationId());
@@ -137,7 +145,7 @@ class IncomingMessageServiceTests {
 
         @Test
         void anInstagramMessageIsOnTheInstagramChannel() {
-            service.receive(acme, message(WebhookObject.INSTAGRAM, Direction.INBOUND, "m.2"));
+            service.receive(acmeInstagram, message(WebhookObject.INSTAGRAM, Direction.INBOUND, "m.2"));
 
             assertEquals(Channel.INSTAGRAM, publishedEvent().channel());
             verify(conversations).findByOrganizationIdAndChannelAndExternalThreadId(acme.getId(),
@@ -157,7 +165,7 @@ class IncomingMessageServiceTests {
             when(conversations.findByOrganizationIdAndChannelAndExternalThreadId(acme.getId(), Channel.MESSENGER,
                     "customer-1")).thenReturn(Optional.of(thread));
 
-            service.receive(acme, message(WebhookObject.PAGE, Direction.INBOUND, "m.3"));
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.3"));
 
             verify(participants, never()).save(any());
             verify(conversations, never()).save(any());
@@ -176,7 +184,7 @@ class IncomingMessageServiceTests {
             when(conversations.findByOrganizationIdAndChannelAndExternalThreadId(any(), any(), any()))
                     .thenReturn(Optional.of(thread));
 
-            service.receive(acme, message(WebhookObject.PAGE, Direction.INBOUND, "m.4"));
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.4"));
 
             assertEquals(SENT_AT.plusSeconds(60), thread.getLastMessageAt());
         }
@@ -187,7 +195,7 @@ class IncomingMessageServiceTests {
 
         @Test
         void isStoredAsAnOutboundMessageWithoutAnAgent() {
-            service.receive(acme, message(WebhookObject.PAGE, Direction.OUTBOUND, "m.5"));
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.OUTBOUND, "m.5"));
 
             ArgumentCaptor<Message> saved = ArgumentCaptor.forClass(Message.class);
             verify(messages).save(saved.capture());
@@ -205,7 +213,7 @@ class IncomingMessageServiceTests {
         void aMessageTheOrganizationAlreadyHasIsNeitherSavedNorPublished() {
             when(messages.existsByOrganizationIdAndExternalMessageId(acme.getId(), "m.1")).thenReturn(true);
 
-            service.receive(acme, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
 
             verify(messages, never()).save(any());
             verify(participants, never()).save(any());
@@ -222,7 +230,7 @@ class IncomingMessageServiceTests {
             when(messages.existsByOrganizationIdAndExternalMessageId(acme.getId(), "m.1")).thenReturn(true);
             when(messages.existsByOrganizationIdAndExternalMessageId(other.getId(), "m.1")).thenReturn(false);
 
-            service.receive(other, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
+            service.receive(otherPage, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
 
             verify(messages).save(any(Message.class));
             assertEquals(other.getId(), publishedEvent().organizationId());
@@ -230,7 +238,7 @@ class IncomingMessageServiceTests {
 
         @Test
         void lookupsAreScopedToTheReceivingOrganization() {
-            service.receive(other, message(WebhookObject.PAGE, Direction.INBOUND, "m.6"));
+            service.receive(otherPage, message(WebhookObject.PAGE, Direction.INBOUND, "m.6"));
 
             verify(participants).findByOrganizationIdAndChannelAndExternalId(other.getId(), Channel.MESSENGER,
                     "customer-1");
@@ -238,6 +246,53 @@ class IncomingMessageServiceTests {
                     Channel.MESSENGER, "customer-1");
             verify(participants, never()).findByOrganizationIdAndChannelAndExternalId(acme.getId(),
                     Channel.MESSENGER, "customer-1");
+        }
+    }
+
+    @Nested
+    class ConnectedAccount {
+
+        @Test
+        void aNewMessengerConversationRecordsThePageTheWebhookArrivedOn() {
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
+
+            ArgumentCaptor<Conversation> saved = ArgumentCaptor.forClass(Conversation.class);
+            verify(conversations).save(saved.capture());
+            assertSame(acmePage, saved.getValue().getMetaPage());
+            assertNull(saved.getValue().getInstagramAccount());
+        }
+
+        @Test
+        void aNewInstagramConversationRecordsTheAccountTheWebhookArrivedOn() {
+            service.receive(acmeInstagram, message(WebhookObject.INSTAGRAM, Direction.INBOUND, "m.2"));
+
+            ArgumentCaptor<Conversation> saved = ArgumentCaptor.forClass(Conversation.class);
+            verify(conversations).save(saved.capture());
+            assertSame(acmeInstagram, saved.getValue().getInstagramAccount());
+            assertNull(saved.getValue().getMetaPage());
+        }
+
+        @Test
+        void aFollowUpMessageNeverChangesTheRecordedAccount() {
+            MetaConnectedPage firstPage = new MetaConnectedPage(acme, "page-0");
+            Conversation thread = withId(new Conversation(acme, Channel.MESSENGER, "customer-1"));
+            thread.linkToPage(firstPage);
+            when(conversations.findByOrganizationIdAndChannelAndExternalThreadId(any(), any(), any()))
+                    .thenReturn(Optional.of(thread));
+
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.3"));
+
+            assertSame(firstPage, thread.getMetaPage());
+        }
+
+        @Test
+        void theConversationOfAnotherOrganizationIsNotLinkedToThisOnesAccount() {
+            service.receive(otherPage, message(WebhookObject.PAGE, Direction.INBOUND, "m.4"));
+
+            ArgumentCaptor<Conversation> saved = ArgumentCaptor.forClass(Conversation.class);
+            verify(conversations).save(saved.capture());
+            assertEquals(other, saved.getValue().getOrganization());
+            assertSame(otherPage, saved.getValue().getMetaPage());
         }
     }
 }
