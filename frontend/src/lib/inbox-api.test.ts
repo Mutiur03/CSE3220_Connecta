@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getConversation,
   listMessages,
+  sendMessage,
   updateConversationStatus,
 } from "./inbox-api";
 
@@ -43,5 +44,19 @@ describe("conversation thread api", () => {
     expect(url).toMatch(/\/conversations\/c1$/);
     expect(init.method).toBe("PATCH");
     expect(JSON.parse(init.body)).toEqual({ status: "CLOSED" });
+  });
+});
+
+describe("sendMessage", () => {
+  it("posts the text to the conversation's messages, bearer authenticated", async () => {
+    const fetchMock = respond({ id: "m1" });
+    await sendMessage("tok", "o1", "c1", "hello");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(
+      /\/api\/organizations\/o1\/conversations\/c1\/messages$/,
+    );
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ text: "hello" });
+    expect(init.headers.Authorization).toBe("Bearer tok");
   });
 });

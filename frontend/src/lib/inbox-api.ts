@@ -93,3 +93,18 @@ export const updateConversationStatus = (
     body: { status },
     accessToken,
   });
+
+export const MESSAGE_MAX_LENGTH = 1000;
+
+/** Sends an agent reply through the conversation's channel. */
+export const sendMessage = (
+  accessToken: string,
+  orgId: string,
+  conversationId: string,
+  text: string,
+) =>
+  request<Message>(`${conversationPath(orgId, conversationId)}/messages`, {
+    method: "POST",
+    body: { text },
+    accessToken,
+  });
