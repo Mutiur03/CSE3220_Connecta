@@ -17,6 +17,12 @@ public record RealtimeEnvelope(
         MessageResponse message) {
 
     public static final String MESSAGE_CREATED = "message.created";
+    public static final String PARTICIPANT_UPDATED = "participant.updated";
+
+    /** A customer name was stored: only the conversation id is set, and clients refresh that conversation. */
+    public static RealtimeEnvelope participantUpdated(UUID conversationId) {
+        return new RealtimeEnvelope(PARTICIPANT_UPDATED, conversationId, null, null, null, false, null);
+    }
 
     public static RealtimeEnvelope messageCreated(MessageReceivedEvent event, MessageResponse message) {
         return new RealtimeEnvelope(MESSAGE_CREATED, event.conversationId(), event.messageId(), event.channel(),

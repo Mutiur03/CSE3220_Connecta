@@ -2,8 +2,9 @@
 // is testable with a fake socket and fake timers.
 
 export type RealtimeEvent = {
-  type: "message.created";
+  type: "message.created" | "participant.updated";
   conversationId: string;
+  /** Empty for participant.updated (a customer name was stored). */
   messageId: string;
   channel: string;
   direction: string;
@@ -63,11 +64,18 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
   }
   if (typeof value !== "object" || value === null) return null;
   const e = value as Record<string, unknown>;
-  if (
-    e.type !== "message.created" ||
-    typeof e.conversationId !== "string" ||
-    typeof e.messageId !== "string"
-  ) {
+  if (typeof e.conversationId !== "string") return null;
+  if (e.type === "participant.updated") {
+    return {
+      type: e.type,
+      conversationId: e.conversationId,
+      messageId: "",
+      channel: "",
+      direction: "",
+      newConversation: false,
+    };
+  }
+  if (e.type !== "message.created" || typeof e.messageId !== "string") {
     return null;
   }
   return {

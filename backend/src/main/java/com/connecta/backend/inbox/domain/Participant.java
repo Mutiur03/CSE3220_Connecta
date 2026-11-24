@@ -60,6 +60,21 @@ public class Participant {
         this.displayName = displayName;
     }
 
+    public boolean isNameless() {
+        return displayName == null || displayName.isBlank();
+    }
+
+    /** Sets the name only when none is stored yet (never overwrites); true when it was set. */
+    public boolean nameIfAbsent(String name) {
+        if (!isNameless() || name == null || name.isBlank()) {
+            return false;
+        }
+        String trimmed = name.strip();
+        displayName = trimmed.length() > DISPLAY_NAME_MAX_LENGTH ? trimmed.substring(0, DISPLAY_NAME_MAX_LENGTH)
+                : trimmed;
+        return true;
+    }
+
     @PrePersist
     void onCreate() {
         createdAt = updatedAt = Instant.now();
