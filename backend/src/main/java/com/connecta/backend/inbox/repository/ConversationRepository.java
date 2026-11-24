@@ -15,6 +15,9 @@ import org.springframework.data.repository.query.Param;
 public interface ConversationRepository
         extends JpaRepository<Conversation, UUID>, JpaSpecificationExecutor<Conversation> {
 
+    /** Scoped by organization: another tenant's conversation id finds nothing. */
+    Optional<Conversation> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
     Optional<Conversation> findByOrganizationIdAndChannelAndExternalThreadId(UUID organizationId, Channel channel,
             String externalThreadId);
 
