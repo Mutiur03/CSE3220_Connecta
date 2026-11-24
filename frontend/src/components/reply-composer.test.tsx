@@ -67,6 +67,18 @@ describe("ReplyComposer", () => {
     expect(container.textContent).toContain("50 characters left");
   });
 
+  it("does not cut a paste over the limit; it says how many to remove and blocks Send", () => {
+    const { box, button, container } = mount(async () => ({}));
+    type(box, "x".repeat(1003));
+    expect(box.value).toHaveLength(1003);
+    expect(container.textContent).toContain("Remove 3 characters to send.");
+    expect(container.textContent).not.toContain("characters left");
+    expect(button.disabled).toBe(true);
+    type(box, "x".repeat(1000));
+    expect(container.textContent).toContain("0 characters left");
+    expect(button.disabled).toBe(false);
+  });
+
   it("disables the button and shows the busy label while sending", async () => {
     let finish: (state: object) => void = () => {};
     const { box, button, form } = mount(

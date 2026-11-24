@@ -8,6 +8,7 @@ import {
   isRelevant,
   REFRESH_DEBOUNCE_MS,
   startRealtimeClient,
+  TicketUnauthorizedError,
   type SocketLike,
 } from "@/lib/realtime";
 
@@ -39,11 +40,12 @@ export default function RealtimeInboxRefresher({
             method: "POST",
           },
         );
-        // An expired session: a server re-render sends the page through the session refresh.
-        if (res.status === UNAUTHORIZED) router.refresh();
+        if (res.status === UNAUTHORIZED) throw new TicketUnauthorizedError();
         if (!res.ok) throw new Error(`ticket ${res.status}`);
         return (await res.json()).ticket as string;
       },
+      // An expired session: a server re-render sends the page through the session refresh.
+      onUnauthorized: () => router.refresh(),
       onEvent: (event) => {
         if (isRelevant(event, conversationId)) refresh.call();
       },
