@@ -1,6 +1,9 @@
 package com.connecta.backend.inbox.controller;
 
 import com.connecta.backend.inbox.service.ConversationNotFoundException;
+import com.connecta.backend.meta.service.ChannelNotConnectedException;
+import com.connecta.backend.meta.service.ChannelSendFailedException;
+import com.connecta.backend.meta.service.MessagingWindowClosedException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -16,5 +19,16 @@ class ConversationDetailExceptionHandler {
     @ExceptionHandler(ConversationNotFoundException.class)
     ProblemDetail notFound(ConversationNotFoundException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, e.getMessage());
+    }
+
+    @ExceptionHandler({ChannelNotConnectedException.class, MessagingWindowClosedException.class})
+    ProblemDetail sendRefused(RuntimeException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
+    @ExceptionHandler(ChannelSendFailedException.class)
+    ProblemDetail sendFailed(ChannelSendFailedException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY,
+                "Meta could not deliver the message. Try again.");
     }
 }
