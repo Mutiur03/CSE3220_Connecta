@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.service;
 
+import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.domain.MetaProcessedMessage;
@@ -11,9 +12,7 @@ import com.connecta.backend.meta.repository.MetaProcessedMessageRepository;
 import com.connecta.backend.org.domain.Organization;
 import java.time.Clock;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
@@ -22,7 +21,7 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * Turns a stored webhook event into messages for the organizations that own the Page or account it names. Each
  * message is delivered once per organization: a message already recorded is skipped, so Meta's retries never
- * produce a second message. Routing: the entry id is a Page id (Messenger) or an Instagram account id, looked up
+ * produce a second message. A new message is handed to the inbox, which stores and announces it. Routing: the entry id is a Page id (Messenger) or an Instagram account id, looked up
  * in the connection tables; an id no organization connected is ignored.
  */
 @Service
@@ -35,7 +34,7 @@ public class WebhookEventProcessor {
     private final MetaConnectedAccountRepository accounts;
     private final MetaProcessedMessageRepository processed;
     private final MessagingEventParser parser;
-    private final ApplicationEventPublisher publisher;
+    private final IncomingMessageService inbox;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -72,6 +71,6 @@ public class WebhookEventProcessor {
         }
         processed.save(new MetaProcessedMessage(organization, message.channel(), message.externalMessageId(),
                 clock.instant()));
-        publisher.publishEvent(new MessageReceivedEvent(organization.getId(), message));
+        inbox.receive(organization, message);
     }
 }
