@@ -9,7 +9,6 @@ import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -50,7 +49,7 @@ class InstagramCustomerProfileClient extends GraphCustomerProfileClient {
     public Optional<String> fetchName(NamelessCustomer customer) {
         String token = cipher.decrypt(accountOf(customer).getAccessTokenEncrypted());
         return get(graph.get().uri(uri -> uri.path("/{igsid}").queryParam("fields", "name,username")
-                .build(customer.externalId())).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .build(customer.externalId())).headers(GraphAuth.bearer(token)))
                 .flatMap(profile -> firstNonBlank(profile.name(), profile.username()));
     }
 

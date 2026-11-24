@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -40,6 +39,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
 
     private static final String FIELDS = "participants,messages.limit(%d){id,message,from,created_time}";
     private static final DateTimeFormatter GRAPH_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
+    private static final int HTTPS_PORT = 443;
     private static final int PERMISSION_CODE_DENIED = 10;
     private static final int TOKEN_CODE = 190;
     private static final int PERMISSION_CODE_FIRST = 200;
@@ -47,12 +47,12 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
 
     private final HistoryImportProperties limits;
     private final RestClient graph;
-    private final String host;
+    private final String hostName;
 
     protected GraphHistoryClient(RestClient.Builder restClients, String host, String graphVersion,
             HistoryImportProperties limits) {
         this.limits = limits;
-        this.host = host;
+        this.hostName = URI.create(host).getHost();
         this.graph = restClients.baseUrl(host + graphVersion).build();
     }
 
@@ -80,7 +80,8 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         private final String token;
         private final Deque<HistoryConversation> buffer = new ArrayDeque<>();
         private boolean started;
-        private String nextUrl;
+        private URI nextUrl;
+        private int fetchedMessages;
 
         Pages(String accountId, String token) {
             this.accountId = accountId;
@@ -107,10 +108,9 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             JsonNode page = fetch(started ? nextRequest() : firstRequest());
             started = true;
             for (JsonNode conversation : page.path("data")) {
-                parse(conversation, accountId).ifPresent(buffer::add);
+                parse(conversation, accountId, this).ifPresent(buffer::add);
             }
-            String next = page.path("paging").path("next").asText("");
-            nextUrl = next.isBlank() ? null : requireSameHost(next);
+            nextUrl = nextLink(page);
         }
 
         private RestClient.RequestHeadersSpec<?> firstRequest() {
@@ -120,13 +120,13 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private RestClient.RequestHeadersSpec<?> nextRequest() {
-            return graph.get().uri(URI.create(nextUrl));
+            return graph.get().uri(nextUrl);
         }
 
         private JsonNode fetch(RestClient.RequestHeadersSpec<?> request) {
             try {
-                JsonNode body = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                        .accept(MediaType.APPLICATION_JSON).retrieve().body(JsonNode.class);
+                JsonNode body = request.headers(GraphAuth.bearer(token)).accept(MediaType.APPLICATION_JSON)
+                        .retrieve().body(JsonNode.class);
                 if (body == null) {
                     throw new HistoryFetchException("Meta returned an empty history response");
                 }
@@ -138,13 +138,57 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                 throw new HistoryFetchException("Meta history request failed", e);
             }
         }
+
+        /**
+         * The conversation's messages, newest first: the embedded page, then its {@code paging.next} pages while
+         * the per-conversation and total limits allow. {@code more} is set when messages were left behind.
+         */
+        private List<JsonNode> messagesOf(JsonNode edge, Truncation truncation) {
+            List<JsonNode> messages = new ArrayList<>();
+            JsonNode page = edge;
+            URI next;
+            do {
+                page.path("data").forEach(messages::add);
+                fetchedMessages += page.path("data").size();
+                next = nextLink(page);
+                if (next != null && !withinLimits(messages.size())) {
+                    break;
+                }
+                page = next == null ? page : fetch(graph.get().uri(next));
+            } while (next != null);
+            int keep = limits.messagesPerConversation();
+            truncation.more = next != null || messages.size() > keep;
+            return messages.size() > keep ? messages.subList(0, keep) : messages;
+        }
+
+        private boolean withinLimits(int conversationMessages) {
+            return conversationMessages < limits.messagesPerConversation() && fetchedMessages < limits.maxMessages();
+        }
     }
 
-    private String requireSameHost(String next) {
-        if (!next.startsWith(host)) {
+    private static final class Truncation {
+        boolean more;
+    }
+
+    private URI nextLink(JsonNode page) {
+        String next = page.path("paging").path("next").asText("");
+        return next.isBlank() ? null : requireSameHost(next);
+    }
+
+    /** Accepts only an https link on the configured Graph host (no userinfo, default port), minus its token. */
+    private URI requireSameHost(String next) {
+        URI link;
+        try {
+            link = URI.create(next);
+        } catch (IllegalArgumentException e) {
+            throw new HistoryFetchException("Meta returned an unreadable paging link");
+        }
+        boolean sameHost = "https".equalsIgnoreCase(link.getScheme()) && hostName.equalsIgnoreCase(link.getHost())
+                && link.getUserInfo() == null && (link.getPort() == -1 || link.getPort() == HTTPS_PORT);
+        if (!sameHost) {
             throw new HistoryFetchException("Meta returned a paging link to an unexpected host");
         }
-        return next;
+        return GraphAuth.withoutToken(link);
     }
 
     private static RuntimeException mapError(RestClientResponseException e) {
@@ -171,16 +215,17 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
     }
 
-    private Optional<HistoryConversation> parse(JsonNode conversation, String accountId) {
+    private Optional<HistoryConversation> parse(JsonNode conversation, String accountId, Pages pages) {
         JsonNode peer = peerOf(conversation.path("participants").path("data"), accountId);
         if (peer == null) {
             return Optional.empty();
         }
         String peerId = peer.path("id").asText("");
-        JsonNode messageList = conversation.path("messages");
+        Truncation truncation = new Truncation();
+        List<JsonNode> rawMessages = pages.messagesOf(conversation.path("messages"), truncation);
         List<NormalizedMessage> messages = new ArrayList<>();
         String name = nameOf(peer);
-        for (JsonNode message : messageList.path("data")) {
+        for (JsonNode message : rawMessages) {
             JsonNode from = message.path("from");
             boolean outbound = accountId.equals(from.path("id").asText(""));
             if (name == null && !outbound) {
@@ -189,8 +234,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             toMessage(message, peerId, outbound).ifPresent(messages::add);
         }
         Collections.reverse(messages);
-        boolean more = !messageList.path("paging").path("next").asText("").isBlank();
-        return Optional.of(new HistoryConversation(peerId, name, List.copyOf(messages), more));
+        return Optional.of(new HistoryConversation(peerId, name, List.copyOf(messages), truncation.more));
     }
 
     private static JsonNode peerOf(JsonNode participants, String accountId) {

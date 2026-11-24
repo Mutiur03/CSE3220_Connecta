@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
@@ -34,7 +35,7 @@ import org.springframework.web.client.RestClient;
 class MessengerCustomerProfileClientTests {
 
     private static final String KEY = "dGVzdC1vbmx5LW1ldGEtdG9rZW4ta2V5LTAwMDAwMDE=";
-    private static final String URL = "https://graph.facebook.com/v27.0/psid-1?fields=name&access_token=page-token";
+    private static final String URL = "https://graph.facebook.com/v27.0/psid-1?fields=name";
 
     private final UUID organizationId = UUID.randomUUID();
     private final UUID pageRowId = UUID.randomUUID();
@@ -74,7 +75,8 @@ class MessengerCustomerProfileClientTests {
 
         @Test
         void asksForTheNameWithThePageToken() {
-            server.expect(requestTo(URL)).andExpect(method(HttpMethod.GET)).andRespond(withSuccess(
+            server.expect(requestTo(URL)).andExpect(method(HttpMethod.GET))
+                    .andExpect(header("Authorization", "Bearer page-token")).andRespond(withSuccess(
                     "{\"name\":\"Rina Das\",\"id\":\"psid-1\"}", MediaType.APPLICATION_JSON));
 
             assertEquals(Optional.of("Rina Das"), client.fetchName(customer(pageRowId)));

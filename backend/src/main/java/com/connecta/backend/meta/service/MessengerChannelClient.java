@@ -42,7 +42,7 @@ class MessengerChannelClient extends GraphMessagingClient {
     @Override
     public String send(Conversation conversation, String text) {
         String token = cipher.decrypt(pageOf(conversation).getPageAccessTokenEncrypted());
-        return post(graph.post().uri(uri -> uri.path("/me/messages").queryParam("access_token", token).build()),
+        return post(graph.post().uri("/me/messages").headers(GraphAuth.bearer(token)),
                 payload(conversation.getExternalThreadId(), text));
     }
 

@@ -53,7 +53,7 @@ class MessengerCustomerProfileClient extends GraphCustomerProfileClient {
     public Optional<String> fetchName(NamelessCustomer customer) {
         String token = cipher.decrypt(pageOf(customer).getPageAccessTokenEncrypted());
         return get(graph.get().uri(uri -> uri.path("/{psid}").queryParam("fields", "name")
-                .queryParam("access_token", token).build(customer.externalId())))
+                .build(customer.externalId())).headers(GraphAuth.bearer(token)))
                 .map(GraphProfile::name).filter(name -> !name.isBlank());
     }
 

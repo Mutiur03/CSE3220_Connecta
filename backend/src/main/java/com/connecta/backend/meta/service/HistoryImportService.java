@@ -4,6 +4,7 @@ import com.connecta.backend.config.HistoryImportProperties;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.service.HistoryImportedEvent;
 import com.connecta.backend.inbox.service.IncomingMessageService;
+import com.connecta.backend.meta.domain.HistoryImportFailure;
 import com.connecta.backend.inbox.service.ParticipantNameService;
 import java.time.Clock;
 import java.util.Iterator;
@@ -44,7 +45,7 @@ public class HistoryImportService {
      * Imports the account history. Empty when the account no longer exists.
      *
      * @throws HistoryImportInProgressException when this account is already being imported
-     * @throws HistoryFetchException when Meta fails; what was stored stays and the account is not marked imported
+     * @throws HistoryFetchException when Meta fails; what was stored stays and the account is not marked imported but records the failure code
      * @throws HistoryPermissionException when Meta refuses to share conversations
      */
     public Optional<HistoryImportResult> importHistory(Channel channel, UUID accountId) {
@@ -66,6 +67,12 @@ public class HistoryImportService {
         Tally tally = new Tally();
         try {
             readAll(source, tally);
+        } catch (HistoryPermissionException e) {
+            recordFailure(source, HistoryImportFailure.PERMISSION);
+            throw e;
+        } catch (HistoryFetchException e) {
+            recordFailure(source, HistoryImportFailure.FETCH);
+            throw e;
         } finally {
             if (tally.imported > 0) {
                 publisher.publishEvent(new HistoryImportedEvent(source.organizationId()));
@@ -73,6 +80,10 @@ public class HistoryImportService {
         }
         store.markImported(source.channel(), source.accountId(), clock.instant());
         return new HistoryImportResult(tally.conversations, tally.imported, tally.skipped, tally.truncated);
+    }
+
+    private void recordFailure(HistorySource source, HistoryImportFailure failure) {
+        store.markFailed(source.channel(), source.accountId(), failure, clock.instant());
     }
 
     private void readAll(HistorySource source, Tally tally) {

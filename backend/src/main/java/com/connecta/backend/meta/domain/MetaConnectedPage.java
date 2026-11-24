@@ -5,6 +5,8 @@ import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -51,6 +53,14 @@ public class MetaConnectedPage implements ConnectedChannelAccount {
     @Column(name = "history_imported_at")
     private Instant historyImportedAt;
 
+    /** Why the last import failed; null when none did or a later one succeeded. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "history_import_error", length = 16)
+    private HistoryImportFailure historyImportError;
+
+    @Column(name = "history_import_failed_at")
+    private Instant historyImportFailedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -75,6 +85,13 @@ public class MetaConnectedPage implements ConnectedChannelAccount {
 
     public void markHistoryImported(Instant at) {
         this.historyImportedAt = at;
+        this.historyImportError = null;
+        this.historyImportFailedAt = null;
+    }
+
+    public void markHistoryImportFailed(HistoryImportFailure failure, Instant at) {
+        this.historyImportError = failure;
+        this.historyImportFailedAt = at;
     }
 
     @Override

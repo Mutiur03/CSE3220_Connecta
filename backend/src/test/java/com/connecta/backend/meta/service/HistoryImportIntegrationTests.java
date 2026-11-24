@@ -14,6 +14,7 @@ import com.connecta.backend.inbox.domain.Participant;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.inbox.service.HistoryImportedEvent;
 import com.connecta.backend.inbox.service.MessageReceivedEvent;
+import com.connecta.backend.meta.domain.HistoryImportFailure;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
@@ -222,6 +223,28 @@ class HistoryImportIntegrationTests {
         assertNull(pages.findById(page.getId()).orElseThrow().getHistoryImportedAt());
         assertEquals(2, count("messages", orgId));
         assertTrue(pendingIds().contains(page.getId()));
+        MetaConnectedPage failed = pages.findById(page.getId()).orElseThrow();
+        assertEquals(HistoryImportFailure.FETCH, failed.getHistoryImportError());
+        assertNotNull(failed.getHistoryImportFailedAt());
+    }
+
+    @Test
+    void aLaterSuccessfulImportClearsTheRecordedFailure() {
+        MetaConnectedPage page = connectPage("p-" + UUID.randomUUID());
+        ConversationHistoryClient failing = mock(ConversationHistoryClient.class);
+        when(failing.conversations(any(), any())).thenThrow(new HistoryPermissionException());
+        when(clients.forChannel(Channel.MESSENGER)).thenReturn(failing);
+        assertThrows(HistoryPermissionException.class, () -> imports.importHistory(Channel.MESSENGER, page.getId()));
+        assertEquals(HistoryImportFailure.PERMISSION,
+                pages.findById(page.getId()).orElseThrow().getHistoryImportError());
+
+        stubHistory(rina(UUID.randomUUID().toString()));
+        imports.importHistory(Channel.MESSENGER, page.getId());
+
+        MetaConnectedPage cleared = pages.findById(page.getId()).orElseThrow();
+        assertNull(cleared.getHistoryImportError());
+        assertNull(cleared.getHistoryImportFailedAt());
+        assertNotNull(cleared.getHistoryImportedAt());
     }
 
     @Test
