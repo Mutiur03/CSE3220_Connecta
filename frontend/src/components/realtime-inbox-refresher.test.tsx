@@ -95,6 +95,13 @@ describe("RealtimeInboxRefresher", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("refreshes the route when the ticket route answers 401, so the session is renewed", () => {
+    const options = mount({ orgId: "org-1" });
+    expect(refresh).not.toHaveBeenCalled();
+    act(() => options.onUnauthorized?.());
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("stops the client and drops a pending refresh on unmount", () => {
     const options = mount({ orgId: "org-1" });
     act(() => options.onEvent(event("c1")));
