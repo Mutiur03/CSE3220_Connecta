@@ -14,7 +14,9 @@ const organizations = [
 ];
 
 const render = (remembered?: string, orgs = organizations) =>
-  renderToStaticMarkup(<RailOrgSection organizations={orgs} remembered={remembered} />);
+  renderToStaticMarkup(
+    <RailOrgSection organizations={orgs} remembered={remembered} />,
+  );
 
 beforeEach(() => {
   pathname.current = "/";
@@ -51,7 +53,9 @@ describe("RailOrgSection", () => {
 
   it("marks the Products link as the current page on the products route", () => {
     pathname.current = `/organizations/${FIRST_ID}/products`;
-    expect(render()).toMatch(/aria-current="page"[^>]*>|href="[^"]*\/products"[^>]*aria-current="page"/);
+    expect(render()).toMatch(
+      /aria-current="page"[^>]*>|href="[^"]*\/products"[^>]*aria-current="page"/,
+    );
   });
 
   it("does not mark Products active on the organization overview", () => {
@@ -65,14 +69,18 @@ describe("RailOrgSection", () => {
     expect(markup).toContain(`href="/organizations/${FIRST_ID}/inventory"`);
     expect(markup).toContain(">Inventory<");
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(markup).not.toMatch(/href="[^"]*\/products"[^>]*aria-current="page"/);
+    expect(markup).not.toMatch(
+      /href="[^"]*\/products"[^>]*aria-current="page"/,
+    );
   });
 
   it("does not mark Inventory active on the products route", () => {
     pathname.current = `/organizations/${FIRST_ID}/products`;
     const markup = render();
     expect(markup).toContain(`href="/organizations/${FIRST_ID}/inventory"`);
-    expect(markup).not.toMatch(/href="[^"]*\/inventory"[^>]*aria-current="page"/);
+    expect(markup).not.toMatch(
+      /href="[^"]*\/inventory"[^>]*aria-current="page"/,
+    );
   });
 
   it("links Categories and marks it, not Products, active on the categories route", () => {
@@ -80,7 +88,21 @@ describe("RailOrgSection", () => {
     const markup = render();
     expect(markup).toContain(`href="/organizations/${FIRST_ID}/categories"`);
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(markup).toMatch(/aria-current="page"[^>]*class|href="[^"]*\/categories"[^>]*aria-current="page"/);
-    expect(markup).not.toMatch(/href="[^"]*\/products"[^>]*aria-current="page"/);
+    expect(markup).toMatch(
+      /aria-current="page"[^>]*class|href="[^"]*\/categories"[^>]*aria-current="page"/,
+    );
+    expect(markup).not.toMatch(
+      /href="[^"]*\/products"[^>]*aria-current="page"/,
+    );
+  });
+
+  it("links Inbox first and marks it active on the inbox route", () => {
+    pathname.current = `/organizations/${FIRST_ID}/inbox/abc`;
+    const markup = render();
+    expect(markup).toContain(`href="/organizations/${FIRST_ID}/inbox"`);
+    expect(markup.indexOf(">Inbox<")).toBeLessThan(
+      markup.indexOf(">Products<"),
+    );
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
   });
 });
