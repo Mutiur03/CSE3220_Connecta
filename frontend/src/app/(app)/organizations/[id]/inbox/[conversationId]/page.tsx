@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import MessageList from "@/components/message-list";
 import OrgActionButton from "@/components/org-action-button";
+import RealtimeInboxRefresher from "@/components/realtime-inbox-refresher";
 import { Badge } from "@/components/ui/badge";
 import { setConversationStatusAction } from "@/lib/inbox-actions";
 import { getConversation, listMessages } from "@/lib/inbox-api";
@@ -46,6 +47,7 @@ export default async function ConversationPage({
 
   return (
     <>
+      <RealtimeInboxRefresher orgId={id} conversationId={conversationId} />
       <header className="flex flex-col gap-3">
         <Link
           href={`/organizations/${id}/inbox`}
