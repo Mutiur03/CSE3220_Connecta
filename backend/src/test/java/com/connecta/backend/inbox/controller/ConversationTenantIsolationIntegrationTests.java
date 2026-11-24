@@ -130,6 +130,10 @@ class ConversationTenantIsolationIntegrationTests {
         return TestTokens.bearer(jwtProperties, userB);
     }
 
+    private String asA() {
+        return TestTokens.bearer(jwtProperties, userA);
+    }
+
     private static String conversations(Organization organization) {
         return "/api/organizations/" + organization.getId() + "/conversations";
     }
@@ -158,7 +162,8 @@ class ConversationTenantIsolationIntegrationTests {
         @Test
         void bAskingForAsListIsNotFound() throws Exception {
             mvc.perform(get(conversations(orgA)).header(HttpHeaders.AUTHORIZATION, asB()))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Organization not found"));
         }
 
         @Test
@@ -176,7 +181,8 @@ class ConversationTenantIsolationIntegrationTests {
         @Test
         void underAsOrganizationIdIsNotFound() throws Exception {
             mvc.perform(get(conversation(orgA)).header(HttpHeaders.AUTHORIZATION, asB()))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Organization not found"));
         }
 
         @Test
@@ -185,21 +191,37 @@ class ConversationTenantIsolationIntegrationTests {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.detail").value("Conversation not found"));
         }
+
+        @Test
+        void aStillReadsItsOwnConversation() throws Exception {
+            mvc.perform(get(conversation(orgA)).header(HttpHeaders.AUTHORIZATION, asA()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(conversationOfA.getId().toString()));
+        }
     }
 
     @Nested
     class History {
 
         @Test
+        void aStillReadsItsOwnHistory() throws Exception {
+            mvc.perform(get(conversation(orgA) + "/messages").header(HttpHeaders.AUTHORIZATION, asA()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").isArray());
+        }
+
+        @Test
         void underAsOrganizationIdIsNotFound() throws Exception {
             mvc.perform(get(conversation(orgA) + "/messages").header(HttpHeaders.AUTHORIZATION, asB()))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Organization not found"));
         }
 
         @Test
         void underItsOwnOrganizationIdWithAsConversationIdIsNotFoundAndLeaksNoMessage() throws Exception {
             mvc.perform(get(conversation(orgB) + "/messages").header(HttpHeaders.AUTHORIZATION, asB()))
                     .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Conversation not found"))
                     .andExpect(jsonPath("$.content").doesNotExist());
         }
     }
@@ -208,9 +230,18 @@ class ConversationTenantIsolationIntegrationTests {
     class StatusChange {
 
         @Test
+        void aCanStillCloseItsOwnConversation() throws Exception {
+            mvc.perform(json(patch(conversation(orgA)), asA(), "{\"status\":\"CLOSED\"}"))
+                    .andExpect(status().isOk());
+
+            assertEquals(ConversationStatus.CLOSED, statusOfA());
+        }
+
+        @Test
         void underAsOrganizationIdIsNotFoundAndChangesNothing() throws Exception {
             mvc.perform(json(patch(conversation(orgA)), asB(), "{\"status\":\"CLOSED\"}"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Organization not found"));
 
             assertEquals(ConversationStatus.OPEN, statusOfA());
         }
@@ -218,7 +249,8 @@ class ConversationTenantIsolationIntegrationTests {
         @Test
         void underItsOwnOrganizationIdWithAsConversationIdIsNotFoundAndChangesNothing() throws Exception {
             mvc.perform(json(patch(conversation(orgB)), asB(), "{\"status\":\"CLOSED\"}"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Conversation not found"));
 
             assertEquals(ConversationStatus.OPEN, statusOfA());
         }
@@ -232,9 +264,19 @@ class ConversationTenantIsolationIntegrationTests {
     class Send {
 
         @Test
+        void aStillSendsOnItsOwnConversationExactlyOnce() throws Exception {
+            mvc.perform(json(post(conversation(orgA) + "/messages"), asA(), "{\"text\":\"hi\"}"))
+                    .andExpect(status().isCreated());
+
+            assertEquals(1, meta.sends());
+            assertEquals(messagesBefore + 1, messages.count());
+        }
+
+        @Test
         void underAsOrganizationIdIsNotFoundAndNothingIsSent() throws Exception {
             mvc.perform(json(post(conversation(orgA) + "/messages"), asB(), "{\"text\":\"hi\"}"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Organization not found"));
 
             assertNothingSentAndStored();
         }
@@ -242,7 +284,8 @@ class ConversationTenantIsolationIntegrationTests {
         @Test
         void underItsOwnOrganizationIdWithAsConversationIdIsNotFoundAndNothingIsSent() throws Exception {
             mvc.perform(json(post(conversation(orgB) + "/messages"), asB(), "{\"text\":\"hi\"}"))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Conversation not found"));
 
             assertNothingSentAndStored();
         }

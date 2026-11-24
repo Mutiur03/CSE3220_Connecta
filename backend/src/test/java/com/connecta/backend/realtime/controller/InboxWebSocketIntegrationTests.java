@@ -8,8 +8,10 @@ import static org.mockito.Mockito.when;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.MessageDirection;
 import com.connecta.backend.inbox.dto.MessageResponse;
+import com.connecta.backend.inbox.service.HistoryImportedEvent;
 import com.connecta.backend.inbox.service.MessageLookupService;
 import com.connecta.backend.inbox.service.MessageReceivedEvent;
+import com.connecta.backend.inbox.service.ParticipantProfileUpdatedEvent;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
@@ -116,6 +118,37 @@ class InboxWebSocketIntegrationTests {
                 MessageDirection.INBOUND, false));
 
         assertThat(a.poll(5, TimeUnit.SECONDS)).contains("message.created").contains("\"text\":\"hi\"");
+        assertThat(b.poll(500, TimeUnit.MILLISECONDS)).isNull();
+        sessionA.close();
+        sessionB.close();
+    }
+
+    @Test
+    void participantUpdatedReachesOnlyItsOwnOrganizationsSessions() throws Exception {
+        BlockingQueue<String> a = new LinkedBlockingQueue<>();
+        BlockingQueue<String> b = new LinkedBlockingQueue<>();
+        WebSocketSession sessionA = connect(ticketFor(orgA), ORIGIN, a);
+        WebSocketSession sessionB = connect(ticketFor(orgB), ORIGIN, b);
+        UUID conversationId = UUID.randomUUID();
+
+        events.publishEvent(new ParticipantProfileUpdatedEvent(orgA, conversationId));
+
+        assertThat(a.poll(5, TimeUnit.SECONDS)).contains("participant.updated").contains(conversationId.toString());
+        assertThat(b.poll(500, TimeUnit.MILLISECONDS)).isNull();
+        sessionA.close();
+        sessionB.close();
+    }
+
+    @Test
+    void inboxRefreshReachesOnlyItsOwnOrganizationsSessions() throws Exception {
+        BlockingQueue<String> a = new LinkedBlockingQueue<>();
+        BlockingQueue<String> b = new LinkedBlockingQueue<>();
+        WebSocketSession sessionA = connect(ticketFor(orgA), ORIGIN, a);
+        WebSocketSession sessionB = connect(ticketFor(orgB), ORIGIN, b);
+
+        events.publishEvent(new HistoryImportedEvent(orgA));
+
+        assertThat(a.poll(5, TimeUnit.SECONDS)).contains("inbox.refresh");
         assertThat(b.poll(500, TimeUnit.MILLISECONDS)).isNull();
         sessionA.close();
         sessionB.close();

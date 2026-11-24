@@ -19,3 +19,13 @@ jobs:
           java-version: 17
           cache: maven
       - run: ./mvnw -B test
+      # Docker-backed tests use @Testcontainers(disabledWithoutDocker = true): without Docker they skip
+      # silently. Locally that is fine; in CI a skipped test means the guarantee was not checked.
+      - name: Fail if any test was skipped
+        run: |
+          skipped=$(grep -ho '<testsuite [^>]*' target/surefire-reports/TEST-*.xml | grep -o ' skipped="[0-9]*"' | grep -o '[0-9]*' | awk '{n+=$1} END{print n+0}')
+          echo "skipped tests: $skipped"
+          if [ "$skipped" -gt 0 ]; then
+            echo "::error::$skipped test(s) were skipped (Docker unavailable?). CI must run every test."
+            exit 1
+          fi
