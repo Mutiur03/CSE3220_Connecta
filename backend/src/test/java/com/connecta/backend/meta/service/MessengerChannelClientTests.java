@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -73,6 +74,17 @@ class MessengerChannelClientTests {
                         MediaType.APPLICATION_JSON));
 
         assertEquals("mid.1", client.send(thread, "hello"));
+        server.verify();
+    }
+
+    @Test
+    void theSendRequestCarriesNoAccessTokenInTheUrl() {
+        server.expect(request -> assertNull(request.getURI().getRawQuery()))
+                .andExpect(header("Authorization", "Bearer page-token"))
+                .andRespond(withSuccess("{\"message_id\":\"mid.1\"}", MediaType.APPLICATION_JSON));
+
+        client.send(thread, "hello");
+
         server.verify();
     }
 

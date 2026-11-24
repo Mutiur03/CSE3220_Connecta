@@ -77,7 +77,7 @@ class HistoryImportServiceTests {
     }
 
     private static HistoryImportProperties limits(int conversations, int messages) {
-        return new HistoryImportProperties(true, conversations, 50, messages, 25, Duration.ofSeconds(5), 1, 10);
+        return new HistoryImportProperties(true, conversations, 50, messages, 25, Duration.ofSeconds(5), 1, 10, 200);
     }
 
     private static NormalizedMessage message(String id, String peer) {

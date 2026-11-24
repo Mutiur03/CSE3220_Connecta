@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -71,6 +72,17 @@ class MessengerCustomerProfileClientTests {
         @BeforeEach
         void linkedPage() {
             when(pages.findByIdAndOrganizationId(pageRowId, organizationId)).thenReturn(Optional.of(page));
+        }
+
+        @Test
+        void theProfileRequestCarriesNoAccessTokenInTheUrl() {
+            server.expect(request -> assertFalse(request.getURI().getRawQuery().contains("access_token")))
+                    .andExpect(header("Authorization", "Bearer page-token"))
+                    .andRespond(withSuccess("{\"name\":\"Rina\"}", MediaType.APPLICATION_JSON));
+
+            client.fetchName(customer(pageRowId));
+
+            server.verify();
         }
 
         @Test

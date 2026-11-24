@@ -148,6 +148,7 @@ app:
       request-timeout: 15s
       worker-threads: 2
       queue-capacity: 100
+      max-graph-pages: 200
     webhook:
       # Verify token Meta sends back when it subscribes the webhook. Blank refuses every subscription.
       verify-token: "${META_WEBHOOK_VERIFY_TOKEN:}"

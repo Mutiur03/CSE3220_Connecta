@@ -206,10 +206,43 @@ class MessengerHistoryClientTests {
         }
 
         private void withLimits(int perConversation, int total) {
+            withLimits(perConversation, total, 200);
+        }
+
+        private void withLimits(int perConversation, int total, int graphPages) {
             RestClient.Builder builder = RestClient.builder();
             server = MockRestServiceServer.bindTo(builder).build();
             client = new MessengerHistoryClient(META,
-                    new HistoryImportProperties(true, 50, perConversation, total, 25, null, 1, 1), builder);
+                    new HistoryImportProperties(true, 50, perConversation, total, 25, null, 1, 1, graphPages),
+                    builder);
+        }
+
+        @Test
+        void aMessagesLinkThatRepeatsWithEmptyDataEndsAndMarksMoreMessages() {
+            firstPage(edge(THREAD_URL + "?after=a", 9));
+            server.expect(requestTo(THREAD_URL + "?after=a"))
+                    .andRespond(withSuccess(edge(THREAD_URL + "?after=a"), MediaType.APPLICATION_JSON));
+
+            HistoryConversation conversation = drain(client.conversations("page-1", "t")).get(0);
+
+            assertEquals(1, conversation.messages().size());
+            assertTrue(conversation.moreMessages());
+            server.verify();
+        }
+
+        @Test
+        void aGraphPageCapEndsAnEndlessChainOfDistinctMessageLinks() {
+            withLimits(50, 1000, 3);
+            firstPage(edge(THREAD_URL + "?after=0", 9));
+            for (int i = 0; i < 3; i++) {
+                server.expect(requestTo(THREAD_URL + "?after=" + i)).andRespond(withSuccess(
+                        edge(THREAD_URL + "?after=" + (i + 1)), MediaType.APPLICATION_JSON));
+            }
+
+            HistoryConversation conversation = drain(client.conversations("page-1", "t")).get(0);
+
+            assertTrue(conversation.moreMessages());
+            server.verify();
         }
 
         @Test
@@ -311,6 +344,22 @@ class MessengerHistoryClientTests {
 
             HistoryFetchException e = assertThrows(HistoryFetchException.class, it::hasNext);
             assertFalse(String.valueOf(e.getMessage()).contains("secret-token"));
+        }
+
+        @Test
+        void aConversationsLinkThatRepeatsWithEmptyDataTerminates() {
+            String next = "https://graph.facebook.com/v27.0/page-1/conversations?after=abc";
+            server.expect(requestTo(org.hamcrest.Matchers.startsWith(BASE + "?platform")))
+                    .andRespond(withSuccess(ONE_CONVERSATION.replace("]}\n", "],\"paging\":{\"next\":\"" + next
+                            + "\"}}\n"), MediaType.APPLICATION_JSON));
+            server.expect(requestTo(next)).andRespond(withSuccess(
+                    "{\"data\":[],\"paging\":{\"next\":\"" + next + "&access_token=x\"}}",
+                    MediaType.APPLICATION_JSON));
+
+            List<HistoryConversation> all = drain(client.conversations("page-1", "t"));
+
+            assertEquals(1, all.size());
+            server.verify();
         }
 
         @Test

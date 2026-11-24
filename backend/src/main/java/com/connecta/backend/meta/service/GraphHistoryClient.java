@@ -13,10 +13,12 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -82,6 +84,8 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         private boolean started;
         private URI nextUrl;
         private int fetchedMessages;
+        private int graphRequests;
+        private final Set<URI> followed = new HashSet<>();
 
         Pages(String accountId, String token) {
             this.accountId = accountId;
@@ -110,7 +114,31 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             for (JsonNode conversation : page.path("data")) {
                 parse(conversation, accountId, this).ifPresent(buffer::add);
             }
-            nextUrl = nextLink(page);
+            URI next = nextLink(page);
+            if (next != null && !mayFollow(next)) {
+                markLastTruncated();
+                next = null;
+            }
+            nextUrl = next;
+        }
+
+        /**
+         * Guards against a paging link that repeats or never ends: a link already followed in this import, or
+         * more Graph requests than {@code max-graph-pages}, ends the paging instead of looping. Records the link.
+         */
+        private boolean mayFollow(URI next) {
+            if (graphRequests >= limits.maxGraphPages() || !followed.add(next)) {
+                log.warn("Meta history paging stopped: repeated link or page cap reached");
+                return false;
+            }
+            return true;
+        }
+
+        private void markLastTruncated() {
+            HistoryConversation last = buffer.pollLast();
+            if (last != null) {
+                buffer.addLast(new HistoryConversation(last.peerId(), last.peerName(), last.messages(), true));
+            }
         }
 
         private RestClient.RequestHeadersSpec<?> firstRequest() {
@@ -124,6 +152,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private JsonNode fetch(RestClient.RequestHeadersSpec<?> request) {
+            graphRequests++;
             try {
                 JsonNode body = request.headers(GraphAuth.bearer(token)).accept(MediaType.APPLICATION_JSON)
                         .retrieve().body(JsonNode.class);
@@ -151,7 +180,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                 page.path("data").forEach(messages::add);
                 fetchedMessages += page.path("data").size();
                 next = nextLink(page);
-                if (next != null && !withinLimits(messages.size())) {
+                if (next != null && (!withinLimits(messages.size()) || !mayFollow(next))) {
                     break;
                 }
                 page = next == null ? page : fetch(graph.get().uri(next));

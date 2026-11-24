@@ -45,7 +45,8 @@ public class HistoryImportService {
      * Imports the account history. Empty when the account no longer exists.
      *
      * @throws HistoryImportInProgressException when this account is already being imported
-     * @throws HistoryFetchException when Meta fails; what was stored stays and the account is not marked imported but records the failure code
+     * @throws HistoryFetchException when Meta fails; what was stored stays, the account is not marked
+     *         imported and the failure code is recorded
      * @throws HistoryPermissionException when Meta refuses to share conversations
      */
     public Optional<HistoryImportResult> importHistory(Channel channel, UUID accountId) {
