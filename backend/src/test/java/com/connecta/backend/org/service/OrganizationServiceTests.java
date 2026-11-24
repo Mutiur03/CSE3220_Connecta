@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.connecta.backend.auth.service.AccountNotAvailableException;
@@ -41,6 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
@@ -62,6 +64,9 @@ class OrganizationServiceTests {
     @Mock
     TenantAccessService tenants;
 
+    @Mock
+    ApplicationEventPublisher events;
+
     OrganizationService service;
 
     private final User caller = TestUsers.user("jane@example.com", Roles.AGENT);
@@ -70,7 +75,8 @@ class OrganizationServiceTests {
 
     @BeforeEach
     void callerIsEnabled() {
-        service = new OrganizationService(organizations, memberships, users, tenants, new ActiveCaller(users));
+        service = new OrganizationService(organizations, memberships, users, tenants, new ActiveCaller(users),
+                events);
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
     }
 
@@ -315,6 +321,7 @@ class OrganizationServiceTests {
 
             verify(memberships).delete(ownership);
             verify(organizations).delete(target);
+            verify(events).publishEvent(new OrganizationDeletedEvent(organizationId));
         }
 
         @Test
@@ -324,6 +331,7 @@ class OrganizationServiceTests {
 
             assertThrows(InsufficientOrganizationRoleException.class, () -> service.delete(subject, organizationId));
             verify(organizations, never()).delete(any());
+            verifyNoInteractions(events);
         }
 
         @Test
@@ -333,6 +341,7 @@ class OrganizationServiceTests {
 
             assertThrows(NotAMemberException.class, () -> service.delete(subject, organizationId));
             verify(organizations, never()).delete(any());
+            verifyNoInteractions(events);
         }
 
         @Test
@@ -342,6 +351,7 @@ class OrganizationServiceTests {
             assertThrows(AccountNotAvailableException.class, () -> service.delete(subject, organizationId));
             verify(tenants, never()).requireRole(any(), any(), any());
             verify(organizations, never()).delete(any());
+            verifyNoInteractions(events);
         }
     }
 }

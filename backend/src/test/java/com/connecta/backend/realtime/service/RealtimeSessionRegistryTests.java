@@ -119,6 +119,24 @@ class RealtimeSessionRegistryTests {
         }
 
         @Test
+        void closeOrganizationClosesEveryUserOfThatOrganizationOnly() throws IOException {
+            WebSocketSession first = session("first");
+            WebSocketSession second = session("second");
+            WebSocketSession otherOrg = session("other");
+            registry.register(first, orgA, UUID.randomUUID());
+            registry.register(second, orgA, UUID.randomUUID());
+            registry.register(otherOrg, orgB, UUID.randomUUID());
+
+            registry.closeOrganization(orgA, RealtimeSessionRegistry.ACCESS_REVOKED);
+
+            verify(first).close(RealtimeSessionRegistry.ACCESS_REVOKED);
+            verify(second).close(RealtimeSessionRegistry.ACCESS_REVOKED);
+            verify(otherOrg, never()).close(any(CloseStatus.class));
+            assertThat(registry.count(orgA)).isZero();
+            assertThat(registry.count(orgB)).isEqualTo(1);
+        }
+
+        @Test
         void usesCloseCode4003() {
             assertThat(RealtimeSessionRegistry.ACCESS_REVOKED.getCode()).isEqualTo(4003);
         }
