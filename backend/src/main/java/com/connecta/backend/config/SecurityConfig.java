@@ -50,6 +50,8 @@ class SecurityConfig {
         "/api/meta/oauth/callback", "/api/meta/instagram/callback",
         // Meta's webhook: the verify token (GET) and the event signature (POST) are the checks.
         "/api/meta/webhooks",
+        // Browsers cannot send a header on a WebSocket: the single-use ticket handshake is the check.
+        "/ws/inbox",
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 
