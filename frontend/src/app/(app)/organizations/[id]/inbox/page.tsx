@@ -4,6 +4,7 @@ import { InboxIcon } from "@/components/icons";
 import ConversationList from "@/components/conversation-list";
 import InboxFilterBar from "@/components/inbox-filter-bar";
 import OrgPagination from "@/components/org-pagination";
+import RealtimeInboxRefresher from "@/components/realtime-inbox-refresher";
 import { listConversations } from "@/lib/inbox-api";
 import {
   hasInboxFilters,
@@ -54,6 +55,7 @@ export default async function InboxPage({
 
   return (
     <>
+      <RealtimeInboxRefresher orgId={id} />
       <header className="flex flex-col gap-1">
         <Link
           href={`/organizations/${id}`}
