@@ -3,6 +3,7 @@ package com.connecta.backend.realtime.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -10,6 +11,7 @@ import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.org.service.NotAMemberException;
 import com.connecta.backend.realtime.dto.TicketResponse;
 import com.connecta.backend.realtime.service.RealtimeTicketService;
+import com.connecta.backend.realtime.service.TooManyTicketsException;
 import com.connecta.backend.support.MockRepositories;
 import com.connecta.backend.support.TestTokens;
 import com.connecta.backend.support.TestUsers;
@@ -60,6 +62,17 @@ class RealtimeTicketControllerIntegrationTests {
 
         mvc.perform(post(url).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(props, admin)))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void tooManyTicketsIsTooManyRequests() throws Exception {
+        when(tickets.issue(any(), any())).thenThrow(new TooManyTicketsException());
+
+        mvc.perform(post(url).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(props, agent)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "60"))
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.detail").value("Too many realtime tickets requested, try again shortly"));
     }
 
     @Test

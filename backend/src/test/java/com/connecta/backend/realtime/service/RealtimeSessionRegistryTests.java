@@ -31,7 +31,8 @@ class RealtimeSessionRegistryTests {
     @BeforeEach
     void setUp() {
         registry = new RealtimeSessionRegistry(new RealtimeProperties(Duration.ofSeconds(30),
-                Duration.ofSeconds(90), Duration.ofSeconds(30), 2, Duration.ofSeconds(5), 65536), clock);
+                Duration.ofSeconds(90), Duration.ofSeconds(30), 2, Duration.ofSeconds(5), 65536, 5, 20,
+                Duration.ofMinutes(1), 1024), clock);
     }
 
     private static WebSocketSession session(String id) {
@@ -92,6 +93,34 @@ class RealtimeSessionRegistryTests {
 
             verify(closed, never()).sendMessage(any());
             assertThat(registry.count(orgA)).isZero();
+        }
+    }
+
+    @Nested
+    class CloseSessions {
+
+        @Test
+        void closesOnlyThatUsersSessionsInThatOrganization() throws IOException {
+            UUID user = UUID.randomUUID();
+            WebSocketSession target = session("target");
+            WebSocketSession sameUserOtherOrg = session("otherOrg");
+            WebSocketSession otherUserSameOrg = session("otherUser");
+            registry.register(target, orgA, user);
+            registry.register(sameUserOtherOrg, orgB, user);
+            registry.register(otherUserSameOrg, orgA, UUID.randomUUID());
+
+            registry.closeSessions(orgA, user, RealtimeSessionRegistry.ACCESS_REVOKED);
+
+            verify(target).close(RealtimeSessionRegistry.ACCESS_REVOKED);
+            verify(sameUserOtherOrg, never()).close(any(CloseStatus.class));
+            verify(otherUserSameOrg, never()).close(any(CloseStatus.class));
+            assertThat(registry.count(orgA)).isEqualTo(1);
+            assertThat(registry.count(orgB)).isEqualTo(1);
+        }
+
+        @Test
+        void usesCloseCode4003() {
+            assertThat(RealtimeSessionRegistry.ACCESS_REVOKED.getCode()).isEqualTo(4003);
         }
     }
 

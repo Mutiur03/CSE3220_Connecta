@@ -33,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
@@ -47,6 +48,9 @@ class MemberServiceTests {
     @Mock
     UserService users;
 
+    @Mock
+    ApplicationEventPublisher events;
+
     MemberService service;
 
     private final UUID organizationId = UUID.randomUUID();
@@ -58,7 +62,7 @@ class MemberServiceTests {
     void setUp() {
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
-        service = new MemberService(memberships, users, tenants, new ActiveCaller(users));
+        service = new MemberService(memberships, users, tenants, new ActiveCaller(users), events);
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
         lenient().when(users.findRole(anyString())).thenAnswer(call -> new Role(call.getArgument(0)));
     }
@@ -226,6 +230,7 @@ class MemberServiceTests {
             service.remove(subject, organizationId, mine.getId());
 
             verify(memberships).delete(mine);
+            verify(events).publishEvent(new MemberRemovedEvent(organizationId, caller.getId()));
         }
 
         @Test

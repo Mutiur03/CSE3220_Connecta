@@ -10,7 +10,11 @@ import com.connecta.backend.inbox.domain.MessageDirection;
 import com.connecta.backend.inbox.dto.MessageResponse;
 import com.connecta.backend.inbox.service.MessageLookupService;
 import com.connecta.backend.inbox.service.MessageReceivedEvent;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.connecta.backend.org.service.ActiveCaller;
+import com.connecta.backend.org.service.MemberRemovedEvent;
 import com.connecta.backend.org.service.TenantAccessService;
 import com.connecta.backend.realtime.service.RealtimeTicketService;
 import com.connecta.backend.support.MockRepositories;
@@ -21,15 +25,18 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.WebSocketSession;
@@ -37,8 +44,8 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 /**
- * Real handshake over a random port (no database): origin check, single-use ticket, and the tenant
- * boundary of the push. Runs without Docker.
+ * Real handshake over a random port (no database): origin check, single-use ticket, the tenant
+ * boundary of the push, the frame cap, revocation and ticket-free logs. Runs without Docker.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @MockRepositories
@@ -69,12 +76,22 @@ class InboxWebSocketIntegrationTests {
     MessageLookupService messages;
 
     private WebSocketSession connect(String ticket, String origin, BlockingQueue<String> inbox) throws Exception {
+        return connect(ticket, origin, inbox, new CompletableFuture<>());
+    }
+
+    private WebSocketSession connect(String ticket, String origin, BlockingQueue<String> inbox,
+            CompletableFuture<CloseStatus> closed) throws Exception {
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
         headers.setOrigin(origin);
         return new StandardWebSocketClient().execute(new TextWebSocketHandler() {
             @Override
             protected void handleTextMessage(WebSocketSession session, TextMessage message) {
                 inbox.add(message.getPayload());
+            }
+
+            @Override
+            public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+                closed.complete(status);
             }
         }, headers, URI.create("ws://localhost:" + port + "/ws/inbox?ticket=" + ticket)).get(5, TimeUnit.SECONDS);
     }
@@ -128,6 +145,57 @@ class InboxWebSocketIntegrationTests {
 
         assertThatThrownBy(() -> connect(ticket, "http://evil.example", new LinkedBlockingQueue<>()))
                 .hasMessageContaining("403");
+    }
+
+    @Test
+    void aTicketSurvivesARejectedOriginAttempt() throws Exception {
+        String ticket = ticketFor(orgA);
+
+        assertThatThrownBy(() -> connect(ticket, "http://evil.example", new LinkedBlockingQueue<>()))
+                .hasMessageContaining("403");
+
+        connect(ticket, ORIGIN, new LinkedBlockingQueue<>()).close();
+    }
+
+    @Test
+    void anOversizedFrameClosesTheSessionWith1009() throws Exception {
+        CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
+        WebSocketSession session = connect(ticketFor(orgA), ORIGIN, new LinkedBlockingQueue<>(), closed);
+
+        session.sendMessage(new TextMessage("x".repeat(2048)));
+
+        assertThat(closed.get(5, TimeUnit.SECONDS).getCode()).isEqualTo(1009);
+    }
+
+    @Test
+    void aRemovedMemberIsDisconnectedWithCode4003() throws Exception {
+        CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
+        connect(ticketFor(orgA), ORIGIN, new LinkedBlockingQueue<>(), closed);
+
+        events.publishEvent(new MemberRemovedEvent(orgA, user.getId()));
+
+        assertThat(closed.get(5, TimeUnit.SECONDS).getCode()).isEqualTo(4003);
+    }
+
+    /** At the default log levels; Spring Security's DEBUG line "Securing GET ..." would print the query. */
+    @Test
+    void theTicketNeverAppearsInLogs() throws Exception {
+        Logger root = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        root.addAppender(appender);
+        try {
+            String good = ticketFor(orgA);
+            String bad = ticketFor(orgA);
+            connect(good, ORIGIN, new LinkedBlockingQueue<>()).close();
+            assertThatThrownBy(() -> connect(bad, "http://evil.example", new LinkedBlockingQueue<>()));
+            assertThatThrownBy(() -> connect(good, ORIGIN, new LinkedBlockingQueue<>()));
+
+            assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
+                    .noneMatch(m -> m.contains(good) || m.contains(bad));
+        } finally {
+            root.detachAppender(appender);
+        }
     }
 
     @Test
