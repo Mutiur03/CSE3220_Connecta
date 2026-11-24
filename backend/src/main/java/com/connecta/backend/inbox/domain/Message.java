@@ -56,7 +56,7 @@ public class Message {
 
     /** Set for outbound messages. Null once the agent's user is deleted. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sent_by_user_id", updatable = false)
+    @JoinColumn(name = "sent_by_user_id")
     private User sentByUser;
 
     @Column(name = "external_message_id", length = EXTERNAL_MESSAGE_ID_MAX_LENGTH, updatable = false)
@@ -91,6 +91,13 @@ public class Message {
     public static Message outbound(Conversation conversation, User sentBy, String externalMessageId,
             String body, Instant sentAt) {
         return new Message(conversation, MessageDirection.OUTBOUND, null, sentBy, externalMessageId, body, sentAt);
+    }
+
+    /** Names the agent on an outbound message the webhook echo stored before the send finished. */
+    public void attributeTo(User agent) {
+        if (direction == MessageDirection.OUTBOUND && sentByUser == null) {
+            this.sentByUser = agent;
+        }
     }
 
     @PrePersist

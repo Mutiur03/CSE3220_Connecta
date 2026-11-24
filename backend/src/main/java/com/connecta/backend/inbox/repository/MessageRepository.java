@@ -13,6 +13,10 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
     /** Whether this organization already stored the provider message. Scoped by organization. */
     boolean existsByOrganizationIdAndExternalMessageId(UUID organizationId, String externalMessageId);
 
+    /** The provider message, scoped by organization. */
+    @EntityGraph(attributePaths = {"senderParticipant", "sentByUser"})
+    Optional<Message> findByOrganizationIdAndExternalMessageId(UUID organizationId, String externalMessageId);
+
     /** One page of a conversation's messages, with sender and agent loaded in the same query. */
     @EntityGraph(attributePaths = {"senderParticipant", "sentByUser"})
     Page<Message> findByConversationIdAndOrganizationId(UUID conversationId, UUID organizationId, Pageable pageable);

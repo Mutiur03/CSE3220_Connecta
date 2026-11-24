@@ -134,6 +134,27 @@ class OutgoingMessageServiceTests {
     }
 
     @Nested
+    class EchoFirst {
+
+        @Test
+        void returnsTheEchoedMessageAttributedToTheAgentWithoutSavingAgain() {
+            conversationFound();
+            when(client.send(organizationId, "psid-1", "hello")).thenReturn("mid.1");
+            Message echoed = Message.outbound(thread, null, "mid.1", "hello", TestClock.NOW);
+            TestUsers.set(echoed, "id", UUID.randomUUID());
+            when(messages.findByOrganizationIdAndExternalMessageId(organizationId, "mid.1"))
+                    .thenReturn(java.util.Optional.of(echoed));
+
+            MessageResponse sent = service.send(subject, organizationId, conversationId, "hello");
+
+            verify(messages, never()).save(any());
+            verify(publisher, never()).publishEvent(any(Object.class));
+            assertEquals(echoed.getId(), sent.id());
+            assertEquals(agent.getId(), sent.senderId());
+        }
+    }
+
+    @Nested
     class Failures {
 
         @Test

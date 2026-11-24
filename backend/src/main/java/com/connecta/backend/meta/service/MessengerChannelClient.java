@@ -40,7 +40,7 @@ class MessengerChannelClient extends GraphMessagingClient {
 
     @Override
     public String send(UUID organizationId, String recipientId, String text) {
-        // ponytail: a conversation does not record its Page, so the organization's first Page sends.
+        // The organization's first Page sends until a conversation records its Page (#243).
         MetaConnectedPage page = pages.findByOrganizationId(organizationId, PageRequest.of(0, 1)).stream()
                 .findFirst().orElseThrow(ChannelNotConnectedException::new);
         String token = cipher.decrypt(page.getPageAccessTokenEncrypted());

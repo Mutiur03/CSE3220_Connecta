@@ -41,7 +41,7 @@ class InstagramChannelClient extends GraphMessagingClient {
 
     @Override
     public String send(UUID organizationId, String recipientId, String text) {
-        // ponytail: a conversation does not record its account, so the organization's first account sends.
+        // The organization's first account sends until a conversation records its account (#243).
         MetaConnectedAccount account = accounts.findByOrganizationIdAndPlatform(organizationId,
                 MetaConnectedAccount.PLATFORM_INSTAGRAM, PageRequest.of(0, 1)).stream()
                 .findFirst().orElseThrow(ChannelNotConnectedException::new);
