@@ -42,7 +42,7 @@ class RealtimeTicketServiceTests {
     @BeforeEach
     void setUp() {
         RealtimeProperties props = new RealtimeProperties(Duration.ofSeconds(30), Duration.ofSeconds(90),
-                Duration.ofSeconds(30), 5, Duration.ofSeconds(5), 65536);
+                Duration.ofSeconds(30), 5, Duration.ofSeconds(5), 65536, 2, 3, Duration.ofMinutes(1), 1024);
         service = new RealtimeTicketService(tenants, activeCaller, props, clock);
     }
 
@@ -74,6 +74,79 @@ class RealtimeTicketServiceTests {
 
             assertThat(service.issue(user.getId().toString(), orgId).ticket())
                     .isNotEqualTo(service.issue(user.getId().toString(), orgId).ticket());
+        }
+    }
+
+    @Nested
+    class Limits {
+
+        private String issue() {
+            return service.issue(user.getId().toString(), orgId).ticket();
+        }
+
+        @BeforeEach
+        void caller() {
+            when(activeCaller.load(user.getId().toString())).thenReturn(user);
+        }
+
+        @Test
+        void aUserOverTheOutstandingCapIsRefused() {
+            issue();
+            issue();
+
+            assertThatThrownBy(this::issue).isInstanceOf(TooManyTicketsException.class);
+        }
+
+        @Test
+        void redeemingATicketFreesASlot() {
+            String first = issue();
+            issue();
+            service.redeem(first);
+
+            assertThat(issue()).isNotBlank();
+        }
+
+        @Test
+        void expiryFreesSlotsButTheRateWindowStillApplies() {
+            issue();
+            issue();
+            clock.advance(Duration.ofSeconds(30));
+            issue();
+
+            assertThatThrownBy(this::issue).isInstanceOf(TooManyTicketsException.class);
+        }
+
+        @Test
+        void theRateWindowEndsAndAllowsMoreTickets() {
+            for (int i = 0; i < 3; i++) {
+                service.redeem(issue());
+            }
+            assertThatThrownBy(this::issue).isInstanceOf(TooManyTicketsException.class);
+
+            clock.advance(Duration.ofMinutes(1));
+
+            assertThat(issue()).isNotBlank();
+        }
+
+        @Test
+        void theCapIsPerUser() {
+            User other = TestUsers.user("other@example.com", Roles.AGENT);
+            when(activeCaller.load(other.getId().toString())).thenReturn(other);
+            issue();
+            issue();
+
+            assertThat(service.issue(other.getId().toString(), orgId).ticket()).isNotBlank();
+        }
+
+        @Test
+        void sweepForgetsExpiredTicketsSoTheyCannotBeRedeemed() {
+            String ticket = issue();
+            clock.advance(Duration.ofMinutes(2));
+
+            service.sweepExpired();
+
+            assertThat(service.redeem(ticket)).isEmpty();
+            assertThat(issue()).isNotBlank();
         }
     }
 

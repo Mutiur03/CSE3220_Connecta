@@ -3,7 +3,9 @@ package com.connecta.backend.realtime.controller;
 import com.connecta.backend.config.RealtimeProperties;
 import com.connecta.backend.realtime.service.RealtimeGrant;
 import com.connecta.backend.realtime.service.RealtimeSessionRegistry;
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -13,10 +15,11 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 /**
  * Receives nothing but keep-alives: a client text frame {@code ping} is answered with {@code {"type":"pong"}}
- * and counts as activity. Everything the server pushes goes through {@link RealtimeSessionRegistry}.
+ * and counts as activity. A frame above the size cap closes the session with 1009. Everything the server pushes goes through {@link RealtimeSessionRegistry}.
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class InboxWebSocketHandler extends TextWebSocketHandler {
 
     static final String PING = "ping";
@@ -36,9 +39,21 @@ public class InboxWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        if (message.getPayloadLength() > properties.maxFrameBytes()) {
+            closeQuietly(session);
+            return;
+        }
         registry.touch(session.getId());
         if (PING.equals(message.getPayload())) {
             registry.sendTo(session.getId(), PONG);
+        }
+    }
+
+    private void closeQuietly(WebSocketSession session) {
+        try {
+            session.close(CloseStatus.TOO_BIG_TO_PROCESS);
+        } catch (IOException e) {
+            log.debug("Session {} was already closed", session.getId());
         }
     }
 

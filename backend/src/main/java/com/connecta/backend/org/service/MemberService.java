@@ -8,6 +8,7 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -31,6 +32,7 @@ public class MemberService {
     private final UserService users;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
+    private final ApplicationEventPublisher events;
 
     /** Any member, whatever their role. */
     @Transactional(readOnly = true)
@@ -75,6 +77,7 @@ public class MemberService {
             requireAnotherAdmin(organizationId);
         }
         memberships.delete(target);
+        events.publishEvent(new MemberRemovedEvent(organizationId, target.getUser().getId()));
     }
 
     /** The member, when the caller is ADMIN or above and outranks or equals them. */

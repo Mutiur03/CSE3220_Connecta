@@ -23,8 +23,9 @@ import org.springframework.web.socket.WebSocketSession;
  * goes only to the sessions of the given organization, which is the tenant boundary of live updates. A
  * session that fails to send is dropped alone.
  *
- * <p>ponytail: in-memory and per instance, so a second backend instance would not see this instance's
- * sessions. A broker (Redis pub/sub, a queue) is the upgrade; no interface until there is a second one.
+ * <p>Limitation: sessions are held in this process's memory, so a second backend instance would not see this
+ * instance's sessions. Horizontal scaling needs a message broker (Redis pub/sub, a queue) for the push and a
+ * shared ticket store.
  */
 @Component
 @RequiredArgsConstructor
@@ -32,6 +33,7 @@ import org.springframework.web.socket.WebSocketSession;
 public class RealtimeSessionRegistry {
 
     public static final CloseStatus IDLE_TIMEOUT = new CloseStatus(4001, "Idle timeout");
+    public static final CloseStatus ACCESS_REVOKED = new CloseStatus(4003, "Access revoked");
     public static final CloseStatus REPLACED = new CloseStatus(4002, "Too many sessions");
 
     private record Entry(WebSocketSession session, UUID organizationId, UUID userId, Instant connectedAt,
@@ -78,6 +80,13 @@ public class RealtimeSessionRegistry {
     public void broadcast(UUID organizationId, String json) {
         entries.values().stream().filter(e -> e.organizationId().equals(organizationId))
                 .forEach(e -> send(e, json));
+    }
+
+    /** Closes the user's sessions for that organization only (membership ended). */
+    public void closeSessions(UUID organizationId, UUID userId, CloseStatus status) {
+        List.copyOf(entries.values()).stream()
+                .filter(e -> e.organizationId().equals(organizationId) && e.userId().equals(userId))
+                .forEach(e -> drop(e, status));
     }
 
     public int count(UUID organizationId) {
