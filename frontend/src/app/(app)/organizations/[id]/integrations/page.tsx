@@ -33,6 +33,7 @@ import {
   connectionFlash,
   facebookDetailLine,
   facebookStatus,
+  historyImportNotice,
   STATUS_LABELS,
   type ChannelStatus,
   type ConnectionResultParams,
@@ -250,6 +251,14 @@ function PagesBody({
         ]),
       )
     : {};
+  const notices = connectedPages.ok
+    ? Object.fromEntries(
+        connectedPages.value.content.flatMap((page) => {
+          const notice = historyImportNotice(page.historyImportError);
+          return notice ? [[page.pageId, notice]] : [];
+        }),
+      )
+    : {};
 
   if (!available.ok) {
     return (
@@ -271,6 +280,7 @@ function PagesBody({
     <MetaPagePicker
       pages={available.value}
       connectedOn={connectedOn}
+      notices={notices}
       action={connectPagesAction.bind(null, orgId)}
     />
   );
@@ -325,6 +335,11 @@ function InstagramSection({
                   <span className="figure text-caption text-secondary">
                     Account {account.externalAccountId}
                   </span>
+                  {historyImportNotice(account.historyImportError) && (
+                    <span className="text-caption text-danger">
+                      {historyImportNotice(account.historyImportError)}
+                    </span>
+                  )}
                 </span>
                 <span className="figure shrink-0 text-caption text-secondary">
                   {formatDate(account.connectedAt)}

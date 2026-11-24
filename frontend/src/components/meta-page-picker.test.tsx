@@ -33,6 +33,26 @@ describe("MetaPagePicker", () => {
     expect(tagFor("p2")).not.toContain('checked=""');
   });
 
+  it("shows a warning only under the Page it is for", () => {
+    const markup = renderToStaticMarkup(
+      <MetaPagePicker
+        pages={pages}
+        notices={{ p1: "Importing past conversations failed: permission missing." }}
+        action={noop}
+      />,
+    );
+
+    expect(markup.match(/Importing past conversations failed/g)).toHaveLength(
+      1,
+    );
+    expect(markup.indexOf("Shop Dhaka")).toBeLessThan(
+      markup.indexOf("Importing past"),
+    );
+    expect(markup.indexOf("Importing past")).toBeLessThan(
+      markup.indexOf("Shop Sylhet"),
+    );
+  });
+
   it("keeps the submit enabled when every Page is already connected, so they can be refreshed", () => {
     const markup = html([
       { pageId: "p1", name: "Shop Dhaka", connected: true },
