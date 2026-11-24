@@ -30,7 +30,7 @@ public class OutgoingMessageService {
     public MessageResponse send(String subject, UUID organizationId, UUID conversationId, String text) {
         Conversation conversation = conversations.find(subject, organizationId, conversationId);
         String externalId = channels.forChannel(conversation.getChannel())
-                .send(organizationId, conversation.getExternalThreadId(), text);
+                .send(conversation, text);
         try {
             return recorder.record(subject, organizationId, conversationId, externalId, text);
         } catch (DataIntegrityViolationException duplicate) {

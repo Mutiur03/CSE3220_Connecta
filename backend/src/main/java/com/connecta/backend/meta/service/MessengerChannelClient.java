@@ -2,6 +2,7 @@ package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.MetaProperties;
 import com.connecta.backend.inbox.domain.Channel;
+import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import java.util.UUID;
@@ -39,12 +40,18 @@ class MessengerChannelClient extends GraphMessagingClient {
     }
 
     @Override
-    public String send(UUID organizationId, String recipientId, String text) {
-        // The organization's first Page sends until a conversation records its Page (#243).
-        MetaConnectedPage page = pages.findByOrganizationId(organizationId, PageRequest.of(0, 1)).stream()
-                .findFirst().orElseThrow(ChannelNotConnectedException::new);
-        String token = cipher.decrypt(page.getPageAccessTokenEncrypted());
+    public String send(Conversation conversation, String text) {
+        String token = cipher.decrypt(pageOf(conversation).getPageAccessTokenEncrypted());
         return post(graph.post().uri(uri -> uri.path("/me/messages").queryParam("access_token", token).build()),
-                payload(recipientId, text));
+                payload(conversation.getExternalThreadId(), text));
+    }
+
+    private MetaConnectedPage pageOf(Conversation conversation) {
+        UUID organizationId = conversation.getOrganization().getId();
+        if (conversation.getMetaPage() != null) {
+            return pages.findByIdAndOrganizationId(conversation.getMetaPage().getId(), organizationId)
+                    .orElseThrow(ChannelNotConnectedException::new);
+        }
+        return onlyAccount(pages.findByOrganizationId(organizationId, PageRequest.of(0, 2)).getContent());
     }
 }

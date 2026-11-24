@@ -15,6 +15,7 @@ import com.connecta.backend.inbox.dto.MessageResponse;
 import com.connecta.backend.inbox.service.ConversationNotFoundException;
 import com.connecta.backend.inbox.service.OutgoingMessageService;
 import com.connecta.backend.meta.service.ChannelNotConnectedException;
+import com.connecta.backend.meta.service.ConversationNotLinkedException;
 import com.connecta.backend.meta.service.ChannelSendFailedException;
 import com.connecta.backend.meta.service.MessagingWindowClosedException;
 import com.connecta.backend.org.service.NotAMemberException;
@@ -139,6 +140,15 @@ class OutgoingMessageControllerIntegrationTests {
         mvc.perform(send(agent, "{\"text\":\"hello\"}"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.status").value(422));
+    }
+
+    @Test
+    void aConversationNotLinkedToAnAccountIs422() throws Exception {
+        when(outgoing.send(any(), any(), any(), any())).thenThrow(new ConversationNotLinkedException());
+
+        mvc.perform(send(agent, "{\"text\":\"hello\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.detail").value(new ConversationNotLinkedException().getMessage()));
     }
 
     @Test

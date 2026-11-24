@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,17 @@ abstract class GraphMessagingClient implements ChannelClient {
 
     protected static Map<String, Object> payload(String recipientId, String text) {
         return Map.of("recipient", Map.of("id", recipientId), "message", Map.of("text", text));
+    }
+
+    /** The fallback for a conversation without a recorded account: the organization's only account, else a refusal. */
+    protected static <T> T onlyAccount(List<T> organizationAccounts) {
+        if (organizationAccounts.isEmpty()) {
+            throw new ChannelNotConnectedException();
+        }
+        if (organizationAccounts.size() > 1) {
+            throw new ConversationNotLinkedException();
+        }
+        return organizationAccounts.get(0);
     }
 
     protected String post(RestClient.RequestBodySpec request, Map<String, Object> body) {

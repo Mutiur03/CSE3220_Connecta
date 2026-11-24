@@ -45,6 +45,8 @@ class WebhookEventProcessorTests {
 
     private Organization acme;
     private Organization other;
+    private MetaConnectedPage acmePage;
+    private MetaConnectedPage otherPage;
 
     @BeforeEach
     void setUp() {
@@ -56,16 +58,14 @@ class WebhookEventProcessorTests {
                 new ObjectMapper(), TestClock.FIXED);
         acme = organization();
         other = organization();
+        acmePage = new MetaConnectedPage(acme, "page-1");
+        otherPage = new MetaConnectedPage(other, "page-1");
     }
 
     private static Organization organization() {
         Organization org = new Organization("Org " + UUID.randomUUID(), "org-" + UUID.randomUUID());
         TestUsers.set(org, "id", UUID.randomUUID());
         return org;
-    }
-
-    private MetaConnectedPage pageOf(Organization org, String pageId) {
-        return new MetaConnectedPage(org, pageId);
     }
 
     private static MetaWebhookEvent event(WebhookObject object, String payload) {
@@ -77,28 +77,28 @@ class WebhookEventProcessorTests {
 
         @Test
         void aMessageIsDeliveredToTheOrganizationThatConnectedThePage() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(any(), any(), anyString()))
                     .thenReturn(false);
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
             ArgumentCaptor<NormalizedMessage> captor = ArgumentCaptor.forClass(NormalizedMessage.class);
-            verify(inbox).receive(eq(acme), captor.capture());
+            verify(inbox).receive(eq(acmePage), captor.capture());
             assertEquals("m.1", captor.getValue().externalMessageId());
         }
 
         @Test
         void aPageConnectedByTwoOrganizationsIsDeliveredToBoth() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1"), pageOf(other, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage, otherPage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(any(), any(), anyString()))
                     .thenReturn(false);
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(inbox).receive(acme, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
+            verify(inbox).receive(acmePage, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
                             NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT));
-            verify(inbox).receive(other, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
+            verify(inbox).receive(otherPage, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
                             NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT));
         }
 
@@ -143,7 +143,7 @@ class WebhookEventProcessorTests {
 
         @Test
         void aRedeliveredMessageIsNotDeliveredAgain() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(acme.getId(), WebhookObject.PAGE,
                     "m.1")).thenReturn(true);
 
@@ -155,7 +155,7 @@ class WebhookEventProcessorTests {
 
         @Test
         void aNewMessageIsRecordedBeforeItIsPublished() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(any(), any(), anyString()))
                     .thenReturn(false);
 
@@ -170,7 +170,7 @@ class WebhookEventProcessorTests {
 
         @Test
         void theSameMidInAnotherOrganizationIsStillDelivered() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1"), pageOf(other, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage, otherPage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(acme.getId(), WebhookObject.PAGE, "m.1"))
                     .thenReturn(true);
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(eq(other.getId()), eq(WebhookObject.PAGE),
@@ -178,8 +178,8 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(inbox, never()).receive(eq(acme), any());
-            verify(inbox).receive(eq(other), any());
+            verify(inbox, never()).receive(eq(acmePage), any());
+            verify(inbox).receive(eq(otherPage), any());
             verify(inbox).receive(any(), any());
         }
     }

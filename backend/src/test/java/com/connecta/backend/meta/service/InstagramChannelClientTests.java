@@ -14,6 +14,10 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.inbox.domain.Channel;
+import com.connecta.backend.inbox.domain.Conversation;
+import com.connecta.backend.support.TestUsers;
+import java.util.Optional;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import com.connecta.backend.org.domain.Organization;
@@ -21,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -35,7 +40,10 @@ class InstagramChannelClientTests {
     private static final String URL = "https://graph.instagram.com/v27.0/me/messages";
 
     private final UUID organizationId = UUID.randomUUID();
+    private final Organization organization = new Organization("Acme", "acme");
+    private Conversation thread;
     private MetaConnectedAccountRepository accounts;
+    private TokenCipher cipher;
     private MockRestServiceServer server;
     private InstagramChannelClient client;
 
@@ -45,13 +53,15 @@ class InstagramChannelClientTests {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         MetaProperties properties = new MetaProperties("app", "secret", "v27.0", "config", "https://x", KEY);
-        TokenCipher cipher = new TokenCipher(properties);
-        MetaConnectedAccount account = new MetaConnectedAccount(new Organization("Acme", "acme"),
+        cipher = new TokenCipher(properties);
+        TestUsers.set(organization, "id", organizationId);
+        MetaConnectedAccount account = new MetaConnectedAccount(organization,
                 MetaConnectedAccount.PLATFORM_INSTAGRAM, "ig-1");
         account.refresh("shop", cipher.encrypt("ig-token"), null, Instant.EPOCH);
         when(accounts.findByOrganizationIdAndPlatform(any(UUID.class), eq("INSTAGRAM"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(account)));
         client = new InstagramChannelClient(accounts, cipher, properties, builder);
+        thread = new Conversation(organization, Channel.INSTAGRAM, "igsid-1");
     }
 
     @Test
@@ -63,7 +73,7 @@ class InstagramChannelClientTests {
                 .andRespond(withSuccess("{\"recipient_id\":\"igsid-1\",\"message_id\":\"aWdfZA\"}",
                         MediaType.APPLICATION_JSON));
 
-        assertEquals("aWdfZA", client.send(organizationId, "igsid-1", "hello"));
+        assertEquals("aWdfZA", client.send(thread, "hello"));
         server.verify();
     }
 
@@ -72,7 +82,7 @@ class InstagramChannelClientTests {
         when(accounts.findByOrganizationIdAndPlatform(any(UUID.class), eq("INSTAGRAM"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        assertThrows(ChannelNotConnectedException.class, () -> client.send(organizationId, "igsid-1", "hello"));
+        assertThrows(ChannelNotConnectedException.class, () -> client.send(thread, "hello"));
     }
 
     @Test
@@ -80,7 +90,7 @@ class InstagramChannelClientTests {
         server.expect(requestTo(URL)).andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON)
                 .body("{\"error\":{\"message\":\"x\",\"code\":10}}"));
 
-        assertThrows(MessagingWindowClosedException.class, () -> client.send(organizationId, "igsid-1", "hello"));
+        assertThrows(MessagingWindowClosedException.class, () -> client.send(thread, "hello"));
     }
 
     @Test
@@ -88,6 +98,56 @@ class InstagramChannelClientTests {
         server.expect(requestTo(URL)).andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON)
                 .body("{\"error\":{\"message\":\"x\",\"code\":190}}"));
 
-        assertThrows(ChannelSendFailedException.class, () -> client.send(organizationId, "igsid-1", "hello"));
+        assertThrows(ChannelSendFailedException.class, () -> client.send(thread, "hello"));
+    }
+
+    @Nested
+    class ConversationAccount {
+
+        private MetaConnectedAccount accountWithToken(String externalId, String token) {
+            MetaConnectedAccount account = new MetaConnectedAccount(organization,
+                    MetaConnectedAccount.PLATFORM_INSTAGRAM, externalId);
+            account.refresh("shop", cipher.encrypt(token), null, Instant.EPOCH);
+            TestUsers.set(account, "id", UUID.randomUUID());
+            return account;
+        }
+
+        @Test
+        void sendsWithTheTokenOfTheAccountTheConversationBelongsToEvenWhenTheOrganizationHasTwo() {
+            MetaConnectedAccount second = accountWithToken("ig-2", "second-token");
+            thread.linkToInstagramAccount(second);
+            when(accounts.findByIdAndOrganizationId(second.getId(), organizationId))
+                    .thenReturn(Optional.of(second));
+            server.expect(requestTo(URL)).andExpect(header("Authorization", "Bearer second-token"))
+                    .andRespond(withSuccess("{\"message_id\":\"mid.2\"}", MediaType.APPLICATION_JSON));
+
+            assertEquals("mid.2", client.send(thread, "hello"));
+            server.verify();
+        }
+
+        @Test
+        void aLinkedAccountThatIsGoneIsNotConnected() {
+            MetaConnectedAccount removed = accountWithToken("ig-3", "gone-token");
+            thread.linkToInstagramAccount(removed);
+            when(accounts.findByIdAndOrganizationId(removed.getId(), organizationId)).thenReturn(Optional.empty());
+
+            assertThrows(ChannelNotConnectedException.class, () -> client.send(thread, "hello"));
+        }
+
+        @Test
+        void anUnlinkedConversationFallsBackToTheOnlyAccount() {
+            server.expect(requestTo(URL)).andExpect(header("Authorization", "Bearer ig-token"))
+                    .andRespond(withSuccess("{\"message_id\":\"mid.2\"}", MediaType.APPLICATION_JSON));
+
+            assertEquals("mid.2", client.send(thread, "hello"));
+        }
+
+        @Test
+        void anUnlinkedConversationOfAnOrganizationWithSeveralAccountsIsRefused() {
+            when(accounts.findByOrganizationIdAndPlatform(any(UUID.class), eq("INSTAGRAM"), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(accountWithToken("a", "t1"), accountWithToken("b", "t2"))));
+
+            assertThrows(ConversationNotLinkedException.class, () -> client.send(thread, "hello"));
+        }
     }
 }

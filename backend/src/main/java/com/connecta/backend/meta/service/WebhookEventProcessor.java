@@ -1,8 +1,8 @@
 package com.connecta.backend.meta.service;
 
 import com.connecta.backend.inbox.service.IncomingMessageService;
+import com.connecta.backend.meta.domain.ConnectedChannelAccount;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
-import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.domain.MetaProcessedMessage;
 import com.connecta.backend.meta.domain.MetaWebhookEvent;
 import com.connecta.backend.meta.domain.WebhookObject;
@@ -42,35 +42,35 @@ public class WebhookEventProcessor {
     public void process(MetaWebhookEvent event) {
         JsonNode root = json.readTree(event.getPayload());
         for (JsonNode entry : root.path("entry")) {
-            List<Organization> organizations = organizationsFor(event.getObject(), entry.path("id").asText(""));
-            if (organizations.isEmpty()) {
+            List<ConnectedChannelAccount> targets = accountsFor(event.getObject(), entry.path("id").asText(""));
+            if (targets.isEmpty()) {
                 continue;
             }
             for (NormalizedMessage message : parser.parse(event.getObject(), entry)) {
-                organizations.forEach(organization -> deliver(organization, message));
+                targets.forEach(account -> deliver(account, message));
             }
         }
         event.markProcessed(clock.instant());
     }
 
-    private List<Organization> organizationsFor(WebhookObject object, String entryId) {
+    private List<ConnectedChannelAccount> accountsFor(WebhookObject object, String entryId) {
         if (entryId.isBlank()) {
             return List.of();
         }
         if (object == WebhookObject.PAGE) {
-            return pages.findAllByPageId(entryId).stream().map(MetaConnectedPage::getOrganization).toList();
+            return List.copyOf(pages.findAllByPageId(entryId));
         }
-        return accounts.findAllByPlatformAndExternalAccountId(INSTAGRAM_PLATFORM, entryId).stream()
-                .map(MetaConnectedAccount::getOrganization).toList();
+        return List.copyOf(accounts.findAllByPlatformAndExternalAccountId(INSTAGRAM_PLATFORM, entryId));
     }
 
-    private void deliver(Organization organization, NormalizedMessage message) {
+    private void deliver(ConnectedChannelAccount account, NormalizedMessage message) {
+        Organization organization = account.getOrganization();
         if (processed.existsByOrganizationIdAndObjectAndExternalMessageId(organization.getId(), message.channel(),
                 message.externalMessageId())) {
             return;
         }
         processed.save(new MetaProcessedMessage(organization, message.channel(), message.externalMessageId(),
                 clock.instant()));
-        inbox.receive(organization, message);
+        inbox.receive(account, message);
     }
 }

@@ -9,6 +9,7 @@ import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
 import com.connecta.backend.inbox.repository.ConversationRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
+import com.connecta.backend.meta.domain.ConnectedChannelAccount;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage;
 import com.connecta.backend.org.domain.Organization;
@@ -21,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The persist step of webhook intake: stores one normalized Meta message in one organization's inbox. The
- * customer and the conversation (organization, channel, thread) are found or created, the message is saved
+ * customer and the conversation (organization, channel, thread) are found or created (a new conversation records the connected account the webhook arrived on; later messages never change it), the message is saved
  * unless the organization already has that provider message id, and a {@link MessageReceivedEvent} is published.
  * Every lookup is scoped by organization, so another tenant's rows are never read or reused.
  */
@@ -37,7 +38,8 @@ public class IncomingMessageService {
     private final ApplicationEventPublisher publisher;
 
     @Transactional
-    public void receive(Organization organization, NormalizedMessage incoming) {
+    public void receive(ConnectedChannelAccount account, NormalizedMessage incoming) {
+        Organization organization = account.getOrganization();
         if (messages.existsByOrganizationIdAndExternalMessageId(organization.getId(), incoming.externalMessageId())) {
             log.debug("Skipping a message the organization already has");
             return;
@@ -47,7 +49,7 @@ public class IncomingMessageService {
         Optional<Conversation> existing = conversations.findByOrganizationIdAndChannelAndExternalThreadId(
                 organization.getId(), channel, incoming.peerId());
         Conversation conversation = existing
-                .orElseGet(() -> startConversation(organization, channel, customer, incoming.peerId()));
+                .orElseGet(() -> startConversation(organization, account, channel, customer, incoming.peerId()));
         Message saved = messages.save(toMessage(conversation, customer, incoming));
         conversation.recordMessageAt(incoming.sentAt());
         publisher.publishEvent(new MessageReceivedEvent(organization.getId(), conversation.getId(), saved.getId(),
@@ -66,9 +68,12 @@ public class IncomingMessageService {
                 .orElseGet(() -> participants.save(new Participant(organization, channel, externalId, null)));
     }
 
-    private Conversation startConversation(Organization organization, Channel channel, Participant customer,
+    private Conversation startConversation(Organization organization, ConnectedChannelAccount account,
+            Channel channel, Participant customer,
             String threadId) {
-        Conversation conversation = conversations.save(new Conversation(organization, channel, threadId));
+        Conversation created = new Conversation(organization, channel, threadId);
+        account.linkTo(created);
+        Conversation conversation = conversations.save(created);
         links.save(new ConversationParticipant(conversation, customer));
         return conversation;
     }

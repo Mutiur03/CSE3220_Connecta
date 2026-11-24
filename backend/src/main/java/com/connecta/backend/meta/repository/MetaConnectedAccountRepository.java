@@ -13,6 +13,8 @@ public interface MetaConnectedAccountRepository extends JpaRepository<MetaConnec
     /** Every lookup is scoped to the organization, so another tenant's account is never returned. */
     Page<MetaConnectedAccount> findByOrganizationIdAndPlatform(UUID organizationId, String platform, Pageable pageable);
 
+    Optional<MetaConnectedAccount> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
     Optional<MetaConnectedAccount> findByOrganizationIdAndPlatformAndExternalAccountId(
             UUID organizationId, String platform, String externalAccountId);
 
