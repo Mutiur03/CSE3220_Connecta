@@ -1,5 +1,6 @@
 package com.connecta.backend.realtime.service;
 
+import com.connecta.backend.inbox.service.HistoryImportedEvent;
 import com.connecta.backend.inbox.service.MessageLookupService;
 import com.connecta.backend.inbox.service.MessageReceivedEvent;
 import com.connecta.backend.realtime.dto.RealtimeEnvelope;
@@ -30,6 +31,16 @@ public class InboxRealtimeListener {
                     event.organizationId(), json.writeValueAsString(RealtimeEnvelope.messageCreated(event, message))));
         } catch (RuntimeException e) {
             log.warn("Realtime push failed for message {}", event.messageId(), e);
+        }
+    }
+
+    /** One refresh push after a history import, instead of one push per imported message. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onHistoryImported(HistoryImportedEvent event) {
+        try {
+            registry.broadcast(event.organizationId(), json.writeValueAsString(RealtimeEnvelope.inboxRefresh()));
+        } catch (RuntimeException e) {
+            log.warn("Realtime refresh push failed", e);
         }
     }
 }

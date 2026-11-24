@@ -78,6 +78,12 @@ describe("parseRealtimeEvent", () => {
     expect(parseRealtimeEvent('{"type":"participant.updated"}')).toBeNull();
   });
 
+  it("accepts an inbox.refresh frame, which carries no conversation", () => {
+    expect(
+      parseRealtimeEvent('{"type":"inbox.refresh","conversationId":null}'),
+    ).toMatchObject({ type: "inbox.refresh", conversationId: "" });
+  });
+
   it("ignores pong, malformed JSON, wrong types and non-text frames", () => {
     expect(parseRealtimeEvent('{"type":"pong"}')).toBeNull();
     expect(parseRealtimeEvent("{nope")).toBeNull();
@@ -95,6 +101,12 @@ describe("isRelevant", () => {
     expect(isRelevant(event)).toBe(true);
     expect(isRelevant(event, "c1")).toBe(true);
     expect(isRelevant(event, "c2")).toBe(false);
+  });
+
+  it("an inbox refresh is relevant to the list and to every thread", () => {
+    const refresh = parseRealtimeEvent('{"type":"inbox.refresh"}')!;
+    expect(isRelevant(refresh)).toBe(true);
+    expect(isRelevant(refresh, "c2")).toBe(true);
   });
 });
 

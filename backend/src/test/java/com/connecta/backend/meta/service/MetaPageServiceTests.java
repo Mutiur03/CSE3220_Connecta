@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import org.springframework.context.ApplicationEventPublisher;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,6 +58,7 @@ class MetaPageServiceTests {
     private TokenCipher cipher;
     private TenantAccessService tenants;
     private ActiveCaller callers;
+    private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
     private MetaPageService service;
 
     private Organization acme;
@@ -72,7 +74,7 @@ class MetaPageServiceTests {
         cipher = new TokenCipher(properties);
         tenants = mock(TenantAccessService.class);
         callers = mock(ActiveCaller.class);
-        service = new MetaPageService(properties, authorizations, pages, meta, cipher, tenants, callers, CLOCK);
+        service = new MetaPageService(properties, authorizations, pages, meta, cipher, tenants, callers, CLOCK, publisher);
 
         acme = new Organization("Acme", "acme");
         TestUsers.set(acme, "id", UUID.randomUUID());
@@ -111,6 +113,7 @@ class MetaPageServiceTests {
             assertEquals("page-token-1", cipher.decrypt(saved.getPageAccessTokenEncrypted()));
             assertFalse(saved.getPageAccessTokenEncrypted().contains("page-token-1"));
             assertEquals(admin, saved.getGrantedBy());
+            verify(publisher).publishEvent(any(ChannelConnectedEvent.class));
         }
 
         @Test
@@ -181,7 +184,7 @@ class MetaPageServiceTests {
         void withoutMetaSettingsItIsNotConfigured() {
             MetaProperties unset = new MetaProperties("", "", null, "", "", KEY);
             MetaPageService unconfigured = new MetaPageService(unset, authorizations, pages, meta, cipher, tenants,
-                    callers, CLOCK);
+                    callers, CLOCK, publisher);
 
             assertThrows(MetaNotConfiguredException.class,
                     () -> unconfigured.connect("sub", acme.getId(), List.of("p1")));

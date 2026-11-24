@@ -324,6 +324,13 @@ Ops: the ticket travels in the query string (`/ws/inbox?ticket=...`). The applic
 
 Limitation: tickets and sessions are in memory, so more than one backend instance needs a shared ticket store and a broker.
 
+After a history import (below) the server pushes one `{"type":"inbox.refresh"}` frame to the organization instead of one `message.created` per imported message; the web app reloads the list and the open thread once.
+
+### Past conversations are imported automatically (Messenger and Instagram)
+There is no endpoint and no button. When a Facebook Page or an Instagram account is connected (or reconnected), the server reads its past conversations from Meta in the background and stores them through the normal inbox pipeline (`IncomingMessageService`: tenant scoped, a message id the organization already has is skipped, a new conversation is linked to the connected account). At startup it also imports every connection whose `history_imported_at` is still empty: connections made before this existed, or an import that failed. A failed import leaves the column empty, so the next start or reconnect retries; what was stored stays and a re-run is idempotent.
+
+Limits (`app.meta.history-import.*` in `application.yml`): `max-conversations` 50, `messages-per-conversation` 50 (the newest), `max-messages` 1000 in total, `page-size` 25, `request-timeout` 15s, `worker-threads` 2, `queue-capacity` 100, `enabled` true. A hit limit ends the import as done (the account is marked), not failed. Meta permissions: `pages_messaging` (Messenger) and `instagram_manage_messages` (Instagram); without them Meta answers with a permission error, the import is logged and retried at the next start. Timestamps are Meta's `created_time`; a message with no text is stored as `[Attachment]`; customer names come from the Graph participants and never overwrite a name already stored. Single-instance ceiling: the one-import-per-account guard and the job queue are in memory.
+
 ## Run with Docker
 ```bash
 docker compose up --build

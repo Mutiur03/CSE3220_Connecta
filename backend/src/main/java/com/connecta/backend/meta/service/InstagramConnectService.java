@@ -2,6 +2,7 @@ package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.InstagramProperties;
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import com.connecta.backend.meta.service.InstagramOAuthClient.InstagramAccount;
@@ -15,6 +16,7 @@ import com.connecta.backend.user.domain.User;
 import java.time.Clock;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -44,6 +46,7 @@ public class InstagramConnectService {
     private final ActiveCaller callers;
     private final MetaConnectedAccountRepository accounts;
     private final Clock clock;
+    private final ApplicationEventPublisher publisher;
 
     /** The Instagram login URL for the organization. The caller must be an ADMIN of it. */
     @Transactional(readOnly = true)
@@ -91,7 +94,9 @@ public class InstagramConnectService {
                 .orElseGet(() -> new MetaConnectedAccount(membership.getOrganization(),
                         MetaConnectedAccount.PLATFORM_INSTAGRAM, account.userId()));
         row.refresh(account.username(), cipher.encrypt(token.accessToken()), grantedBy, clock.instant());
-        return accounts.save(row);
+        MetaConnectedAccount saved = accounts.save(row);
+        publisher.publishEvent(new ChannelConnectedEvent(Channel.INSTAGRAM, saved.getId()));
+        return saved;
     }
 
     private void requireConfigured() {

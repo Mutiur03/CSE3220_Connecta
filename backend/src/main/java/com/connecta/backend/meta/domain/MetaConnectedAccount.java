@@ -52,6 +52,10 @@ public class MetaConnectedAccount implements ConnectedChannelAccount {
     @JoinColumn(name = "granted_by_user_id")
     private User grantedBy;
 
+    /** When the past conversations were last imported to the end of a run; null until one succeeded. */
+    @Column(name = "history_imported_at")
+    private Instant historyImportedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -73,6 +77,10 @@ public class MetaConnectedAccount implements ConnectedChannelAccount {
         if (createdAt == null) {
             this.createdAt = now;
         }
+    }
+
+    public void markHistoryImported(Instant at) {
+        this.historyImportedAt = at;
     }
 
     @Override

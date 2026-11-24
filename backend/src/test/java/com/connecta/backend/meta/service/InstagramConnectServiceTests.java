@@ -8,6 +8,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import org.springframework.context.ApplicationEventPublisher;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +50,7 @@ class InstagramConnectServiceTests {
     private TenantAccessService tenants;
     private ActiveCaller callers;
     private MetaConnectedAccountRepository accounts;
+    private ApplicationEventPublisher publisher;
     private InstagramConnectService service;
 
     private Organization acme;
@@ -62,8 +65,9 @@ class InstagramConnectServiceTests {
         tenants = mock(TenantAccessService.class);
         callers = mock(ActiveCaller.class);
         accounts = mock(MetaConnectedAccountRepository.class);
+        publisher = mock(ApplicationEventPublisher.class);
         service = new InstagramConnectService(meta, new InstagramProperties("ig-app", "ig-secret"), states, client,
-                cipher, tenants, callers, accounts, TestClock.FIXED);
+                cipher, tenants, callers, accounts, TestClock.FIXED, publisher);
 
         acme = new Organization("Acme", "acme");
         TestUsers.set(acme, "id", UUID.randomUUID());
@@ -127,6 +131,8 @@ class InstagramConnectServiceTests {
 
             MetaConnectedAccount saved = service.completeConnection("code", state);
 
+            verify(publisher).publishEvent(new ChannelConnectedEvent(
+                    com.connecta.backend.inbox.domain.Channel.INSTAGRAM, saved.getId()));
             assertEquals("17841", saved.getExternalAccountId());
             assertEquals("acme_shop", saved.getUsername());
             assertEquals(admin, saved.getGrantedBy());

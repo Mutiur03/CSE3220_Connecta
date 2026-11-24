@@ -295,4 +295,40 @@ class IncomingMessageServiceTests {
             assertSame(otherPage, saved.getValue().getMetaPage());
         }
     }
+
+    @Nested
+    class ImportHistorical {
+
+        @Test
+        void storesTheMessageLikeAWebhookOneButAnnouncesNothing() {
+            boolean stored = service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.1"));
+
+            assertTrue(stored);
+            ArgumentCaptor<Message> saved = ArgumentCaptor.forClass(Message.class);
+            verify(messages).save(saved.capture());
+            assertEquals(SENT_AT, saved.getValue().getSentAt());
+            ArgumentCaptor<Conversation> conversation = ArgumentCaptor.forClass(Conversation.class);
+            verify(conversations).save(conversation.capture());
+            assertSame(acmePage, conversation.getValue().getMetaPage());
+            assertEquals(SENT_AT, conversation.getValue().getLastMessageAt());
+            verify(publisher, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        void aMessageTheOrganizationAlreadyHasReturnsFalseAndStoresNothing() {
+            when(messages.existsByOrganizationIdAndExternalMessageId(acme.getId(), "h.2")).thenReturn(true);
+
+            boolean stored = service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.2"));
+
+            assertFalse(stored);
+            verify(messages, never()).save(any(Message.class));
+        }
+
+        @Test
+        void aMessageAnotherOrganizationHasIsStillStoredForThisOne() {
+            when(messages.existsByOrganizationIdAndExternalMessageId(other.getId(), "h.3")).thenReturn(true);
+
+            assertTrue(service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.3")));
+        }
+    }
 }
