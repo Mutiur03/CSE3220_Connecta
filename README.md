@@ -285,6 +285,9 @@ erDiagram
 | GET | `/api/organizations/{id}/product-categories/{categoryId}` | any member of it | 200 | One category. Another organization's id gets `404`. |
 | PUT | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 200 | Replace a category's name and description. `409` on a name clash. |
 | DELETE | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 204 | Delete a category. Its products stay, uncategorized. |
+| GET | `/api/organizations/{id}/conversations/{conversationId}` | `ADMIN` or `AGENT` of it | 200 | One conversation with participants and status. Another organization id gets `404`. |
+| GET | `/api/organizations/{id}/conversations/{conversationId}/messages` | `ADMIN` or `AGENT` of it | 200 | Message history, newest first (`page`, `size` max 100). |
+| PATCH | `/api/organizations/{id}/conversations/{conversationId}` | `ADMIN` or `AGENT` of it | 200 | Set the status (`OPEN` or `CLOSED`). `400` on a missing or unknown status. |
 | POST | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Start connecting Meta. Returns `{"authorizationUrl"}`, the Facebook login dialog with a signed, 10-minute state. `503` if the Meta app is not configured. |
 | GET | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Whether the organization is connected: `{"connected", "connectedAt", "expiresAt"}`. No token is returned. |
 | GET | `/api/meta/oauth/callback` | public (the signed state is the check) | 302 | Meta's redirect target. Exchanges the code for a long-lived token and stores it encrypted, then redirects the browser to the Integrations page (`?facebook=connected`). A failure redirects back with `metaError` (`denied`, `invalid_state`, `forbidden`, `meta_failed`, `not_configured`). |

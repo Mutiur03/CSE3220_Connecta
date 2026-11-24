@@ -45,6 +45,10 @@ public class Conversation {
             updatable = false)
     private String externalThreadId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private ConversationStatus status = ConversationStatus.OPEN;
+
     @Column(name = "last_message_at")
     private Instant lastMessageAt;
 
@@ -65,6 +69,10 @@ public class Conversation {
         if (lastMessageAt == null || sentAt.isAfter(lastMessageAt)) {
             lastMessageAt = sentAt;
         }
+    }
+
+    public void changeStatus(ConversationStatus newStatus) {
+        this.status = newStatus;
     }
 
     @PrePersist
