@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -60,6 +61,9 @@ class RefreshTokenServiceIntegrationTests {
     SetupService setup;
 
     @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
     SessionService sessionService;
 
     private TokenResponse registerAndLogin(String email) {
@@ -86,9 +90,23 @@ class RefreshTokenServiceIntegrationTests {
     }
 
     @Test
-    void reusingARotatedTokenRevokesTheWholeSessionAndKeepsTheRevocation() {
+    void replayingARotatedTokenAtOnceIsARaceAndLeavesTheSessionAlive() {
+        TokenResponse first = registerAndLogin("race@example.com");
+        TokenResponse second = auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN);
+
+        assertThrows(RefreshTokenJustRotatedException.class,
+                () -> auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN));
+
+        assertFalse(isRevoked(second.refreshToken()));
+    }
+
+    @Test
+    void reusingARotatedTokenAfterTheGraceWindowRevokesTheWholeSessionAndKeepsTheRevocation() {
         TokenResponse first = registerAndLogin("reuse@example.com");
         TokenResponse second = auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN);
+        // The clock is fixed, so age the rotation instead: it happened a minute ago.
+        jdbc.update("update refresh_tokens set revoked_at = revoked_at - interval '1 minute' where token_hash = ?",
+                RefreshTokenService.hash(first.refreshToken()));
 
         assertThrows(InvalidTokenException.class, () -> auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN));
 

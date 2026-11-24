@@ -5,6 +5,7 @@ import com.connecta.backend.auth.service.EmailAlreadyUsedException;
 import com.connecta.backend.auth.service.InvalidCredentialsException;
 import com.connecta.backend.auth.service.InvalidTokenException;
 import com.connecta.backend.auth.service.PasswordUnchangedException;
+import com.connecta.backend.auth.service.RefreshTokenJustRotatedException;
 import com.connecta.backend.auth.service.SessionNotFoundException;
 import com.connecta.backend.auth.service.SetupRequiredException;
 import com.connecta.backend.auth.service.WrongPasswordException;
@@ -18,6 +19,12 @@ class AuthExceptionHandler {
 
     @ExceptionHandler({EmailAlreadyUsedException.class, SetupRequiredException.class})
     ProblemDetail conflict(RuntimeException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+    }
+
+    // 409, not 401: the session is fine, a concurrent request already rotated this token.
+    @ExceptionHandler(RefreshTokenJustRotatedException.class)
+    ProblemDetail justRotated(RefreshTokenJustRotatedException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
     }
 

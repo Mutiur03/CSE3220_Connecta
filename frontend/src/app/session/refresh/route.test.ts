@@ -55,6 +55,29 @@ describe("GET /session/refresh", () => {
     expect(response.cookies.get("refresh_token")?.value).toBe("new-refresh");
   });
 
+  it("shares one backend call between concurrent requests with the same token", async () => {
+    refresh.mockResolvedValue(TOKENS);
+
+    const [a, b] = await Promise.all([
+      GET(request("?next=%2Fa", "refresh_token=shared")),
+      GET(request("?next=%2Fb", "refresh_token=shared")),
+    ]);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(a.cookies.get("refresh_token")?.value).toBe("new-refresh");
+    expect(b.cookies.get("refresh_token")?.value).toBe("new-refresh");
+  });
+
+  it("keeps the cookies and returns to next on a 409 from a concurrent rotation", async () => {
+    refresh.mockRejectedValue(new ApiError(409, "rotated"));
+
+    const response = await GET(request("?next=%2Fa", "refresh_token=raced"));
+
+    expect(response.headers.get("location")).toBe("/a");
+    expect(response.cookies.get("refresh_token")).toBeUndefined();
+    expect(response.cookies.get("access_token")).toBeUndefined();
+  });
+
   it("redirects to /login without calling the API when there is no refresh cookie", async () => {
     const response = await GET(request("?next=%2F"));
 
@@ -67,7 +90,7 @@ describe("GET /session/refresh", () => {
   it("clears both cookies and redirects to /login when the refresh token is rejected", async () => {
     refresh.mockRejectedValue(new ApiError(401, "expired"));
 
-    const response = await GET(request("?next=%2F", "refresh_token=old"));
+    const response = await GET(request("?next=%2F", "refresh_token=rejected"));
 
     expect(response.headers.get("location")).toBe("/login");
     expectRelative(response.headers.get("location"));
@@ -83,7 +106,9 @@ describe("GET /session/refresh", () => {
     async (_case, failure) => {
       refresh.mockRejectedValue(failure);
 
-      const response = await GET(request("?next=%2F", "refresh_token=old"));
+      const response = await GET(
+        request("?next=%2F", `refresh_token=down-${Math.random()}`),
+      );
 
       expect(response.headers.get("location")).toBe(
         "/login?reason=unavailable",
@@ -100,7 +125,10 @@ describe("GET /session/refresh", () => {
       refresh.mockResolvedValue(TOKENS);
 
       const response = await GET(
-        request(`?next=${encodeURIComponent(next)}`, "refresh_token=old"),
+        request(
+          `?next=${encodeURIComponent(next)}`,
+          `refresh_token=n-${Math.random()}`,
+        ),
       );
 
       expect(response.headers.get("location")).toBe("/");

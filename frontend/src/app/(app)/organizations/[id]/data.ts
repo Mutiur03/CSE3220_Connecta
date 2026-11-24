@@ -12,10 +12,13 @@ const isNotFound = (error: unknown) =>
   error instanceof ApiError && error.status === 404;
 
 /** The signed-in user and their access token. Redirects to log in when there is none. */
+// orgId is only the cache key: it keeps one session lookup per organization per request.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const loadSession = cache(async (orgId: string) => {
-  const path = `/organizations/${orgId}`;
-  const user = await getCurrentUser(path);
-  const accessToken = await getAccessToken(path);
+  // No path: every section of the organization (products, categories, ...) shares this, so after a
+  // refresh the user must return to the page they asked for, which the proxy header carries.
+  const user = await getCurrentUser();
+  const accessToken = await getAccessToken();
   return { user, accessToken };
 });
 

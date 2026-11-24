@@ -23,9 +23,10 @@ services:
         GEOIP_DB_URL: ${GEOIP_DB_URL:-}
     container_name: connecta-app
     env_file: ./backend/.env
-    # Overrides backend/.env: compose always runs the prod profile and reaches the database by service name.
+    # Overrides backend/.env: compose runs with production settings and reaches the database by service name.
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SWAGGER_ENABLED: "false"
+      S3_REQUIRED: "true"
       DB_URL: jdbc:postgresql://postgres:5432/connecta
       SPRING_FLYWAY_ENABLED: "true"
       GEOIP_DB_PATH: /opt/geoip/GeoLite2-City.mmdb

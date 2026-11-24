@@ -1,0 +1,128 @@
+# One file for every environment. What differs between dev and prod comes from environment variables:
+# backend/.env locally (loaded by spring-dotenv, see .env.example), the container environment elsewhere.
+# A value without a default (${NAME}) is required: startup fails when it is missing.
+
+spring:
+  application:
+    name: backend
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  servlet:
+    multipart:
+      # Product image uploads: the limits sit at or just above app.product-images.max-size-bytes so an
+      # oversize upload is rejected as 413 before it is buffered.
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+server:
+  port: ${SERVER_PORT:8080}
+  # Behind Render's proxy: use X-Forwarded-For so a session records the client IP, not the proxy's.
+  forward-headers-strategy: framework
+  # Never put exception messages, stack traces or binding errors in an error body.
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
+  health:
+    # A mail server outage must not turn /actuator/health (and the Docker healthcheck) red.
+    mail:
+      enabled: false
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+# API docs are off unless SWAGGER_ENABLED=true (set it in your local .env).
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
+app:
+  # Browser origins allowed to call the API (comma separated).
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+
+  # Token settings. JWT_SECRET: 32+ random bytes.
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: connecta
+    access-ttl: 15s
+    refresh-ttl: 7d
+
+  # How long an organization invitation can be accepted.
+  invitations:
+    ttl: 7d
+
+  # Invitation email. A blank SMTP_HOST means no email is sent (the invite is still created and the link is
+  # shown to the admin). MAIL_FROM and FRONTEND_URL are required.
+  mail:
+    host: "${SMTP_HOST:}"
+    port: ${SMTP_PORT:587}
+    username: "${SMTP_USER:}"
+    password: "${SMTP_PASSWORD:}"
+    starttls: ${SMTP_STARTTLS:true}
+    from: ${MAIL_FROM}
+    # Public address of the web app, used to build the link in the invitation email.
+    frontend-url: ${FRONTEND_URL}
+
+  frontend:
+    # Where the browser goes after a Meta callback (the Integrations page).
+    url: ${FRONTEND_URL}
+
+  # Product image storage on any S3-compatible service (AWS S3, Cloudflare R2, MinIO, ...). Bucket, both keys
+  # and the public base URL must all be set to use S3; blank means the in-memory store (local only).
+  # S3_ENDPOINT is blank for AWS. S3_REQUIRED=true makes startup fail without them: set it in production.
+  storage:
+    s3:
+      endpoint: "${S3_ENDPOINT:}"
+      region: "${S3_REGION:}"
+      bucket: "${S3_BUCKET:}"
+      access-key-id: "${S3_ACCESS_KEY_ID:}"
+      secret-access-key: "${S3_SECRET_ACCESS_KEY:}"
+      path-style-access: ${S3_PATH_STYLE_ACCESS:false}
+      public-base-url: "${S3_PUBLIC_BASE_URL:}"
+      required: ${S3_REQUIRED:false}
+
+  # Optional MaxMind GeoLite2 City file (.mmdb) to show where each session signed in from. A missing file
+  # means no location, not an error.
+  geoip:
+    database-path: ${GEOIP_DB_PATH:geoip/GeoLite2-City.mmdb}
+
+  # Meta connection (Facebook Login for Business). The app settings are optional: blank means the Meta
+  # features answer 503. META_TOKEN_KEY is required: 32 random bytes, base64 encoded.
+  # APP_BASE_URL is this backend's public address; Meta redirects to APP_BASE_URL + /api/meta/oauth/callback.
+  meta:
+    app-id: "${META_APP_ID:}"
+    app-secret: "${META_APP_SECRET:}"
+    graph-version: "${META_GRAPH_API_VERSION:}"
+    config-id: "${META_MESSENGER_CONFIG_ID:}"
+    base-url: "${APP_BASE_URL:}"
+    token-encryption-key: ${META_TOKEN_KEY}
+    instagram:
+      app-id: "${META_INSTAGRAM_APP_ID:}"
+      app-secret: "${META_INSTAGRAM_APP_SECRET:}"
+    webhook:
+      # Verify token Meta sends back when it subscribes the webhook. Blank refuses every subscription.
+      verify-token: "${META_WEBHOOK_VERIFY_TOKEN:}"
+
+  # Product image uploads: largest file and most images per product.
+  product-images:
+    max-size-bytes: 5242880
+    max-per-product: 8

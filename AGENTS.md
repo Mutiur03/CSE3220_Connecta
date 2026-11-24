@@ -218,7 +218,7 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 ### Docker, configuration and CI/CD
 - `backend/Dockerfile` is multi-stage: build with Maven, run on a slim JRE image as a non-root user, with a `HEALTHCHECK` on `/actuator/health`. A frontend Dockerfile follows the same idea.
 - `docker-compose.yml` runs the app, PostgreSQL and the frontend (plus Mailpit under the `dev` profile) with named volumes and a `depends_on` healthcheck, and takes every credential from `.env` (documented in `.env.example`). `docker compose up --build` from a clean clone must work.
-- Spring profiles: `dev` (defaults, Swagger on) and `prod` (no defaults for secrets, docs off). Configuration only through environment variables or `application-*.properties`.
+- Configuration: one `backend/src/main/resources/application.yml`, no Spring profiles. Per-environment values come only from environment variables (`backend/.env` locally, see `.env.example`). Secrets have no default in the file; Swagger is off unless `SWAGGER_ENABLED=true`.
 - Workflows in `.github/workflows`: build and test on every PR; on push to `main` build, test and deploy to Render automatically. Maven and pnpm caches are enabled. A red build blocks the merge.
 - Observability (bonus): Actuator health, info and metrics, a Micrometer Prometheus endpoint, and a Grafana dashboard JSON committed under `ops/`.
 
