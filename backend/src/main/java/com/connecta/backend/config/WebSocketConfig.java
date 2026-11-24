@@ -2,9 +2,9 @@ package com.connecta.backend.config;
 
 import com.connecta.backend.realtime.controller.InboxWebSocketHandler;
 import com.connecta.backend.realtime.controller.TicketHandshakeInterceptor;
-import lombok.RequiredArgsConstructor;
 import jakarta.websocket.server.ServerContainer;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.context.ServletContextAware;

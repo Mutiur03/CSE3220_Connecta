@@ -3,6 +3,7 @@ package com.connecta.backend.realtime.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -69,6 +70,7 @@ class RealtimeTicketControllerIntegrationTests {
 
         mvc.perform(post(url).header(HttpHeaders.AUTHORIZATION, TestTokens.bearer(props, agent)))
                 .andExpect(status().isTooManyRequests())
+                .andExpect(header().string("Retry-After", "60"))
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.detail").value("Too many realtime tickets requested, try again shortly"));
     }

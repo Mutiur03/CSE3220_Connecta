@@ -94,10 +94,6 @@ app:
     max-tickets-per-window: 20
     ticket-rate-window: 1m
     max-frame-bytes: 1024
-    max-outstanding-tickets: 5
-    max-tickets-per-window: 20
-    ticket-rate-window: 1m
-    max-frame-bytes: 1024
 
   frontend:
     # Where the browser goes after a Meta callback (the Integrations page).

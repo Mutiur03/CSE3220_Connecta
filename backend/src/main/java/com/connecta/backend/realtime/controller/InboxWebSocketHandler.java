@@ -14,8 +14,9 @@ import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorato
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 /**
- * Receives nothing but keep-alives: a client text frame {@code ping} is answered with {@code {"type":"pong"}}
- * and counts as activity. A frame above the size cap closes the session with 1009. Everything the server pushes goes through {@link RealtimeSessionRegistry}.
+ * Receives nothing but keep-alives: a client text frame {@code ping} is answered with
+ * {@code {"type":"pong"}} and counts as activity. A frame above the size cap closes the session with 1009.
+ * Everything the server pushes goes through {@link RealtimeSessionRegistry}.
  */
 @Component
 @RequiredArgsConstructor
