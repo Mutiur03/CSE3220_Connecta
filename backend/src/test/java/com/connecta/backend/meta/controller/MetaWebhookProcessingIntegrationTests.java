@@ -3,6 +3,7 @@ package com.connecta.backend.meta.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,7 +13,7 @@ import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import com.connecta.backend.meta.repository.MetaProcessedMessageRepository;
 import com.connecta.backend.meta.repository.MetaWebhookEventRepository;
-import com.connecta.backend.meta.service.MessageReceivedEvent;
+import com.connecta.backend.inbox.service.MessageReceivedEvent;
 import com.connecta.backend.meta.service.TokenCipher;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.OrganizationRepository;
@@ -135,7 +136,7 @@ class MetaWebhookProcessingIntegrationTests {
                 .filter(e -> e.organizationId().equals(acme.getId())).toList();
         assertEquals(1, delivered.size());
         assertEquals(acme.getId(), delivered.get(0).organizationId());
-        assertEquals("Hello", delivered.get(0).message().text());
+        assertTrue(delivered.get(0).newConversation());
         MetaWebhookEvent stored = events.findAll().stream()
                 .filter(e -> e.getPayload().equals(body)).findFirst().orElseThrow();
         assertNotNull(stored.getProcessedAt());
@@ -191,6 +192,6 @@ class MetaWebhookProcessingIntegrationTests {
                 .andExpect(status().isOk());
 
         assertFalse(deliveredMessages().stream()
-                .anyMatch(e -> e.organizationId().equals(unrelated.getId()) && e.message().peerId().equals("customer")));
+                .anyMatch(e -> e.organizationId().equals(unrelated.getId())));
     }
 }

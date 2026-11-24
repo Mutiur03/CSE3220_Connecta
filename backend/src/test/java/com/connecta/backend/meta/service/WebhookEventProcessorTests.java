@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.domain.MetaProcessedMessage;
@@ -28,7 +29,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.ObjectMapper;
 
 class WebhookEventProcessorTests {
@@ -40,7 +40,7 @@ class WebhookEventProcessorTests {
     private MetaConnectedPageRepository pages;
     private MetaConnectedAccountRepository accounts;
     private MetaProcessedMessageRepository processed;
-    private ApplicationEventPublisher publisher;
+    private IncomingMessageService inbox;
     private WebhookEventProcessor processor;
 
     private Organization acme;
@@ -51,8 +51,8 @@ class WebhookEventProcessorTests {
         pages = mock(MetaConnectedPageRepository.class);
         accounts = mock(MetaConnectedAccountRepository.class);
         processed = mock(MetaProcessedMessageRepository.class);
-        publisher = mock(ApplicationEventPublisher.class);
-        processor = new WebhookEventProcessor(pages, accounts, processed, new MessagingEventParser(), publisher,
+        inbox = mock(IncomingMessageService.class);
+        processor = new WebhookEventProcessor(pages, accounts, processed, new MessagingEventParser(), inbox,
                 new ObjectMapper(), TestClock.FIXED);
         acme = organization();
         other = organization();
@@ -83,10 +83,9 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            ArgumentCaptor<MessageReceivedEvent> captor = ArgumentCaptor.forClass(MessageReceivedEvent.class);
-            verify(publisher).publishEvent(captor.capture());
-            assertEquals(acme.getId(), captor.getValue().organizationId());
-            assertEquals("m.1", captor.getValue().message().externalMessageId());
+            ArgumentCaptor<NormalizedMessage> captor = ArgumentCaptor.forClass(NormalizedMessage.class);
+            verify(inbox).receive(eq(acme), captor.capture());
+            assertEquals("m.1", captor.getValue().externalMessageId());
         }
 
         @Test
@@ -97,12 +96,10 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher).publishEvent(new MessageReceivedEvent(acme.getId(),
-                    new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT)));
-            verify(publisher).publishEvent(new MessageReceivedEvent(other.getId(),
-                    new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT)));
+            verify(inbox).receive(acme, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
+                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT));
+            verify(inbox).receive(other, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
+                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT));
         }
 
         @Test
@@ -111,7 +108,7 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher, never()).publishEvent(any());
+            verify(inbox, never()).receive(any(), any());
             verify(processed, never()).save(any());
         }
 
@@ -127,7 +124,7 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.INSTAGRAM, payload));
 
-            verify(publisher).publishEvent(any(MessageReceivedEvent.class));
+            verify(inbox).receive(any(), any());
         }
 
         @Test
@@ -152,7 +149,7 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher, never()).publishEvent(any());
+            verify(inbox, never()).receive(any(), any());
             verify(processed, never()).save(any());
         }
 
@@ -181,10 +178,9 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher, never()).publishEvent(eq(new MessageReceivedEvent(acme.getId(),
-                    new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT))));
-            verify(publisher).publishEvent(any(MessageReceivedEvent.class));
+            verify(inbox, never()).receive(eq(acme), any());
+            verify(inbox).receive(eq(other), any());
+            verify(inbox).receive(any(), any());
         }
     }
 }

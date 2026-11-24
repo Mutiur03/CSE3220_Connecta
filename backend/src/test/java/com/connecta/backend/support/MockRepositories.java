@@ -1,6 +1,10 @@
 package com.connecta.backend.support;
 
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
+import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
+import com.connecta.backend.inbox.repository.ConversationRepository;
+import com.connecta.backend.inbox.repository.MessageRepository;
+import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.org.repository.InvitationRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
@@ -40,6 +44,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         StockMovementRepository.class,
         ProductImageRepository.class, MetaAuthorizationRepository.class, MetaConnectedPageRepository.class,
         MetaConnectedAccountRepository.class, MetaWebhookEventRepository.class,
-        MetaProcessedMessageRepository.class})
+        MetaProcessedMessageRepository.class, ParticipantRepository.class, ConversationRepository.class,
+        ConversationParticipantRepository.class, MessageRepository.class})
 public @interface MockRepositories {
 }

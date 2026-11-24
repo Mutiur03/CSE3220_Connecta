@@ -60,6 +60,13 @@ public class Conversation {
         this.externalThreadId = externalThreadId;
     }
 
+    /** Moves the last-message time forward only, so a late or retried older message cannot rewind it. */
+    public void recordMessageAt(Instant sentAt) {
+        if (lastMessageAt == null || sentAt.isAfter(lastMessageAt)) {
+            lastMessageAt = sentAt;
+        }
+    }
+
     @PrePersist
     void onCreate() {
         createdAt = updatedAt = Instant.now();

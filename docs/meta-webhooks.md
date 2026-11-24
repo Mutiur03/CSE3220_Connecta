@@ -29,7 +29,7 @@ After a delivery is stored, `WebhookEventProcessor` handles it in the same trans
 
 1. For each `entry`, the id is a Page id (`page`) or an Instagram account id (`instagram`). Connected organizations are looked up in the connection tables; an id no organization connected is skipped.
 2. `MessagingEventParser` turns each messaging event into a `NormalizedMessage` (product, Meta message id, customer id, direction, text or attachment label, time). Echoes are outbound. Events without a message id or any content are skipped.
-3. Each message is delivered once per connected organization: if `meta_processed_messages` already has it, it is skipped; otherwise the row is saved and a `MessageReceivedEvent` is published.
+3. Each message is delivered once per connected organization: if `meta_processed_messages` already has it, it is skipped; otherwise the row is saved and `IncomingMessageService.receive` stores it in the inbox: the customer (`participants`) and the conversation (organization, channel, thread = customer id) are found or created, the message is saved (an id the organization already has in `messages` is skipped), and an `inbox.service.MessageReceivedEvent` is published.
 4. The event is marked processed.
 
 A failure while processing rolls the transaction back, so the event is not stored and Meta retries the delivery. Nothing is swallowed.
