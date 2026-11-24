@@ -131,6 +131,11 @@ app:
     instagram:
       app-id: "${META_INSTAGRAM_APP_ID:}"
       app-secret: "${META_INSTAGRAM_APP_SECRET:}"
+    # Customer name lookup after a message commits: Graph call timeout and its bounded executor.
+    profile-lookup:
+      timeout: 3s
+      pool-size: 2
+      queue-capacity: 100
     webhook:
       # Verify token Meta sends back when it subscribes the webhook. Blank refuses every subscription.
       verify-token: "${META_WEBHOOK_VERIFY_TOKEN:}"

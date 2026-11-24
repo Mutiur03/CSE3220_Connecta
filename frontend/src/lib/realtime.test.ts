@@ -71,6 +71,13 @@ describe("parseRealtimeEvent", () => {
     });
   });
 
+  it("accepts a participant.updated frame that carries only the conversation", () => {
+    expect(
+      parseRealtimeEvent('{"type":"participant.updated","conversationId":"c1"}'),
+    ).toMatchObject({ type: "participant.updated", conversationId: "c1" });
+    expect(parseRealtimeEvent('{"type":"participant.updated"}')).toBeNull();
+  });
+
   it("ignores pong, malformed JSON, wrong types and non-text frames", () => {
     expect(parseRealtimeEvent('{"type":"pong"}')).toBeNull();
     expect(parseRealtimeEvent("{nope")).toBeNull();
