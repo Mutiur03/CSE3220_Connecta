@@ -29,9 +29,9 @@ export default function RailOrgSection({
     <div
       role="group"
       aria-label={current.name}
-      className="flex flex-col gap-0.5 max-[799px]:contents"
+      className="flex flex-col gap-0.5"
     >
-      <p className="truncate px-2.5 pt-2 text-caption text-secondary max-[799px]:sr-only">
+      <p className="truncate px-2.5 pt-2 text-caption text-secondary">
         {current.name}
       </p>
       <RailLink href={`/organizations/${current.id}/products`} label="Products">

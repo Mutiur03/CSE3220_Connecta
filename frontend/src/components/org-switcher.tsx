@@ -4,7 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Organization } from "@/lib/org-api";
-import { CURRENT_ORG_COOKIE, selectCurrentOrganization } from "@/lib/current-org";
+import {
+  CURRENT_ORG_COOKIE,
+  selectCurrentOrganization,
+} from "@/lib/current-org";
 import { ROLE_LABELS } from "@/lib/org-permissions";
 import { BuildingIcon, CheckIcon, ChevronUpDownIcon, PlusIcon } from "./icons";
 import { Button } from "./ui/button";
@@ -37,7 +40,11 @@ export default function OrgSwitcher({
   const root = useRef<HTMLDivElement>(null);
   const createDialog = useRef<HTMLDialogElement>(null);
 
-  const current = selectCurrentOrganization(organizations, pathname, remembered);
+  const current = selectCurrentOrganization(
+    organizations,
+    pathname,
+    remembered,
+  );
   const currentId = current?.id;
 
   useEffect(() => {
@@ -68,7 +75,7 @@ export default function OrgSwitcher({
         aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-2.5 rounded-control border border-line px-2 py-1.5 text-left transition-colors duration-150 hover:bg-hover motion-reduce:transition-none max-[799px]:size-10 max-[799px]:w-auto max-[799px]:justify-center max-[799px]:border-0 max-[799px]:p-0 pointer-coarse:max-[799px]:size-11"
+        className="flex w-full items-center gap-2.5 rounded-control border border-line px-2 py-1.5 text-left transition-colors duration-150 hover:bg-hover motion-reduce:transition-none"
       >
         <span
           aria-hidden="true"
@@ -76,7 +83,7 @@ export default function OrgSwitcher({
         >
           {current ? initials(current.name) : "–"}
         </span>
-        <span className="flex min-w-0 flex-1 flex-col max-[799px]:sr-only">
+        <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-sm font-medium">
             {current ? current.name : "No organization"}
           </span>
@@ -84,13 +91,11 @@ export default function OrgSwitcher({
             {current ? ROLE_LABELS[current.callerRole] : "Create or join one"}
           </span>
         </span>
-        <span className="max-[799px]:hidden">
-          <ChevronUpDownIcon />
-        </span>
+        <ChevronUpDownIcon />
       </button>
 
       {open && (
-        <div className="enter absolute inset-x-0 top-full z-20 mt-1 flex max-[799px]:inset-x-auto max-[799px]:bottom-full max-[799px]:left-0 max-[799px]:top-auto max-[799px]:mb-2 max-[799px]:mt-0 max-[799px]:w-[min(16rem,calc(100vw-1rem))] max-h-80 flex-col overflow-y-auto rounded-panel border border-line bg-surface p-1 shadow-lg">
+        <div className="enter absolute inset-x-0 top-full z-20 mt-1 flex max-h-80 flex-col overflow-y-auto rounded-panel border border-line bg-surface p-1 shadow-lg">
           {organizations.map((org) => (
             <Link
               key={org.id}

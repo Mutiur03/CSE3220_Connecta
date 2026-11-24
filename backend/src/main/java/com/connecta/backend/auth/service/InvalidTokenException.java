@@ -4,6 +4,10 @@ package com.connecta.backend.auth.service;
 public class InvalidTokenException extends RuntimeException {
 
     public InvalidTokenException() {
-        super("Invalid or expired refresh token");
+        this("Invalid or expired refresh token");
+    }
+
+    protected InvalidTokenException(String message) {
+        super(message);
     }
 }

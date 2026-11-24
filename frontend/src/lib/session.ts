@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ApiError, fetchMe, type Tokens, type User } from "./api";
 import {
@@ -8,6 +8,7 @@ import {
   REFRESH_COOKIE,
   accessCookieOptions,
   refreshCookieOptions,
+  REQUESTED_PATH_HEADER,
 } from "./session-cookies";
 
 const secure = () => process.env.NODE_ENV === "production";
@@ -42,7 +43,8 @@ export async function getRefreshToken() {
  * the backend answers 401) goes through /session/refresh, which rotates the refresh token and then
  * returns to `next`.
  */
-export async function getCurrentUser(next = "/"): Promise<User> {
+export async function getCurrentUser(next?: string): Promise<User> {
+  next ??= await requestedPath();
   const store = await cookies();
   const accessToken = store.get(ACCESS_COOKIE)?.value;
   const hasRefresh = store.has(REFRESH_COOKIE);
@@ -57,6 +59,14 @@ export async function getCurrentUser(next = "/"): Promise<User> {
   redirect(hasRefresh ? refreshPath(next) : "/login");
 }
 
+/**
+ * Where to return after a refresh when the caller gave no path (the sidebar panel renders on every
+ * page). The proxy copies the requested path into this header; "/" only when it is absent.
+ */
+async function requestedPath() {
+  return (await headers()).get(REQUESTED_PATH_HEADER) ?? "/";
+}
+
 /** `next` may carry its own query string, so it is encoded as one value. */
 function refreshPath(next: string) {
   return `/session/refresh?next=${encodeURIComponent(next)}`;
@@ -66,7 +76,8 @@ function refreshPath(next: string) {
  * The access token for calls to the backend, or a redirect when it is gone. Pages and actions call
  * getCurrentUser first, which refreshes an expired token; this only reads the cookie.
  */
-export async function getAccessToken(next = "/"): Promise<string> {
+export async function getAccessToken(next?: string): Promise<string> {
+  next ??= await requestedPath();
   const store = await cookies();
   const accessToken = store.get(ACCESS_COOKIE)?.value;
   if (accessToken) return accessToken;

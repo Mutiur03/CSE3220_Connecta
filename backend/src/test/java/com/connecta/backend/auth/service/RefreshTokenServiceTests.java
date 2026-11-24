@@ -152,6 +152,19 @@ class RefreshTokenServiceTests {
         }
 
         @Test
+        void replayingATokenRotatedSecondsAgoIsARaceAndRevokesNothing() {
+            RefreshToken used = stored("race-raw", NOW.plusSeconds(3600));
+            used.revoke(NOW.minusSeconds(2));
+            when(tokens.findByTokenHash(RefreshTokenService.hash("race-raw"))).thenReturn(Optional.of(used));
+            when(tokens.existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(any(), any(), any())).thenReturn(true);
+
+            assertThrows(RefreshTokenJustRotatedException.class,
+                    () -> service.rotate("race-raw", ClientInfo.UNKNOWN));
+            verify(tokens, never()).revokeAllForUser(any(), any());
+            verify(tokens, never()).save(any());
+        }
+
+        @Test
         void aTokenRevokedWithoutBeingRotatedIsRejectedAndTouchesNoOtherSession() {
             RefreshToken signedOut = stored("out-raw", NOW.plusSeconds(3600));
             signedOut.revoke(NOW.minusSeconds(30));

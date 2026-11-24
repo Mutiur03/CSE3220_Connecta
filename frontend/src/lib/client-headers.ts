@@ -5,14 +5,17 @@ import { headers } from "next/headers";
  * their session. The backend only sees this server's request, so without these the session list
  * would show the Next.js server instead of the person's device.
  */
-export async function forwardedClientHeaders(): Promise<
-  Record<string, string>
-> {
-  const incoming = await headers();
+export function clientHeadersFrom(incoming: Headers): Record<string, string> {
   const forwarded: Record<string, string> = {};
   const userAgent = incoming.get("user-agent");
   if (userAgent) forwarded["User-Agent"] = userAgent;
   const address = incoming.get("x-forwarded-for");
   if (address) forwarded["X-Forwarded-For"] = address;
   return forwarded;
+}
+
+export async function forwardedClientHeaders(): Promise<
+  Record<string, string>
+> {
+  return clientHeadersFrom(await headers());
 }

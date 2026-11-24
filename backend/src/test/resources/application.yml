@@ -1,0 +1,48 @@
+# Replaces src/main/resources/application.yml in tests (same name, first on the classpath).
+# Tests never touch a database or run migrations (the Testcontainers test overrides this).
+# app.jwt.secret is generated per run by RandomJwtSecret.
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+# API docs are off by default (SWAGGER_ENABLED); the security tests check they are reachable when on.
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+app:
+  cors:
+    allowed-origins: http://localhost:3000
+  jwt:
+    issuer: connecta
+    access-ttl: 15m
+    refresh-ttl: 7d
+  invitations:
+    ttl: 7d
+  frontend:
+    url: http://localhost:3000
+  # No SMTP host: the no-op mailer is used and nothing is sent.
+  mail:
+    from: connecta@test.local
+    frontend-url: http://localhost:3000
+  # Meta: fake app values and a fixed test key (base64 of 32 bytes). Tests stub the Graph API, so nothing is called.
+  meta:
+    app-id: test-app-id
+    app-secret: test-app-secret
+    graph-version: v27.0
+    config-id: test-config-id
+    base-url: http://localhost:8080
+    token-encryption-key: dGVzdC1vbmx5LW1ldGEtdG9rZW4ta2V5LTAwMDAwMDE=
+    instagram:
+      app-id: test-instagram-app-id
+      app-secret: test-instagram-app-secret
+    webhook:
+      verify-token: test-webhook-verify-token

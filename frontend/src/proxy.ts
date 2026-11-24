@@ -1,17 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ApiError, type Tokens } from "@/lib/api";
+import { clientHeadersFrom } from "@/lib/client-headers";
+import { refreshOnce, setSessionCookiesOn } from "@/lib/refresh-session";
 import {
   AUTH_PATHS,
   signedInLoginTarget,
   UNAVAILABLE_REASON,
 } from "@/lib/redirect";
-import { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/session-cookies";
+import {
+  ACCESS_COOKIE,
+  REFRESH_COOKIE,
+  REQUESTED_PATH_HEADER,
+} from "@/lib/session-cookies";
 
 // Optimistic check only: is there a session cookie at all? The backend validates the token itself
 // (see getCurrentUser), so a forged cookie gets past this redirect but never past the API.
 // Open to signed-out visitors: an invited person has no account to sign in with yet.
 const PUBLIC_PATHS = new Set(["/invitations/accept"]);
 
-export function proxy(request: NextRequest) {
+const REJECTED = "rejected";
+
+export async function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   const signedIn =
     request.cookies.has(ACCESS_COOKIE) || request.cookies.has(REFRESH_COOKIE);
@@ -34,7 +43,49 @@ export function proxy(request: NextRequest) {
     const target = signedInLoginTarget(searchParams.get("next"));
     return NextResponse.redirect(new URL(target, request.url));
   }
-  return NextResponse.next();
+  const refreshed = onAuthPage ? undefined : await refreshIfExpired(request);
+
+  // Set (not appended) so a client cannot forge it; safeRedirectPath also guards the refresh route.
+  const headers = new Headers(request.headers);
+  headers.set(REQUESTED_PATH_HEADER, pathname + request.nextUrl.search);
+  const response = NextResponse.next({ request: { headers } });
+  if (refreshed === REJECTED) {
+    // Also on the response: a dead cookie left in the browser would bounce /login back forever.
+    response.cookies.delete(ACCESS_COOKIE);
+    response.cookies.delete(REFRESH_COOKIE);
+  } else if (refreshed) {
+    setSessionCookiesOn(response, refreshed);
+  }
+  return response;
+}
+
+/**
+ * Rotates the session before the page renders when the access cookie has expired but the refresh
+ * cookie is still there, so the page never needs the /session/refresh redirect. The new tokens go on
+ * the request too, so this same render (and any server action) already sees them.
+ * A rejected refresh token (401) ends the session; a concurrent rotation (409) or a backend outage
+ * leaves the cookies alone, and getCurrentUser falls back to /session/refresh.
+ */
+async function refreshIfExpired(
+  request: NextRequest,
+): Promise<Tokens | typeof REJECTED | undefined> {
+  const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
+  if (!refreshToken || request.cookies.has(ACCESS_COOKIE)) return undefined;
+  try {
+    const tokens = await refreshOnce(
+      refreshToken,
+      clientHeadersFrom(request.headers),
+    );
+    request.cookies.set(ACCESS_COOKIE, tokens.accessToken);
+    request.cookies.set(REFRESH_COOKIE, tokens.refreshToken);
+    return tokens;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      request.cookies.delete(REFRESH_COOKIE);
+      return REJECTED;
+    }
+    return undefined;
+  }
 }
 
 export const config = {
