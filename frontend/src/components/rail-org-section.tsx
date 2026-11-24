@@ -2,7 +2,13 @@
 
 import { usePathname } from "next/navigation";
 import { selectCurrentOrganization } from "@/lib/current-org";
-import { ArchiveIcon, PackageIcon, PlugIcon, TagIcon } from "./icons";
+import {
+  ArchiveIcon,
+  InboxIcon,
+  PackageIcon,
+  PlugIcon,
+  TagIcon,
+} from "./icons";
 import RailLink from "./rail-link";
 
 type RailOrganization = { id: string; name: string };
@@ -34,6 +40,9 @@ export default function RailOrgSection({
       <p className="truncate px-2.5 pt-2 text-caption text-secondary">
         {current.name}
       </p>
+      <RailLink href={`/organizations/${current.id}/inbox`} label="Inbox">
+        <InboxIcon />
+      </RailLink>
       <RailLink href={`/organizations/${current.id}/products`} label="Products">
         <PackageIcon />
       </RailLink>
