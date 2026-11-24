@@ -14,13 +14,18 @@ export function formatDelta(delta: number): string {
 }
 
 /** The product's movements, newest first, as rows. Empty history gets a line that says what to do. */
-export default function ProductMovementTable({ movements }: { movements: StockMovement[] }) {
+export default function ProductMovementTable({
+  movements,
+}: {
+  movements: StockMovement[];
+}) {
   if (movements.length === 0) {
     return (
-      <div className="flex flex-col items-start gap-2 border-t border-line-subtle pt-6">
+      <div className="flex flex-col gap-1 rounded-control border border-line px-4 py-4">
         <p className="font-medium">No stock movements yet</p>
-        <p className="text-secondary">
-          Record a receipt, an issue or an adjustment above to start this product&apos;s history.
+        <p className="text-sm text-secondary">
+          Record a receipt, an issue or an adjustment above to start this
+          product&apos;s history.
         </p>
       </div>
     );
@@ -29,14 +34,26 @@ export default function ProductMovementTable({ movements }: { movements: StockMo
   return (
     <TableScroll label="Stock movements">
       <table className={tableClass}>
-        <thead className="border-b border-line text-secondary">
+        <thead className="border-b border-line whitespace-nowrap text-secondary">
           <tr>
-            <th scope="col" className="px-4 py-2 font-medium">Type</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">Change</th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">On hand after</th>
-            <th scope="col" className="px-4 py-2 font-medium">Reason</th>
-            <th scope="col" className="px-4 py-2 font-medium">Recorded by</th>
-            <th scope="col" className="px-4 py-2 font-medium">When</th>
+            <th scope="col" className="px-4 py-2 font-medium">
+              Type
+            </th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">
+              Change
+            </th>
+            <th scope="col" className="px-4 py-2 text-right font-medium">
+              On hand after
+            </th>
+            <th scope="col" className="px-4 py-2 font-medium">
+              Reason
+            </th>
+            <th scope="col" className="px-4 py-2 font-medium">
+              Recorded by
+            </th>
+            <th scope="col" className="px-4 py-2 font-medium">
+              When
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -45,17 +62,25 @@ export default function ProductMovementTable({ movements }: { movements: StockMo
               key={movement.id}
               className="h-14 border-b border-line-subtle transition-colors last:border-b-0 hover:bg-hover/60"
             >
-              <td className="px-4 py-2 align-middle">{STOCK_MOVEMENT_LABELS[movement.type]}</td>
-              <td className="px-4 py-2 text-right align-middle">{formatDelta(movement.quantityDelta)}</td>
-              <td className="px-4 py-2 text-right align-middle">{movement.quantityAfter}</td>
+              <td className="px-4 py-2 align-middle">
+                {STOCK_MOVEMENT_LABELS[movement.type]}
+              </td>
+              <td className="figure px-4 py-2 text-right align-middle">
+                {formatDelta(movement.quantityDelta)}
+              </td>
+              <td className="figure px-4 py-2 text-right align-middle">
+                {movement.quantityAfter}
+              </td>
               <td className="max-w-xs truncate px-4 py-2 align-middle text-secondary">
                 {movement.reason ?? DASH}
               </td>
               <td className="px-4 py-2 align-middle text-secondary">
                 {movement.createdBy?.fullName ?? "Removed user"}
               </td>
-              <td className="px-4 py-2 align-middle text-secondary">
-                <time dateTime={movement.createdAt}>{formatDateTime(movement.createdAt)}</time>
+              <td className="figure px-4 py-2 align-middle text-caption whitespace-nowrap text-secondary">
+                <time dateTime={movement.createdAt}>
+                  {formatDateTime(movement.createdAt)}
+                </time>
               </td>
             </tr>
           ))}

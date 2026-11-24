@@ -47,3 +47,30 @@ export function validateSignup(
     errors.email = "Enter a valid email address.";
   return errors;
 }
+
+export type PasswordChangeErrors = {
+  currentPassword?: string;
+  newPassword?: string;
+  confirmPassword?: string;
+};
+
+/** The rules for changing a password; the new one follows the same limits as signup. */
+export function validatePasswordChange(
+  current: string,
+  next: string,
+  confirm: string,
+): PasswordChangeErrors {
+  const errors: PasswordChangeErrors = {};
+  if (!current) errors.currentPassword = "Enter your current password.";
+  if (!next) errors.newPassword = "Enter a new password.";
+  else if (next.length < PASSWORD_MIN)
+    errors.newPassword = `Use at least ${PASSWORD_MIN} characters.`;
+  else if (next.length > PASSWORD_MAX)
+    errors.newPassword = `Use ${PASSWORD_MAX} characters or fewer.`;
+  else if (next === current)
+    errors.newPassword = "Choose a password different from the current one.";
+  if (!confirm) errors.confirmPassword = "Repeat the new password.";
+  else if (next && confirm !== next)
+    errors.confirmPassword = "The passwords do not match.";
+  return errors;
+}

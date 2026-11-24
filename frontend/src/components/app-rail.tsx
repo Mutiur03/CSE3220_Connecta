@@ -5,7 +5,13 @@ import { listOrganizations, MAX_PAGE_SIZE } from "@/lib/org-api";
 import { logout } from "@/lib/auth-actions";
 import { isSystemOwner } from "@/lib/org-permissions";
 import { ACCESS_COOKIE } from "@/lib/session-cookies";
-import { BuildingIcon, HomeIcon, LogOutIcon, UsersIcon } from "./icons";
+import {
+  BuildingIcon,
+  HomeIcon,
+  LogOutIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "./icons";
 import { RAIL_CONTROL, RAIL_LABEL } from "./rail-button";
 import BrandMark from "./brand-mark";
 import { CURRENT_ORG_COOKIE } from "@/lib/current-org";
@@ -77,6 +83,9 @@ async function RailAccount() {
         remembered={remembered}
       />
       <div className="mt-auto flex flex-col gap-0.5 max-[799px]:contents">
+        <RailLink href="/settings" label="Settings">
+          <SettingsIcon />
+        </RailLink>
         <ThemeToggle />
         <form action={logout} className="max-[799px]:order-last">
           <button type="submit" className={RAIL_CONTROL}>

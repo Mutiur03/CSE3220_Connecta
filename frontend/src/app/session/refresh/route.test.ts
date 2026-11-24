@@ -8,6 +8,10 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   refresh,
 }));
 
+vi.mock("@/lib/client-headers", () => ({
+  forwardedClientHeaders: async () => ({ "User-Agent": "test-agent" }),
+}));
+
 import { ApiError } from "@/lib/api";
 import { GET } from "./route";
 
@@ -43,7 +47,7 @@ describe("GET /session/refresh", () => {
       request("?next=%2Forganizations", "refresh_token=old"),
     );
 
-    expect(refresh).toHaveBeenCalledWith("old");
+    expect(refresh).toHaveBeenCalledWith("old", { "User-Agent": "test-agent" });
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe("/organizations");
     expectRelative(response.headers.get("location"));

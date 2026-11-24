@@ -32,13 +32,14 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
         ref={formRef}
         action={formAction}
         noValidate
-        className="flex max-w-xl flex-col gap-4 sm:flex-row sm:items-start"
+        className="flex max-w-2xl flex-col gap-3 sm:flex-row sm:items-start"
       >
         <div className="flex-1">
           <Field
             id="invite-email"
             name="email"
-            label="Email"
+            label="Email address"
+            placeholder="name@company.com"
             type="email"
             autoComplete="off"
             maxLength={254}
@@ -46,7 +47,7 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
             error={state.errors?.email}
           />
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 sm:w-32">
           <label
             htmlFor="invite-role"
             className="text-sm font-medium text-primary"
@@ -75,18 +76,14 @@ export default function OrgInviteForm({ action, roleOptions }: Props) {
           disabled={pending}
           className="sm:mt-6"
         >
-          <PendingLabel
-            pending={pending}
-            busy={"Creating…"}
-            idle={"Create invitation"}
-          />
+          <PendingLabel pending={pending} busy={"Inviting…"} idle={"Invite"} />
         </Button>
       </form>
 
       {alert && <Alert tone="danger">{alert}</Alert>}
 
       {state.token && (
-        <div className="flex max-w-xl flex-col gap-3">
+        <div className="flex max-w-2xl flex-col gap-3">
           <Alert tone="success">{state.notice}</Alert>
           <OrgTokenBox key={state.token} token={state.token} />
         </div>

@@ -4,7 +4,8 @@
   "packageManager": "pnpm@11.25.0",
   "type": "module",
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "geoip": "node scripts/download-geoip.mjs"
   },
   "lint-staged": {
     "frontend/**/*.{js,jsx,ts,tsx}": [

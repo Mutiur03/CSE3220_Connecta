@@ -32,7 +32,7 @@ class TokenServiceTests {
         User user = TestUsers.user("jane@example.com", Roles.ADMIN, Roles.AGENT);
         TokenService service = service(clock);
 
-        Jwt jwt = config.jwtDecoder(PROPS, clock).decode(service.createAccessToken(user));
+        Jwt jwt = config.jwtDecoder(PROPS, clock).decode(service.createAccessToken(user, java.util.UUID.randomUUID()));
 
         assertEquals(user.getId().toString(), jwt.getSubject());
         assertEquals("jane@example.com", jwt.getClaimAsString("email"));
@@ -47,9 +47,21 @@ class TokenServiceTests {
         TokenService service = service(TestClock.FIXED);
         User user = TestUsers.user("jane@example.com", Roles.AGENT);
 
-        String a = service.createAccessToken(user);
-        String b = service.createAccessToken(user);
+        String a = service.createAccessToken(user, java.util.UUID.randomUUID());
+        String b = service.createAccessToken(user, java.util.UUID.randomUUID());
 
         assertNotEquals(a, b);
+    }
+
+    @Test
+    void sessionIdReadsTheSidClaimAndIsNullForOldTokens() {
+        java.util.UUID session = java.util.UUID.randomUUID();
+        TokenService service = service(TestClock.FIXED);
+        User user = TestUsers.user("jane@example.com", Roles.AGENT);
+        Jwt jwt = config.jwtDecoder(PROPS, TestClock.FIXED).decode(service.createAccessToken(user, session));
+        Jwt withoutSid = Jwt.withTokenValue("t").header("alg", "none").claim("sub", "x").build();
+
+        assertEquals(session, TokenService.sessionId(jwt));
+        org.junit.jupiter.api.Assertions.assertNull(TokenService.sessionId(withoutSid));
     }
 }

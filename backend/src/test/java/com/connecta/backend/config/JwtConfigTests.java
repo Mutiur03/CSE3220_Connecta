@@ -28,7 +28,7 @@ class JwtConfigTests {
     private String tokenIssuedAt(Clock clock) {
         JwtProperties props = props(SECRET, "connecta");
         return new TokenService(config.jwtEncoder(props), props, clock)
-                .createAccessToken(TestUsers.user("jane@example.com", Roles.AGENT));
+                .createAccessToken(TestUsers.user("jane@example.com", Roles.AGENT), java.util.UUID.randomUUID());
     }
 
     private JwtDecoder decoder(String secret, String issuer) {

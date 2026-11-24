@@ -27,19 +27,21 @@ export default function OrgRenameForm({ action, name }: Props) {
       ref={formRef}
       action={formAction}
       noValidate
-      className="flex max-w-md flex-col gap-3"
+      className="flex max-w-xl flex-col gap-3"
     >
-      <Field
-        id="rename-org"
-        name="name"
-        label="Organization name"
-        maxLength={100}
-        autoComplete="organization"
-        defaultValue={state.values?.name ?? name}
-        error={state.errors?.name}
-      />
-      <div>
-        <Button type="submit" disabled={pending}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="min-w-0 flex-1">
+          <Field
+            id="rename-org"
+            name="name"
+            label="Organization name"
+            maxLength={100}
+            autoComplete="organization"
+            defaultValue={state.values?.name ?? name}
+            error={state.errors?.name}
+          />
+        </div>
+        <Button type="submit" disabled={pending} className="self-start sm:mt-6">
           <PendingLabel pending={pending} busy={"Saving…"} idle={"Save name"} />
         </Button>
       </div>

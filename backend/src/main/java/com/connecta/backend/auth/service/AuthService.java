@@ -1,5 +1,6 @@
 package com.connecta.backend.auth.service;
 
+import com.connecta.backend.auth.dto.ClientInfo;
 import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
 import com.connecta.backend.auth.dto.TokenResponse;
@@ -54,7 +55,7 @@ public class AuthService {
 
     // Not readOnly: login stores a refresh token, and Postgres rejects writes in a read-only transaction.
     @Transactional
-    public TokenResponse login(LoginRequest request) {
+    public TokenResponse login(LoginRequest request, ClientInfo client) {
         User user = users.findByEmail(User.normalizeEmail(request.email())).orElse(null);
         if (user == null) {
             passwordEncoder.matches(request.password(), dummyHash);
@@ -63,14 +64,13 @@ public class AuthService {
         if (!user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
-        return tokensFor(user, refreshTokens.issue(user));
+        return tokensFor(refreshTokens.issue(user, client));
     }
 
     // noRollbackFor: reuse detection revokes sessions and that must be kept when the request is rejected.
     @Transactional(noRollbackFor = InvalidTokenException.class)
-    public TokenResponse refresh(String refreshToken) {
-        RefreshTokenService.Issued issued = refreshTokens.rotate(refreshToken);
-        return tokensFor(issued.user(), issued.rawToken());
+    public TokenResponse refresh(String refreshToken, ClientInfo client) {
+        return tokensFor(refreshTokens.rotate(refreshToken, client));
     }
 
     /** The signed-in user. A valid token is not enough: deleted or disabled accounts are rejected. */
@@ -97,11 +97,12 @@ public class AuthService {
     /** Signs a user in without a password check, for flows that already proved who they are (an invitation token). */
     @Transactional
     public TokenResponse startSession(User user) {
-        return tokensFor(user, refreshTokens.issue(user));
+        return tokensFor(refreshTokens.issue(user, ClientInfo.UNKNOWN));
     }
 
-    private TokenResponse tokensFor(User user, String refreshToken) {
-        return new TokenResponse(TokenResponse.BEARER, tokenService.createAccessToken(user),
-                tokenService.accessTtlSeconds(), refreshToken, UserResponse.from(user));
+    private TokenResponse tokensFor(RefreshTokenService.Issued issued) {
+        User user = issued.user();
+        return new TokenResponse(TokenResponse.BEARER, tokenService.createAccessToken(user, issued.sessionId()),
+                tokenService.accessTtlSeconds(), issued.rawToken(), UserResponse.from(user));
     }
 }

@@ -5,6 +5,8 @@ import OrgInvitations from "@/components/org-invitations";
 import OrgMembersTable from "@/components/org-members-table";
 import OrgPagination from "@/components/org-pagination";
 import OrgRenameForm from "@/components/org-rename-form";
+import OrgRoleBadge from "@/components/org-role-badge";
+import { buttonClasses } from "@/components/ui/classes";
 import { deleteOrganization, renameOrganization } from "@/lib/org-actions";
 import { listInvitations, listMembers } from "@/lib/org-api";
 import {
@@ -12,7 +14,6 @@ import {
   canDelete,
   canInvite,
   canRename,
-  ROLE_LABELS,
 } from "@/lib/org-permissions";
 import {
   ORG_PAGE_SIZE,
@@ -57,6 +58,7 @@ export default function OrganizationPage({
       <OrganizationHeader params={params} />
       <MembersSection params={params} searchParams={searchParams} />
       <InvitationsSection params={params} searchParams={searchParams} />
+      <RenameSection params={params} />
       <DeleteSection params={params} />
     </>
   );
@@ -65,44 +67,70 @@ export default function OrganizationPage({
 async function OrganizationHeader({ params }: { params: RouteParams }) {
   const { id } = await params;
   const organization = await loadOrganization(id);
-  const role = organization.callerRole;
 
   return (
-    <>
-      <header className="flex flex-col gap-2">
-        <Link
-          href="/organizations"
-          className="text-sm text-secondary underline-offset-4 hover:underline"
-        >
-          All organizations
-        </Link>
-        <h1 className="text-display font-medium">{organization.name}</h1>
-        <p className="text-sm text-secondary">
-          Slug <code>{organization.slug}</code> · Your role: {ROLE_LABELS[role]}
-        </p>
+    <header className="flex flex-col gap-1">
+      <Link
+        href="/organizations"
+        className="self-start text-sm text-secondary underline-offset-4 hover:underline"
+      >
+        All organizations
+      </Link>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="min-w-0 break-words text-display font-medium">
+            {organization.name}
+          </h1>
+          <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-secondary">
+            <div className="flex items-center gap-2">
+              <dt>Your role</dt>
+              <dd>
+                <OrgRoleBadge role={organization.callerRole} />
+              </dd>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <dt>Slug</dt>
+              <dd className="figure min-w-0 break-all text-primary">
+                {organization.slug}
+              </dd>
+            </div>
+          </dl>
+        </div>
         <Link
           href={`/organizations/${id}/products`}
-          className="text-sm text-secondary underline-offset-4 hover:underline"
+          className={buttonClasses("secondary")}
         >
           Product catalog
         </Link>
-      </header>
+      </div>
+    </header>
+  );
+}
 
-      {canRename(role) && (
-        <section
-          aria-labelledby="rename-heading"
-          className="flex flex-col gap-3"
-        >
-          <h2 id="rename-heading" className="text-lg font-medium">
-            Name
-          </h2>
-          <OrgRenameForm
-            action={renameOrganization.bind(null, id)}
-            name={organization.name}
-          />
-        </section>
-      )}
-    </>
+/** A section title with an optional count beside it and one line of context under it. */
+function SectionHeading({
+  id,
+  title,
+  count,
+  description,
+}: {
+  id: string;
+  title: string;
+  count?: number;
+  description?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <h2 id={id} className="flex items-baseline gap-2 text-lg font-medium">
+        {title}
+        {count !== undefined && (
+          <span className="figure text-sm font-normal text-secondary">
+            {count}
+          </span>
+        )}
+      </h2>
+      {description && <p className="text-secondary">{description}</p>}
+    </div>
   );
 }
 
@@ -136,18 +164,37 @@ async function MembersSection({
 
   return (
     <section aria-labelledby="members-heading" className="flex flex-col gap-3">
-      <h2 id="members-heading" className="text-lg font-medium">
-        Members
-      </h2>
-      <OrgMembersTable
-        orgId={id}
-        members={members.content}
-        callerRole={organization.callerRole}
-        callerUserId={user.id}
+      <SectionHeading
+        id="members-heading"
+        title="Members"
+        count={members.totalElements}
+        description={
+          canInvite(organization.callerRole)
+            ? "An organization always keeps one admin, so the last admin cannot leave or become an agent."
+            : "The people who answer this organization's conversations."
+        }
       />
-      {range && (
-        <p className="text-sm text-secondary tabular-nums">
-          Showing {range.from}–{range.to} of {members.totalElements} members
+      {members.content.length === 0 ? (
+        <p className="rounded-control border border-line px-4 py-4 text-secondary">
+          No members on this page.{" "}
+          <Link
+            href={href(0)}
+            className="text-primary underline underline-offset-4"
+          >
+            Go to the first page
+          </Link>
+        </p>
+      ) : (
+        <OrgMembersTable
+          orgId={id}
+          members={members.content}
+          callerRole={organization.callerRole}
+          callerUserId={user.id}
+        />
+      )}
+      {range && count > 1 && (
+        <p className="figure text-caption text-secondary">
+          {range.from}–{range.to} of {members.totalElements}
         </p>
       )}
       <OrgPagination
@@ -196,18 +243,20 @@ async function InvitationsSection({
       aria-labelledby="invitations-heading"
       className="flex flex-col gap-3"
     >
-      <h2 id="invitations-heading" className="text-lg font-medium">
-        Invitations
-      </h2>
+      <SectionHeading
+        id="invitations-heading"
+        title="Invitations"
+        count={invitations.totalElements}
+        description="Invite someone by email. They join with the role you pick once they open the link."
+      />
       <OrgInvitations
         orgId={id}
         invitations={invitations.content}
         roleOptions={assignableRoles(role)}
       />
-      {range && (
-        <p className="text-sm text-secondary tabular-nums">
-          Showing {range.from}–{range.to} of {invitations.totalElements}{" "}
-          invitations
+      {range && count > 1 && (
+        <p className="figure text-caption text-secondary">
+          {range.from}–{range.to} of {invitations.totalElements}
         </p>
       )}
       <OrgPagination
@@ -221,29 +270,52 @@ async function InvitationsSection({
   );
 }
 
+async function RenameSection({ params }: { params: RouteParams }) {
+  const { id } = await params;
+  const organization = await loadOrganization(id);
+  if (!canRename(organization.callerRole)) return null;
+
+  return (
+    <section aria-labelledby="rename-heading" className="flex flex-col gap-3">
+      <SectionHeading
+        id="rename-heading"
+        title="Name"
+        description="Shown in the sidebar and to everyone you invite."
+      />
+      <OrgRenameForm
+        action={renameOrganization.bind(null, id)}
+        name={organization.name}
+      />
+    </section>
+  );
+}
+
 async function DeleteSection({ params }: { params: RouteParams }) {
   const { id } = await params;
   const organization = await loadOrganization(id);
   if (!canDelete(organization.callerRole)) return null;
 
   return (
-    <section
-      aria-labelledby="delete-heading"
-      className="flex flex-col gap-3 border-t border-line pt-6"
-    >
+    <section aria-labelledby="delete-heading" className="flex flex-col gap-3">
       <h2 id="delete-heading" className="text-lg font-medium">
-        Delete organization
+        Danger zone
       </h2>
-      <p className="text-sm text-secondary">
-        Deletes the organization and all its memberships and invitations.
-      </p>
-      <OrgActionButton
-        action={deleteOrganization.bind(null, id)}
-        label="Delete organization"
-        pendingLabel="Deleting…"
-        confirm="Delete this organization? This cannot be undone."
-        tone="danger"
-      />
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-control border border-danger/40 px-4 py-3">
+        <div className="flex min-w-0 flex-1 basis-64 flex-col gap-0.5">
+          <p className="font-medium text-primary">Delete this organization</p>
+          <p className="text-secondary">
+            Removes {organization.name} with all its members and invitations.
+            This cannot be undone.
+          </p>
+        </div>
+        <OrgActionButton
+          action={deleteOrganization.bind(null, id)}
+          label="Delete organization"
+          pendingLabel="Deleting…"
+          confirm={`Delete ${organization.name}? Every member loses access and its invitations stop working. This cannot be undone.`}
+          tone="danger"
+        />
+      </div>
     </section>
   );
 }

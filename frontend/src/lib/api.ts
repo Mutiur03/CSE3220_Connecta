@@ -43,6 +43,8 @@ export async function request<T>(
     /** A multipart body. The browser sets its Content-Type and boundary. */
     form?: FormData;
     accessToken?: string;
+    /** Extra headers, such as the browser's User-Agent forwarded on sign-in. */
+    headers?: Record<string, string>;
   } = {},
 ): Promise<T> {
   const res = await fetch(`${apiBaseUrl()}${path}`, {
@@ -51,6 +53,7 @@ export async function request<T>(
       ...(init.body === undefined || init.form
         ? {}
         : { "Content-Type": "application/json" }),
+      ...init.headers,
       ...(init.accessToken
         ? { Authorization: `Bearer ${init.accessToken}` }
         : {}),
@@ -72,10 +75,15 @@ export async function request<T>(
   return res.status === 204 ? (undefined as T) : res.json();
 }
 
-export const login = (email: string, password: string) =>
+export const login = (
+  email: string,
+  password: string,
+  headers?: Record<string, string>,
+) =>
   request<Tokens>("/api/auth/login", {
     method: "POST",
     body: { email, password },
+    headers,
   });
 
 export const register = (email: string, password: string, fullName: string) =>
@@ -121,10 +129,14 @@ export const acceptInvitationAsNewUser = (
     body: { token, fullName, password },
   });
 
-export const refresh = (refreshToken: string) =>
+export const refresh = (
+  refreshToken: string,
+  headers?: Record<string, string>,
+) =>
   request<Tokens>("/api/auth/refresh", {
     method: "POST",
     body: { refreshToken },
+    headers,
   });
 
 export const logout = (refreshToken: string) =>

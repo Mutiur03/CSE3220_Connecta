@@ -17,7 +17,9 @@ const summary = {
 };
 
 const html = () =>
-  renderToStaticMarkup(<InventorySummaryStats summary={summary} links={links} />);
+  renderToStaticMarkup(
+    <InventorySummaryStats summary={summary} links={links} />,
+  );
 
 describe("InventorySummaryStats", () => {
   it("formats the counts and the stock value", () => {
@@ -34,10 +36,21 @@ describe("InventorySummaryStats", () => {
     expect(markup).toContain(`href="${links.outOfStock}"`);
   });
 
-  it("leaves total units and stock value without a link", () => {
+  it("leaves units in stock and stock value without a link", () => {
     const markup = html();
     expect(markup.match(/<a /g)).toHaveLength(3);
-    expect(markup).toContain("Total units");
+    expect(markup).toContain("Units in stock");
     expect(markup).toContain("Stock value");
+  });
+
+  it("marks out of stock in the danger colour only when something is out", () => {
+    expect(html()).toContain("text-danger");
+    const none = renderToStaticMarkup(
+      <InventorySummaryStats
+        summary={{ ...summary, outOfStockCount: 0 }}
+        links={links}
+      />,
+    );
+    expect(none).not.toContain("text-danger");
   });
 });

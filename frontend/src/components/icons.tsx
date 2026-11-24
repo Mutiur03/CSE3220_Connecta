@@ -140,6 +140,17 @@ export const PackageIcon = () => (
   </Icon>
 );
 
+export const PackageSearchIcon = () => (
+  <Icon>
+    <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14" />
+    <path d="m7.5 4.27 9 5.15" />
+    <path d="M3.29 7 12 12l8.71-5" />
+    <path d="M12 22V12" />
+    <circle cx="18.5" cy="15.5" r="2.5" />
+    <path d="M20.27 17.27 22 19" />
+  </Icon>
+);
+
 export const TagIcon = () => (
   <Icon>
     <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
@@ -155,11 +166,51 @@ export const ArchiveIcon = () => (
   </Icon>
 );
 
+export const ArrowLeftRightIcon = () => (
+  <Icon>
+    <path d="M8 3 4 7l4 4" />
+    <path d="M4 7h16" />
+    <path d="m16 21 4-4-4-4" />
+    <path d="M20 17H4" />
+  </Icon>
+);
+
 export const ImageIcon = () => (
   <Icon>
     <rect width="18" height="18" x="3" y="3" rx="2" />
     <circle cx="9" cy="9" r="2" />
     <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+  </Icon>
+);
+
+export const SettingsIcon = () => (
+  <Icon>
+    <path d="M20 7h-9" />
+    <path d="M14 17H5" />
+    <circle cx="17" cy="17" r="3" />
+    <circle cx="7" cy="7" r="3" />
+  </Icon>
+);
+
+// Channel glyphs are drawn in the current text colour: channel identity is a detail, never brand colour.
+export const FacebookIcon = () => (
+  <Icon>
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+  </Icon>
+);
+
+export const InstagramIcon = () => (
+  <Icon>
+    <rect width="20" height="20" x="2" y="2" rx="5" />
+    <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+    <path d="M17.5 6.5h.01" />
+  </Icon>
+);
+
+export const CircleCheckIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="10" />
+    <path d="m9 12 2 2 4-4" />
   </Icon>
 );
 
@@ -169,5 +220,54 @@ export const PlugIcon = () => (
     <path d="M9 8V2" />
     <path d="M15 8V2" />
     <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+  </Icon>
+);
+
+export const UserIcon = () => (
+  <Icon>
+    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </Icon>
+);
+
+export const LockIcon = () => (
+  <Icon>
+    <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </Icon>
+);
+
+export const MonitorIcon = () => (
+  <Icon>
+    <rect width="20" height="14" x="2" y="3" rx="2" />
+    <path d="M8 21h8M12 17v4" />
+  </Icon>
+);
+
+export const SmartphoneIcon = () => (
+  <Icon>
+    <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+    <path d="M12 18h.01" />
+  </Icon>
+);
+
+export const TabletIcon = () => (
+  <Icon>
+    <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
+    <path d="M12 18h.01" />
+  </Icon>
+);
+
+export const CircleHelpIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
+  </Icon>
+);
+
+export const MonitorSmartphoneIcon = () => (
+  <Icon>
+    <path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8M10 19v-3.96 3.15M7 19h5" />
+    <rect width="6" height="10" x="16" y="12" rx="2" />
   </Icon>
 );

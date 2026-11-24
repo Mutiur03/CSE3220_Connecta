@@ -8,10 +8,11 @@ import {
   CATEGORY_NAME_MAX_LENGTH,
 } from "@/lib/category-validation";
 import { alertText } from "@/lib/org-form-state";
-import { buttonClasses, fieldClasses } from "./ui/classes";
+import { buttonClasses } from "./ui/classes";
+import { FormFooter, FormPanel, FormSection } from "./form-layout";
 import { Alert } from "./ui/alert";
 import { Button, PendingLabel } from "./ui/button";
-import { Field } from "./ui/field";
+import { Field, TextareaField } from "./ui/field";
 import { useFocusInvalidField } from "./use-focus-invalid-field";
 
 type Props = {
@@ -38,56 +39,52 @@ export default function CategoryForm({
   const [state, formAction, pending] = useActionState(action, {});
   const formRef = useRef<HTMLFormElement>(null);
   const descriptionId = useId();
-  const descriptionError = state.errors?.description;
   useFocusInvalidField(formRef, state.errors);
   const alert = alertText(state);
 
   return (
-    <form
-      ref={formRef}
-      action={formAction}
-      noValidate
-      className="flex max-w-xl flex-col gap-4"
-    >
-      <Field
-        id="category-name"
-        name="name"
-        label="Name"
-        maxLength={CATEGORY_NAME_MAX_LENGTH}
-        autoComplete="off"
-        defaultValue={state.values?.name ?? defaultName}
-        error={state.errors?.name}
-      />
-      <div className="flex flex-col gap-1">
-        <label htmlFor={descriptionId} className="text-sm font-medium text-primary">
-          Description
-        </label>
-        <textarea
-          id={descriptionId}
-          name="description"
-          rows={4}
-          maxLength={CATEGORY_DESCRIPTION_MAX_LENGTH}
-          autoComplete="off"
-          defaultValue={state.values?.description ?? defaultDescription}
-          aria-invalid={descriptionError ? true : undefined}
-          aria-describedby={descriptionError ? `${descriptionId}-error` : undefined}
-          className={`${fieldClasses} resize-y`}
-        />
-        {descriptionError && (
-          <p id={`${descriptionId}-error`} className="text-sm text-danger">
-            {descriptionError}
-          </p>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" variant="primary" disabled={pending}>
-          <PendingLabel pending={pending} busy={busyLabel} idle={submitLabel} />
-        </Button>
-        <Link href={cancelHref} className={buttonClasses("secondary")}>
-          Cancel
-        </Link>
-      </div>
-      {alert && <Alert tone="danger">{alert}</Alert>}
+    <form ref={formRef} action={formAction} noValidate>
+      <FormPanel>
+        <FormSection
+          title="Details"
+          description="Teammates pick the category on a product, and filter the product list by it."
+        >
+          <Field
+            id="category-name"
+            name="name"
+            label="Name"
+            maxLength={CATEGORY_NAME_MAX_LENGTH}
+            autoComplete="off"
+            defaultValue={state.values?.name ?? defaultName}
+            hint="Short and plain, such as Beverages or Gift sets. No two categories share a name."
+            error={state.errors?.name}
+          />
+          <TextareaField
+            id={descriptionId}
+            name="description"
+            label="Description"
+            labelNote="(optional)"
+            rows={4}
+            maxLength={CATEGORY_DESCRIPTION_MAX_LENGTH}
+            autoComplete="off"
+            defaultValue={state.values?.description ?? defaultDescription}
+            hint="What belongs here, for the teammates who sort products into it."
+            error={state.errors?.description}
+          />
+        </FormSection>
+        <FormFooter alert={alert && <Alert tone="danger">{alert}</Alert>}>
+          <Link href={cancelHref} className={buttonClasses("secondary")}>
+            Cancel
+          </Link>
+          <Button type="submit" variant="primary" disabled={pending}>
+            <PendingLabel
+              pending={pending}
+              busy={busyLabel}
+              idle={submitLabel}
+            />
+          </Button>
+        </FormFooter>
+      </FormPanel>
     </form>
   );
 }

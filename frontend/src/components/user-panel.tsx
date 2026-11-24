@@ -48,12 +48,18 @@ export default async function UserPanel() {
         </div>
       </dl>
 
-      <div>
+      <div className="flex flex-wrap items-center gap-4">
         <Link
           href="/organizations"
           className={`${buttonClasses("primary")} min-h-11`}
         >
           Open organizations
+        </Link>
+        <Link
+          href="/settings"
+          className="text-sm text-accent underline-offset-4 hover:underline"
+        >
+          Account settings
         </Link>
       </div>
     </div>

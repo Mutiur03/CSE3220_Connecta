@@ -6,12 +6,19 @@ import ProductImageGallery from "@/components/product-image-gallery";
 import ProductStockForm from "@/components/product-stock-form";
 import ProductSummary from "@/components/product-summary";
 import ProductMovementTable from "@/components/product-movement-table";
+import { StockStatusBadge } from "@/components/stock-status-badge";
 import { recordStockMovement } from "@/lib/stock-actions";
 import { getProduct } from "@/lib/product-api";
 import { listProductImages } from "@/lib/product-image-api";
 import { listStockMovements } from "@/lib/stock-api";
 import { canManageProducts } from "@/lib/product-permissions";
-import { ORG_PAGE_SIZE, pageCount, pageHref, pageRange, parsePageParam } from "@/lib/org-pagination";
+import {
+  ORG_PAGE_SIZE,
+  pageCount,
+  pageHref,
+  pageRange,
+  parsePageParam,
+} from "@/lib/org-pagination";
 import { isUuid } from "@/lib/org-validation";
 import { loadOrganization, loadSession, notFoundOnMissing } from "../../data";
 
@@ -20,6 +27,8 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export const metadata: Metadata = { title: "Product" };
 
+// Two columns from lg up, as a resource details page: the work (stock, history, images) in the
+// main column and the product's facts beside it. Below lg the facts come first, then the work.
 export default async function ProductDetailPage({
   params,
   searchParams,
@@ -38,7 +47,9 @@ export default async function ProductDetailPage({
   ]);
   const [product, movements, images] = await Promise.all([
     notFoundOnMissing(getProduct(accessToken, id, productId)),
-    notFoundOnMissing(listStockMovements(accessToken, id, productId, page, ORG_PAGE_SIZE)),
+    notFoundOnMissing(
+      listStockMovements(accessToken, id, productId, page, ORG_PAGE_SIZE),
+    ),
     notFoundOnMissing(listProductImages(accessToken, id, productId)),
   ]);
 
@@ -50,52 +61,97 @@ export default async function ProductDetailPage({
 
   return (
     <>
-      <header className="flex flex-col gap-2">
-        <Link href={listPath} className="text-sm text-secondary underline-offset-4 hover:underline">
+      <header className="flex flex-col gap-1">
+        <Link
+          href={listPath}
+          className="self-start text-sm text-secondary underline-offset-4 hover:underline"
+        >
           Products
         </Link>
-        <h1 className="text-display font-medium">{product.name}</h1>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="min-w-0 break-words text-display font-medium">
+            {product.name}
+          </h1>
+          <StockStatusBadge status={product.stockStatus} />
+        </div>
+        {product.categoryName && (
+          <p className="text-secondary">{product.categoryName}</p>
+        )}
       </header>
 
-      <ProductSummary orgId={id} product={product} canManage={canManage} />
-
-      <section aria-labelledby="stock-heading" className="flex flex-col gap-6 border-t border-line-subtle pt-8">
-        <h2 id="stock-heading" className="text-lg font-medium">
-          Stock
-        </h2>
-        <ProductStockForm action={recordStockMovement.bind(null, id, productId)} />
-        <div className="flex flex-col gap-3">
-          <h3 className="font-medium">History</h3>
-          <ProductMovementTable movements={movements.content} />
-          {range && (
-            <p className="text-sm text-secondary tabular-nums">
-              Showing {range.from}–{range.to} of {movements.totalElements} movements
-            </p>
-          )}
-          <OrgPagination
-            label="Stock movement pages"
-            page={page}
-            pageCount={count}
-            previousHref={page > 0 ? pageHref(detailPath, {}, "page", page - 1) : undefined}
-            nextHref={page + 1 < count ? pageHref(detailPath, {}, "page", page + 1) : undefined}
-          />
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+        <div className="lg:col-start-2 lg:row-start-1">
+          <ProductSummary orgId={id} product={product} canManage={canManage} />
         </div>
-      </section>
 
-      <section aria-labelledby="images-heading" className="flex flex-col gap-6 border-t border-line-subtle pt-8">
-        <div className="flex flex-col gap-1">
-          <h2 id="images-heading" className="text-lg font-medium">
-            Images
-          </h2>
+        <div className="flex min-w-0 flex-col gap-8 lg:col-start-1 lg:row-start-1">
+          <section
+            aria-labelledby="stock-heading"
+            className="flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-1">
+              <h2 id="stock-heading" className="text-lg font-medium">
+                Stock
+              </h2>
+              <p className="text-sm text-secondary">
+                Record stock received, stock issued, or a count that corrects
+                the level
+              </p>
+            </div>
+            <ProductStockForm
+              action={recordStockMovement.bind(null, id, productId)}
+            />
+          </section>
+
+          <section
+            aria-labelledby="history-heading"
+            className="flex flex-col gap-3 border-t border-line-subtle pt-8"
+          >
+            <h2 id="history-heading" className="text-lg font-medium">
+              History
+            </h2>
+            <ProductMovementTable movements={movements.content} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {range && (
+                <p className="figure text-caption text-secondary">
+                  {range.from}–{range.to} of {movements.totalElements} movements
+                </p>
+              )}
+              <OrgPagination
+                label="Stock movement pages"
+                page={page}
+                pageCount={count}
+                previousHref={
+                  page > 0
+                    ? pageHref(detailPath, {}, "page", page - 1)
+                    : undefined
+                }
+                nextHref={
+                  page + 1 < count
+                    ? pageHref(detailPath, {}, "page", page + 1)
+                    : undefined
+                }
+              />
+            </div>
+          </section>
+
+          <section
+            aria-labelledby="images-heading"
+            className="flex flex-col gap-4 border-t border-line-subtle pt-8"
+          >
+            <h2 id="images-heading" className="text-lg font-medium">
+              Images
+            </h2>
+            <ProductImageGallery
+              orgId={id}
+              productId={productId}
+              productName={product.name}
+              images={images}
+              canManage={canManage}
+            />
+          </section>
         </div>
-        <ProductImageGallery
-          orgId={id}
-          productId={productId}
-          productName={product.name}
-          images={images}
-          canManage={canManage}
-        />
-      </section>
+      </div>
     </>
   );
 }

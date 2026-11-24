@@ -9,15 +9,45 @@ export function parsePageIds(values: FormDataEntryValue[]): string[] {
   return [...new Set(ids)];
 }
 
-/** One plain line for the Facebook connection's status. */
-export function facebookStatusLine(
-  connected: boolean,
-  connectedAt: string | null,
+/** Where a channel's connection stands. An expired Facebook grant still lists Pages but stops delivery. */
+export type ChannelStatus = "connected" | "expired" | "not_connected";
+
+type FacebookGrant = {
+  connected: boolean;
+  connectedAt: string | null;
+  expiresAt: string | null;
+};
+
+export function facebookStatus(grant: FacebookGrant, now: Date): ChannelStatus {
+  if (!grant.connected || !grant.connectedAt) return "not_connected";
+  if (grant.expiresAt && new Date(grant.expiresAt) <= now) return "expired";
+  return "connected";
+}
+
+/** One plain line under the Messenger row: what is connected, and until when. */
+export function facebookDetailLine(
+  grant: FacebookGrant,
+  now: Date,
   formatDate: (iso: string) => string,
 ): string {
-  if (!connected || !connectedAt) return "Not connected";
-  return `Connected on ${formatDate(connectedAt)}`;
+  const status = facebookStatus(grant, now);
+  if (status === "not_connected" || !grant.connectedAt) {
+    return "Sign in with Facebook to choose which Pages send messages here.";
+  }
+  if (status === "expired" && grant.expiresAt) {
+    return `Facebook access ended on ${formatDate(grant.expiresAt)}. Reconnect to keep receiving messages.`;
+  }
+  const since = `Connected on ${formatDate(grant.connectedAt)}.`;
+  return grant.expiresAt
+    ? `${since} Access lasts until ${formatDate(grant.expiresAt)}.`
+    : since;
 }
+
+export const STATUS_LABELS: Record<ChannelStatus, string> = {
+  connected: "Connected",
+  expired: "Access expired",
+  not_connected: "Not connected",
+};
 
 /** The query parameters the Meta callbacks send the browser back with. */
 export type ConnectionResultParams = {

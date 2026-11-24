@@ -7,15 +7,18 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 vi.mock("@/lib/session", () => ({ getAccessToken: vi.fn() }));
 
-import OrgRoleSelect, { canSaveRole } from "./org-role-select";
+import OrgRoleSelect, { shownRole } from "./org-role-select";
 
 const noop = async () => ({});
 
-describe("canSaveRole", () => {
-  it("offers a save only for a real change while idle", () => {
-    expect(canSaveRole("ADMIN", "AGENT", false)).toBe(true);
-    expect(canSaveRole("AGENT", "AGENT", false)).toBe(false);
-    expect(canSaveRole("ADMIN", "AGENT", true)).toBe(false);
+describe("shownRole", () => {
+  it("shows the pick while a save runs, and the stored role otherwise", () => {
+    expect(shownRole("ADMIN", "AGENT", true)).toBe("ADMIN");
+    expect(shownRole("ADMIN", "AGENT", false)).toBe("AGENT");
+  });
+
+  it("falls back to the stored role, so a failed save does not leave an unsaved pick", () => {
+    expect(shownRole("ADMIN", "AGENT", false)).toBe("AGENT");
   });
 });
 
@@ -29,19 +32,19 @@ describe("OrgRoleSelect markup", () => {
     />,
   );
 
-  it("starts with an unchanged role, so Save is disabled", () => {
-    expect(html).toMatch(
-      /<button[^>]*disabled[^>]*aria-label="Save role for Ana"/,
-    );
+  it("has no Save button: picking a role saves it", () => {
+    expect(html).not.toContain("<button");
+    expect(html).not.toContain("Save");
   });
 
-  it("names the save button after its row", () => {
-    expect(html).toContain('aria-label="Save role for Ana"');
+  it("names the select after its row and shows the stored role", () => {
+    expect(html).toContain('aria-label="Role for Ana"');
+    expect(html).toMatch(/<option value="AGENT" selected/);
   });
 
-  it("renders no alert or status before any action", () => {
+  it("renders no alert before any action, and an empty status line for screen readers", () => {
     expect(html).not.toContain('role="alert"');
-    expect(html).not.toContain('role="status"');
+    expect(html).toMatch(/<span role="status" class="sr-only"><\/span>/);
   });
 
   it("uses token classes, not zinc or dark pairs", () => {

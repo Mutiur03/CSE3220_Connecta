@@ -10,8 +10,7 @@ import {
 import OrgActionButton from "./org-action-button";
 import OrgRoleBadge from "./org-role-badge";
 import OrgRoleSelect from "./org-role-select";
-import { tableClass } from "./org-styles";
-import { TableScroll } from "./ui/table-scroll";
+import { Badge } from "./ui/badge";
 
 type Props = {
   orgId: string;
@@ -41,6 +40,25 @@ export function rowRights(
     canChangeRole: !isSelf && canManageMember(callerRole, member.role),
     canRemove: canRemoveMember(callerRole, member.role, isSelf),
   };
+}
+
+/** The caller's own row first, everyone else in the order the server sent them. */
+export function selfFirst(members: Member[], callerUserId: string): Member[] {
+  return [
+    ...members.filter((member) => member.userId === callerUserId),
+    ...members.filter((member) => member.userId !== callerUserId),
+  ];
+}
+
+/** Up to two initials from the name, else the first letter of the email. */
+export function memberInitials(name: string, email: string): string {
+  const fromName = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0))
+    .join("");
+  return (fromName || email.charAt(0)).toUpperCase();
 }
 
 type RowProps = {
@@ -73,123 +91,80 @@ function RemoveControl({ orgId, member, rights }: RowProps) {
       ariaLabel={isSelf ? "Leave organization" : `Remove ${member.name}`}
       confirm={
         isSelf
-          ? "Leave this organization?"
-          : `Remove ${member.name} from the organization?`
+          ? "Leave this organization? You lose access until an admin invites you again."
+          : `Remove ${member.name} from the organization? They lose access right away.`
       }
       tone="danger"
       size="sm"
+      block
     />
   );
 }
 
-/** Below md: one stacked row per member, so Role and the row action never need sideways scrolling. */
-function MemberCards({ orgId, members, callerRole, callerUserId }: Props) {
-  const roleOptions = assignableRoles(callerRole);
-  return (
-    <ul className="flex flex-col divide-y divide-line-subtle border-y border-line md:hidden">
-      {members.map((member) => {
-        const rights = rowRights(callerRole, callerUserId, member);
-        const row = { orgId, member, roleOptions, rights };
-        return (
-          <li key={member.membershipId} className="flex flex-col gap-3 py-3">
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <p className="font-medium text-primary">
-                {member.name}
-                {rights.isSelf && (
-                  <span className="ml-2 text-caption text-secondary">
-                    (you)
-                  </span>
-                )}
-              </p>
-              <p className="break-all text-sm text-secondary">{member.email}</p>
-            </div>
-            <div className="flex flex-col items-start gap-3">
-              <RoleControl {...row} />
-              <RemoveControl {...row} />
-            </div>
-            <p className="text-caption text-secondary">
-              Joined {formatDate(member.joinedAt)}
-            </p>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
+// Date, role (a select, or a badge), action. The role is centred in its column and every action
+// button fills the same column width, so Remove and Leave are the same size.
+const ROW_COLUMNS =
+  "flex flex-wrap items-center gap-x-4 gap-y-2 pl-12 sm:ml-auto sm:grid sm:grid-cols-[9.5rem_8rem_6.5rem] sm:gap-x-3 sm:pl-0";
 
-/** From md up: a real table, inside a named, focusable scroll region. */
-function MemberTable({ orgId, members, callerRole, callerUserId }: Props) {
-  const roleOptions = assignableRoles(callerRole);
+function MemberRow(props: RowProps) {
+  const { member, rights } = props;
   return (
-    <TableScroll label="Members">
-      <table className={tableClass}>
-        <thead className="border-b border-line text-secondary">
-          <tr>
-            <th scope="col" className="px-4 py-2 font-medium">
-              Name
-            </th>
-            <th scope="col" className="px-4 py-2 font-medium">
-              Email
-            </th>
-            <th scope="col" className="px-4 py-2 font-medium">
-              Role
-            </th>
-            <th scope="col" className="px-4 py-2 font-medium">
-              Joined
-            </th>
-            <th scope="col" className="px-4 py-2 text-right font-medium">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((member) => {
-            const rights = rowRights(callerRole, callerUserId, member);
-            const row = { orgId, member, roleOptions, rights };
-            return (
-              <tr
-                key={member.membershipId}
-                className="h-14 border-b border-line-subtle transition-colors last:border-b-0 hover:bg-hover/60"
-              >
-                <td className="px-4 py-2 align-middle font-medium">
-                  {member.name}
-                  {rights.isSelf && (
-                    <span className="ml-2 text-caption text-secondary">
-                      (you)
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-2 align-middle text-secondary">
-                  {member.email}
-                </td>
-                <td className="px-4 py-2 align-middle">
-                  <RoleControl {...row} />
-                </td>
-                <td className="px-4 py-2 align-middle text-secondary">
-                  {formatDate(member.joinedAt)}
-                </td>
-                <td className="px-4 py-2 align-middle">
-                  <div className="flex justify-end">
-                    <RemoveControl {...row} />
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </TableScroll>
-  );
-}
-
-// Renders the role rules as controls. Both layouts render the same rows; CSS shows one of them.
-export default function OrgMembersTable(props: Props) {
-  return (
-    <>
-      <MemberCards {...props} />
-      <div className="hidden md:block">
-        <MemberTable {...props} />
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3">
+      <div className="flex min-w-0 flex-1 basis-60 items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-9 shrink-0 place-items-center rounded-full bg-hover text-caption font-medium text-secondary"
+        >
+          {memberInitials(member.name, member.email)}
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium text-primary">
+              {member.name}
+            </span>
+            {rights.isSelf && <Badge>You</Badge>}
+          </span>
+          <span className="truncate text-secondary">{member.email}</span>
+        </span>
       </div>
-    </>
+      {/* Fixed columns from sm up, so date, role and action line up from row to row. */}
+      <div className={ROW_COLUMNS}>
+        <span className="figure text-caption text-secondary sm:justify-self-end">
+          Joined {formatDate(member.joinedAt)}
+        </span>
+        <div className="flex justify-center">
+          <RoleControl {...props} />
+        </div>
+        <div className="w-26 sm:w-auto">
+          <RemoveControl {...props} />
+        </div>
+      </div>
+    </li>
+  );
+}
+
+// Renders the role rules as controls: one row per member, which wraps instead of scrolling on a phone.
+export default function OrgMembersTable({
+  orgId,
+  members,
+  callerRole,
+  callerUserId,
+}: Props) {
+  const roleOptions = assignableRoles(callerRole);
+  return (
+    <ul
+      aria-label="Members"
+      className="flex flex-col divide-y divide-line-subtle rounded-control border border-line bg-surface"
+    >
+      {selfFirst(members, callerUserId).map((member) => (
+        <MemberRow
+          key={member.membershipId}
+          orgId={orgId}
+          member={member}
+          roleOptions={roleOptions}
+          rights={rowRights(callerRole, callerUserId, member)}
+        />
+      ))}
+    </ul>
   );
 }

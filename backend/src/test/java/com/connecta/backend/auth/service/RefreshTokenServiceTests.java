@@ -1,5 +1,6 @@
 package com.connecta.backend.auth.service;
 
+import com.connecta.backend.auth.dto.ClientInfo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -34,9 +35,13 @@ import org.springframework.transaction.annotation.Transactional;
 class RefreshTokenServiceTests {
 
     static final Instant NOW = Instant.parse("2026-11-15T12:00:00Z");
+    static final java.util.UUID SESSION = java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Mock
     RefreshTokenRepository tokens;
+
+    @Mock
+    IpLocator ipLocator;
 
     RefreshTokenService service;
     User user;
@@ -45,12 +50,12 @@ class RefreshTokenServiceTests {
     void setUp() {
         JwtProperties props = new JwtProperties(
                 "unit-test-secret-unit-test-secret-0123456789", "connecta", Duration.ofMinutes(15), Duration.ofDays(7));
-        service = new RefreshTokenService(tokens, props, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new RefreshTokenService(tokens, props, Clock.fixed(NOW, ZoneOffset.UTC), ipLocator);
         user = TestUsers.user("jane@example.com", Roles.AGENT);
     }
 
     private RefreshToken stored(String raw, Instant expiresAt) {
-        return new RefreshToken(user, RefreshTokenService.hash(raw), expiresAt, NOW.minusSeconds(60));
+        return new RefreshToken(user, RefreshTokenService.hash(raw), expiresAt, NOW.minusSeconds(60), SESSION, null, null, null);
     }
 
     @Nested
@@ -58,7 +63,7 @@ class RefreshTokenServiceTests {
 
         @Test
         void issueStoresOnlyTheHashWithTheConfiguredLifetime() {
-            String raw = service.issue(user);
+            String raw = service.issue(user, ClientInfo.UNKNOWN).rawToken();
 
             ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
             verify(tokens).save(saved.capture());
@@ -69,8 +74,14 @@ class RefreshTokenServiceTests {
         }
 
         @Test
+        void everyLoginStartsANewSession() {
+            assertNotEquals(service.issue(user, ClientInfo.UNKNOWN).sessionId(),
+                    service.issue(user, ClientInfo.UNKNOWN).sessionId());
+        }
+
+        @Test
         void issuedTokensAreUnique() {
-            assertNotEquals(service.issue(user), service.issue(user));
+            assertNotEquals(service.issue(user, ClientInfo.UNKNOWN).rawToken(), service.issue(user, ClientInfo.UNKNOWN).rawToken());
         }
 
     }
@@ -83,7 +94,7 @@ class RefreshTokenServiceTests {
             RefreshToken old = stored("old-raw", NOW.plusSeconds(3600));
             when(tokens.findByTokenHash(RefreshTokenService.hash("old-raw"))).thenReturn(Optional.of(old));
 
-            RefreshTokenService.Issued issued = service.rotate("old-raw");
+            RefreshTokenService.Issued issued = service.rotate("old-raw", ClientInfo.UNKNOWN);
 
             assertTrue(old.isRevoked());
             assertEquals(user, issued.user());
@@ -92,10 +103,29 @@ class RefreshTokenServiceTests {
         }
 
         @Test
+        void rotateContinuesTheSessionAndRecordsTheClient() {
+            RefreshToken old = stored("old-raw", NOW.plusSeconds(3600));
+            when(tokens.findByTokenHash(RefreshTokenService.hash("old-raw"))).thenReturn(Optional.of(old));
+
+            when(ipLocator.locate("203.0.113.9")).thenReturn(Optional.of("Dhaka, Bangladesh"));
+
+            RefreshTokenService.Issued issued = service.rotate("old-raw", new ClientInfo("Firefox", "203.0.113.9"));
+
+            ArgumentCaptor<RefreshToken> saved = ArgumentCaptor.forClass(RefreshToken.class);
+            verify(tokens).save(saved.capture());
+            assertEquals(SESSION, issued.sessionId());
+            assertEquals(SESSION, saved.getValue().getSessionId());
+            assertEquals("Firefox", saved.getValue().getUserAgent());
+            assertEquals("203.0.113.9", saved.getValue().getIp());
+            assertEquals("Dhaka, Bangladesh", saved.getValue().getLocation());
+            assertEquals(NOW, saved.getValue().getLastUsedAt());
+        }
+
+        @Test
         void rotateRejectsUnknownToken() {
             when(tokens.findByTokenHash(any())).thenReturn(Optional.empty());
 
-            assertThrows(InvalidTokenException.class, () -> service.rotate("nope"));
+            assertThrows(InvalidTokenException.class, () -> service.rotate("nope", ClientInfo.UNKNOWN));
             verify(tokens, never()).save(any());
         }
 
@@ -104,7 +134,7 @@ class RefreshTokenServiceTests {
             RefreshToken expired = stored("exp-raw", NOW.minusSeconds(1));
             when(tokens.findByTokenHash(RefreshTokenService.hash("exp-raw"))).thenReturn(Optional.of(expired));
 
-            assertThrows(InvalidTokenException.class, () -> service.rotate("exp-raw"));
+            assertThrows(InvalidTokenException.class, () -> service.rotate("exp-raw", ClientInfo.UNKNOWN));
             assertTrue(expired.isRevoked());
             verify(tokens, never()).save(any());
         }
@@ -114,9 +144,22 @@ class RefreshTokenServiceTests {
             RefreshToken used = stored("used-raw", NOW.plusSeconds(3600));
             used.revoke(NOW.minusSeconds(30));
             when(tokens.findByTokenHash(RefreshTokenService.hash("used-raw"))).thenReturn(Optional.of(used));
+            when(tokens.existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(any(), any(), any())).thenReturn(true);
 
-            assertThrows(InvalidTokenException.class, () -> service.rotate("used-raw"));
+            assertThrows(InvalidTokenException.class, () -> service.rotate("used-raw", ClientInfo.UNKNOWN));
             verify(tokens).revokeAllForUser(user.getId(), NOW);
+            verify(tokens, never()).save(any());
+        }
+
+        @Test
+        void aTokenRevokedWithoutBeingRotatedIsRejectedAndTouchesNoOtherSession() {
+            RefreshToken signedOut = stored("out-raw", NOW.plusSeconds(3600));
+            signedOut.revoke(NOW.minusSeconds(30));
+            when(tokens.findByTokenHash(RefreshTokenService.hash("out-raw"))).thenReturn(Optional.of(signedOut));
+            when(tokens.existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(any(), any(), any())).thenReturn(false);
+
+            assertThrows(InvalidTokenException.class, () -> service.rotate("out-raw", ClientInfo.UNKNOWN));
+            verify(tokens, never()).revokeAllForUser(any(), any());
             verify(tokens, never()).save(any());
         }
 
@@ -126,7 +169,7 @@ class RefreshTokenServiceTests {
             RefreshToken token = stored("dis-raw", NOW.plusSeconds(3600));
             when(tokens.findByTokenHash(RefreshTokenService.hash("dis-raw"))).thenReturn(Optional.of(token));
 
-            assertThrows(InvalidTokenException.class, () -> service.rotate("dis-raw"));
+            assertThrows(InvalidTokenException.class, () -> service.rotate("dis-raw", ClientInfo.UNKNOWN));
             assertTrue(token.isRevoked());
         }
 
@@ -164,8 +207,8 @@ class RefreshTokenServiceTests {
         // Reuse detection revokes sessions and then rejects the request; a rollback would undo the revocation.
         @Test
         void rotationKeepsItsRevocationsWhenTheRequestIsRejected() throws Exception {
-            var rotate = RefreshTokenService.class.getMethod("rotate", String.class);
-            var refresh = AuthService.class.getMethod("refresh", String.class);
+            var rotate = RefreshTokenService.class.getMethod("rotate", String.class, ClientInfo.class);
+            var refresh = AuthService.class.getMethod("refresh", String.class, ClientInfo.class);
 
             for (var method : new java.lang.reflect.Method[] {rotate, refresh}) {
                 Transactional tx = method.getAnnotation(Transactional.class);

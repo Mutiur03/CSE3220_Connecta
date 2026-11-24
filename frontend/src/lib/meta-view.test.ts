@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   canConnectMeta,
   connectionFlash,
-  facebookStatusLine,
+  facebookDetailLine,
+  facebookStatus,
   parsePageIds,
 } from "./meta-view";
 
@@ -25,18 +26,39 @@ describe("parsePageIds", () => {
   });
 });
 
-describe("facebookStatusLine", () => {
+describe("facebookStatus and facebookDetailLine", () => {
   const formatDate = (iso: string) => `date(${iso})`;
-
-  it("says not connected without a connection time", () => {
-    expect(facebookStatusLine(false, null, formatDate)).toBe("Not connected");
-    expect(facebookStatusLine(true, null, formatDate)).toBe("Not connected");
+  const now = new Date("2026-11-24T00:00:00Z");
+  const grant = (expiresAt: string | null) => ({
+    connected: true,
+    connectedAt: "2026-11-01T00:00:00Z",
+    expiresAt,
   });
 
-  it("names the date it was connected", () => {
-    expect(facebookStatusLine(true, "2026-11-23T00:00:00Z", formatDate)).toBe(
-      "Connected on date(2026-11-23T00:00:00Z)",
+  it("is not connected without a connection time", () => {
+    const none = { connected: false, connectedAt: null, expiresAt: null };
+    expect(facebookStatus(none, now)).toBe("not_connected");
+    expect(facebookStatus({ ...none, connected: true }, now)).toBe(
+      "not_connected",
     );
+    expect(facebookDetailLine(none, now, formatDate)).toContain(
+      "Sign in with Facebook",
+    );
+  });
+
+  it("is connected while access lasts, and says until when", () => {
+    const live = grant("2027-01-01T00:00:00Z");
+    expect(facebookStatus(live, now)).toBe("connected");
+    expect(facebookDetailLine(live, now, formatDate)).toBe(
+      "Connected on date(2026-11-01T00:00:00Z). Access lasts until date(2027-01-01T00:00:00Z).",
+    );
+    expect(facebookStatus(grant(null), now)).toBe("connected");
+  });
+
+  it("is expired once the access end has passed, and asks to reconnect", () => {
+    const old = grant("2026-11-20T00:00:00Z");
+    expect(facebookStatus(old, now)).toBe("expired");
+    expect(facebookDetailLine(old, now, formatDate)).toContain("Reconnect");
   });
 });
 

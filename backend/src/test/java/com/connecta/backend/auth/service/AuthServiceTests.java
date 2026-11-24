@@ -1,5 +1,6 @@
 package com.connecta.backend.auth.service;
 
+import com.connecta.backend.auth.dto.ClientInfo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -35,6 +36,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTests {
+
+    static final java.util.UUID SESSION = java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Mock
     UserService users;
@@ -124,11 +127,11 @@ class AuthServiceTests {
         void loginReturnsAccessAndRefreshTokensForAnyEmailCase() throws Exception {
             User user = existingUser(true);
             when(users.findByEmail("jane@example.com")).thenReturn(Optional.of(user));
-            when(tokenService.createAccessToken(user)).thenReturn("access-token");
+            when(tokenService.createAccessToken(user, SESSION)).thenReturn("access-token");
             when(tokenService.accessTtlSeconds()).thenReturn(900L);
-            when(refreshTokens.issue(user)).thenReturn("refresh-token");
+            when(refreshTokens.issue(user, ClientInfo.UNKNOWN)).thenReturn(new RefreshTokenService.Issued(user, "refresh-token", SESSION));
 
-            TokenResponse response = service.login(new LoginRequest("JANE@example.com", "correct-password"));
+            TokenResponse response = service.login(new LoginRequest("JANE@example.com", "correct-password"), ClientInfo.UNKNOWN);
 
             assertEquals("Bearer", response.tokenType());
             assertEquals("access-token", response.accessToken());
@@ -142,7 +145,7 @@ class AuthServiceTests {
             when(users.findByEmail("jane@example.com")).thenReturn(Optional.of(existingUser(true)));
 
             assertThrows(InvalidCredentialsException.class,
-                    () -> service.login(new LoginRequest("jane@example.com", "wrong-password")));
+                    () -> service.login(new LoginRequest("jane@example.com", "wrong-password"), ClientInfo.UNKNOWN));
             verifyNoInteractions(tokenService, refreshTokens);
         }
 
@@ -151,7 +154,7 @@ class AuthServiceTests {
             when(users.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
 
             assertThrows(InvalidCredentialsException.class,
-                    () -> service.login(new LoginRequest("nobody@example.com", "whatever-password")));
+                    () -> service.login(new LoginRequest("nobody@example.com", "whatever-password"), ClientInfo.UNKNOWN));
             verifyNoInteractions(tokenService, refreshTokens);
         }
 
@@ -160,7 +163,7 @@ class AuthServiceTests {
             when(users.findByEmail("jane@example.com")).thenReturn(Optional.of(existingUser(false)));
 
             assertThrows(InvalidCredentialsException.class,
-                    () -> service.login(new LoginRequest("jane@example.com", "correct-password")));
+                    () -> service.login(new LoginRequest("jane@example.com", "correct-password"), ClientInfo.UNKNOWN));
             verifyNoInteractions(tokenService, refreshTokens);
         }
 
@@ -172,11 +175,11 @@ class AuthServiceTests {
         @Test
         void refreshRotatesTheTokenAndIssuesNewAccessToken() throws Exception {
             User user = existingUser(true);
-            when(refreshTokens.rotate("old-refresh")).thenReturn(new RefreshTokenService.Issued(user, "new-refresh"));
-            when(tokenService.createAccessToken(user)).thenReturn("new-access");
+            when(refreshTokens.rotate("old-refresh", ClientInfo.UNKNOWN)).thenReturn(new RefreshTokenService.Issued(user, "new-refresh", SESSION));
+            when(tokenService.createAccessToken(user, SESSION)).thenReturn("new-access");
             when(tokenService.accessTtlSeconds()).thenReturn(900L);
 
-            TokenResponse response = service.refresh("old-refresh");
+            TokenResponse response = service.refresh("old-refresh", ClientInfo.UNKNOWN);
 
             assertEquals("new-access", response.accessToken());
             assertEquals("new-refresh", response.refreshToken());
@@ -184,9 +187,9 @@ class AuthServiceTests {
 
         @Test
         void refreshPropagatesInvalidToken() {
-            when(refreshTokens.rotate("bad")).thenThrow(new InvalidTokenException());
+            when(refreshTokens.rotate("bad", ClientInfo.UNKNOWN)).thenThrow(new InvalidTokenException());
 
-            assertThrows(InvalidTokenException.class, () -> service.refresh("bad"));
+            assertThrows(InvalidTokenException.class, () -> service.refresh("bad", ClientInfo.UNKNOWN));
             verifyNoInteractions(tokenService);
         }
 
@@ -198,9 +201,9 @@ class AuthServiceTests {
         @Test
         void startSessionIssuesTokensWithoutAPasswordCheck() throws Exception {
             User user = existingUser(true);
-            when(tokenService.createAccessToken(user)).thenReturn("access-token");
+            when(tokenService.createAccessToken(user, SESSION)).thenReturn("access-token");
             when(tokenService.accessTtlSeconds()).thenReturn(900L);
-            when(refreshTokens.issue(user)).thenReturn("refresh-token");
+            when(refreshTokens.issue(user, ClientInfo.UNKNOWN)).thenReturn(new RefreshTokenService.Issued(user, "refresh-token", SESSION));
 
             TokenResponse response = service.startSession(user);
 

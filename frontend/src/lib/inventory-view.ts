@@ -15,7 +15,8 @@ const MOVEMENT_TYPE_LABELS: Record<StockMovementType, string> = {
 /** The stock value in the organization's money format: two decimals, as the product list shows prices. */
 export const formatStockValue = (value: number): string => formatPrice(value);
 
-export const formatCount = (count: number): string => count.toLocaleString("en-US");
+export const formatCount = (count: number): string =>
+  count.toLocaleString("en-US");
 
 export const movementTypeLabel = (type: StockMovementType): string =>
   MOVEMENT_TYPE_LABELS[type];
@@ -27,8 +28,17 @@ export function formatQuantityDelta(delta: number): string {
   return "0";
 }
 
+/** Stock against the reorder level, as one line: "2 left, reorder at 5", or "None left" when out. */
+export function stockLine(quantity: number, reorderLevel: number): string {
+  const left = quantity > 0 ? `${formatCount(quantity)} left` : "None left";
+  return `${left}, reorder at ${formatCount(reorderLevel)}`;
+}
+
 export const formatMovementTime = (iso: string): string =>
-  new Date(iso).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" });
+  new Date(iso).toLocaleString("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 
 /** Where each inventory link goes. The product list is the organization's catalog page. */
 export function inventoryLinks(orgId: string) {

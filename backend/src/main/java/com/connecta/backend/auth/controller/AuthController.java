@@ -1,6 +1,7 @@
 package com.connecta.backend.auth.controller;
 
 import lombok.RequiredArgsConstructor;
+import com.connecta.backend.auth.dto.ClientInfo;
 import com.connecta.backend.auth.dto.LoginRequest;
 import com.connecta.backend.auth.dto.RefreshRequest;
 import com.connecta.backend.auth.dto.RegisterRequest;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -45,8 +47,8 @@ public class AuthController {
     @ApiResponse(responseCode = "400", description = "Invalid input")
     @ApiResponse(responseCode = "401", description = "Bad credentials")
     @PostMapping("/login")
-    public TokenResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
+    public TokenResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest http) {
+        return authService.login(request, ClientInfo.from(http));
     }
 
     /** Exchanges a refresh token for a new access token and a new refresh token (rotation). */
@@ -55,8 +57,8 @@ public class AuthController {
     @ApiResponse(responseCode = "400", description = "Invalid input")
     @ApiResponse(responseCode = "401", description = "Invalid, expired or already used refresh token")
     @PostMapping("/refresh")
-    public TokenResponse refresh(@Valid @RequestBody RefreshRequest request) {
-        return authService.refresh(request.refreshToken());
+    public TokenResponse refresh(@Valid @RequestBody RefreshRequest request, HttpServletRequest http) {
+        return authService.refresh(request.refreshToken(), ClientInfo.from(http));
     }
 
     /** The user the access token belongs to. */

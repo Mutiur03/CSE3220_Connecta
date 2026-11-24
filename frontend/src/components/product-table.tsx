@@ -22,7 +22,12 @@ type Props = {
 const DASH = "—";
 
 /** The catalog as rows. Wide tables scroll inside their named region. */
-export default function ProductTable({ orgId, products, thumbnails, canManage }: Props) {
+export default function ProductTable({
+  orgId,
+  products,
+  thumbnails,
+  canManage,
+}: Props) {
   return (
     <TableScroll label="Products">
       <table className={tableClass}>
@@ -77,10 +82,10 @@ export default function ProductTable({ orgId, products, thumbnails, canManage }:
                   <ProductImagePlaceholder />
                 )}
               </td>
-              <td className="px-4 py-2 align-middle">
+              <td className="min-w-44 px-4 py-2 align-middle">
                 <Link
                   href={`/organizations/${orgId}/products/${product.id}`}
-                  className="cursor-pointer font-medium underline-offset-4 hover:underline focus-visible:underline"
+                  className="font-medium underline-offset-4 hover:underline focus-visible:underline"
                 >
                   {product.name}
                 </Link>
@@ -90,16 +95,16 @@ export default function ProductTable({ orgId, products, thumbnails, canManage }:
                   </p>
                 )}
               </td>
-              <td className="px-4 py-2 align-middle text-secondary">
+              <td className="figure px-4 py-2 align-middle whitespace-nowrap text-caption text-secondary">
                 {product.sku ?? DASH}
               </td>
               <td className="px-4 py-2 align-middle text-secondary">
                 {product.categoryName ?? DASH}
               </td>
-              <td className="px-4 py-2 text-right align-middle">
+              <td className="figure px-4 py-2 text-right align-middle">
                 {formatPrice(product.unitPrice)}
               </td>
-              <td className="px-4 py-2 text-right align-middle">
+              <td className="figure px-4 py-2 text-right align-middle">
                 {product.stockQuantity}
               </td>
               <td className="px-4 py-2 align-middle">

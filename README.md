@@ -102,7 +102,11 @@ erDiagram
     USER_ROLES { uuid user_id FK
         uuid role_id FK }
     REFRESH_TOKENS { uuid id PK
-        uuid user_id FK }
+        uuid user_id FK
+        uuid session_id "one per device, kept across rotations"
+        string user_agent
+        string ip
+        timestamptz last_used_at }
     ORGANIZATIONS ||--o{ MEMBERSHIPS : has
     USERS ||--o{ MEMBERSHIPS : joins
     ROLES ||--o{ MEMBERSHIPS : held_in
@@ -243,6 +247,10 @@ erDiagram
 | POST | `/api/auth/refresh` | public | 200 | Rotate the refresh token (single use). |
 | POST | `/api/auth/logout` | public | 204 | Revoke the refresh token. |
 | GET | `/api/auth/me` | authenticated | 200 | Current user. |
+| GET | `/api/auth/sessions` | authenticated | 200 | The caller's active sessions (devices), paginated, with a `current` flag and a `location` ("City, Country") when `GEOIP_DB_PATH` points to a MaxMind GeoLite2 City file (offline lookup; otherwise `null`). |
+| DELETE | `/api/auth/sessions/{id}` | authenticated | 204 | Revoke one of the caller's sessions. `404` for an unknown or another user's session. |
+| DELETE | `/api/auth/sessions` | authenticated | 204 | Revoke every session except the current one. |
+| PUT | `/api/auth/password` | authenticated | 204 | Change the caller's password (`currentPassword`, `newPassword`) and sign out their other devices. `422` for a wrong current password or an unchanged one. |
 | GET | `/api/organizations` | authenticated | 200 | Organizations the caller belongs to (`page`, `size` max 100). |
 | POST | `/api/organizations` | authenticated | 201 | Create an organization; the caller becomes its `ADMIN`. |
 | GET | `/api/organizations/{id}` | member | 200 | One organization. Non-members get `404`. |
@@ -303,7 +311,7 @@ docker compose up --build
 ```
 Add `--profile dev` to also start Mailpit, a local mail catcher for invitation emails (inbox <http://localhost:8025>; set `SMTP_HOST=mailpit` and `SMTP_PORT=1025` in `.env`).
 
-Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. Invitation email uses `SMTP_*`, `MAIL_FROM` and `FRONTEND_URL` (non-secret defaults in compose; blank `SMTP_HOST` sends nothing). Product images need the `S3_*` variables (see `.env.example`), passed through to the app as-is: `S3_ENDPOINT` (optional, blank for AWS), `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PATH_STYLE_ACCESS` and `S3_PUBLIC_BASE_URL`. The prod profile refuses to start while the bucket, keys or public base URL are blank. The frontend also reads `API_URL` (server-side backend address, set to `http://app:8080` in compose; defaults to `NEXT_PUBLIC_API_URL` outside Docker). Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`.
+Starts PostgreSQL, the backend `app` (<http://localhost:8080>, prod profile) and the `frontend` (<http://localhost:3000>). Configuration comes only from `.env` (copy `.env.example`): `POSTGRES_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS` and `NEXT_PUBLIC_API_URL` are required, there are no default secrets. Invitation email uses `SMTP_*`, `MAIL_FROM` and `FRONTEND_URL` (non-secret defaults in compose; blank `SMTP_HOST` sends nothing). Product images need the `S3_*` variables (see `.env.example`), passed through to the app as-is: `S3_ENDPOINT` (optional, blank for AWS), `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PATH_STYLE_ACCESS` and `S3_PUBLIC_BASE_URL`. The prod profile refuses to start while the bucket, keys or public base URL are blank. The frontend also reads `API_URL` (server-side backend address, set to `http://app:8080` in compose; defaults to `NEXT_PUBLIC_API_URL` outside Docker). Start order: database, then app (health-checked), then frontend. Data lives in the named volume `postgres-data`. Session locations on a local run: `pnpm geoip` once (downloads to `backend/geoip/`, git-ignored), then restart the backend. Session locations in compose: compose downloads the free DB-IP City Lite database into the app image at build time (`GEOIP_DB_URL` blank is that default, a direct link to your own `.mmdb` or `.mmdb.gz` replaces it, `none` skips it; DB-IP data is CC BY 4.0, credit [DB-IP.com](https://db-ip.com)) and points `GEOIP_DB_PATH` at it; if the download fails the app still starts and sessions show no location. On Render, set `GEOIP_DB_URL` as an environment variable (it is passed to the Docker build) to your own download link or leave it blank for DB-IP.
 
 ## Monitoring
 Actuator exposes `health` (public), and `info`, `metrics` and `prometheus` (ADMIN token required). Config lives in `ops/`:

@@ -44,11 +44,12 @@ export default function ProductImageGallery({
   return (
     <div className="flex flex-col gap-6">
       {images.length === 0 ? (
+        // An admin's empty state is the upload tile below, so only a line of text goes above it.
         <div className="flex items-start gap-4">
-          <ProductImagePlaceholder size="lg" />
-          <div className="flex flex-col items-start gap-2">
+          {!canManage && <ProductImagePlaceholder size="lg" />}
+          <div className="flex flex-col items-start gap-1">
             <p className="font-medium">No images yet</p>
-            <p className="text-secondary">
+            <p className="text-sm text-secondary">
               {canManage
                 ? "Add a photo so members can recognise this product."
                 : "An admin of this organization adds photos here."}
@@ -57,7 +58,7 @@ export default function ProductImageGallery({
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="text-secondary tabular-nums">
+          <p className="figure text-caption text-secondary">
             {imageCountText(images.length)}
           </p>
           <ul className="grid grid-cols-[repeat(auto-fill,7.5rem)] gap-3">
@@ -69,7 +70,7 @@ export default function ProductImageGallery({
                     type="button"
                     onClick={() => setViewing(index)}
                     aria-label={`Open ${productName}, image ${position} of ${images.length}`}
-                    className="relative aspect-square w-full overflow-hidden rounded-control border border-line bg-hover"
+                    className="relative aspect-square w-full cursor-zoom-in overflow-hidden rounded-control border border-line bg-app transition-colors duration-150 ease-out hover:border-line-strong motion-reduce:transition-none"
                   >
                     <Image
                       src={image.src}
@@ -80,7 +81,7 @@ export default function ProductImageGallery({
                       className="object-cover"
                     />
                   </button>
-                  <p className="text-sm text-secondary tabular-nums">
+                  <p className="figure text-caption text-secondary">
                     Image {position}
                   </p>
                   {canManage && (
