@@ -30,6 +30,7 @@ export default function ReplyComposer({ action }: Props) {
     {},
   );
   const remaining = MESSAGE_MAX_LENGTH - text.length;
+  const over = remaining < 0;
   const alert = alertText(state);
 
   return (
@@ -39,19 +40,22 @@ export default function ReplyComposer({ action }: Props) {
         name="text"
         label="Reply"
         rows={3}
-        maxLength={MESSAGE_MAX_LENGTH}
         value={text}
         onChange={(event) => setText(event.target.value)}
-        error={state.errors?.text}
+        error={
+          over ? `Remove ${-remaining} characters to send.` : state.errors?.text
+        }
         hint={
-          remaining <= COUNTER_FROM ? `${remaining} characters left` : undefined
+          !over && remaining <= COUNTER_FROM
+            ? `${remaining} characters left`
+            : undefined
         }
       />
       {alert && <Alert tone="danger">{alert}</Alert>}
       <Button
         type="submit"
         variant="primary"
-        disabled={pending || !text.trim()}
+        disabled={pending || over || !text.trim()}
       >
         <PendingLabel pending={pending} busy="Sending…" idle="Send" />
       </Button>

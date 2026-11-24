@@ -7,6 +7,9 @@ import {
   PING_INTERVAL_MS,
   realtimeUrl,
   startRealtimeClient,
+  MAX_CONSECUTIVE_UNAUTHORIZED,
+  STABLE_OPEN_MS,
+  TicketUnauthorizedError,
   type SocketLike,
 } from "./realtime";
 
@@ -112,7 +115,9 @@ describe("with fake timers", () => {
     const onEvent = vi.fn();
     const onReconnect = vi.fn();
 
-    const start = () =>
+    const start = (
+      extra: Partial<Parameters<typeof startRealtimeClient>[0]> = {},
+    ) =>
       startRealtimeClient({
         apiBase: "http://api.test",
         fetchTicket,
@@ -124,6 +129,7 @@ describe("with fake timers", () => {
         onEvent,
         onReconnect,
         random: () => 1,
+        ...extra,
       });
     const flush = () => vi.advanceTimersByTimeAsync(0);
 
@@ -196,6 +202,97 @@ describe("with fake timers", () => {
       await vi.advanceTimersByTimeAsync(1);
       expect(sockets).toHaveLength(2);
       stop();
+    });
+
+    it("keeps backing off when the server accepts and closes at once", async () => {
+      const stop = start();
+      await flush();
+      sockets[0].onopen!();
+      sockets[0].onclose!({ code: 1006 });
+      await vi.advanceTimersByTimeAsync(1000);
+      sockets[1].onopen!();
+      sockets[1].onclose!({ code: 1006 });
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(sockets).toHaveLength(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(sockets).toHaveLength(3);
+      stop();
+    });
+
+    it("restarts the backoff after a connection stayed open long enough", async () => {
+      const stop = start();
+      await flush();
+      sockets[0].onopen!();
+      sockets[0].onclose!({ code: 1006 });
+      await vi.advanceTimersByTimeAsync(1000);
+      sockets[1].onopen!();
+      await vi.advanceTimersByTimeAsync(STABLE_OPEN_MS);
+      sockets[1].onclose!({ code: 1006 });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sockets).toHaveLength(3);
+      stop();
+    });
+
+    describe("ticket 401s", () => {
+      const unauthorized = async () => {
+        throw new TicketUnauthorizedError();
+      };
+
+      it("renews the session up to the cap, then gives up until the tab is shown", async () => {
+        fetchTicket.mockImplementation(unauthorized);
+        const onUnauthorized = vi.fn();
+        let shown: () => void = () => {};
+        const unsubscribe = vi.fn();
+        const stop = start({
+          onUnauthorized,
+          subscribeShown: (cb) => {
+            shown = cb;
+            return unsubscribe;
+          },
+        });
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(onUnauthorized).toHaveBeenCalledTimes(
+          MAX_CONSECUTIVE_UNAUTHORIZED,
+        );
+        expect(fetchTicket).toHaveBeenCalledTimes(
+          MAX_CONSECUTIVE_UNAUTHORIZED + 1,
+        );
+        expect(vi.getTimerCount()).toBe(0);
+
+        fetchTicket.mockImplementation(async () => "fresh");
+        shown();
+        await flush();
+        expect(unsubscribe).toHaveBeenCalled();
+        expect(sockets[0].url).toContain("ticket=fresh");
+        stop();
+      });
+
+      it("resets the count after a successful ticket", async () => {
+        const onUnauthorized = vi.fn();
+        fetchTicket
+          .mockImplementationOnce(unauthorized)
+          .mockImplementationOnce(unauthorized)
+          .mockImplementationOnce(async () => "ok");
+        const stop = start({ onUnauthorized, subscribeShown: () => () => {} });
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(sockets).toHaveLength(1);
+        sockets[0].onclose!({ code: 1006 });
+        fetchTicket.mockImplementation(unauthorized);
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(onUnauthorized).toHaveBeenCalledTimes(
+          2 + MAX_CONSECUTIVE_UNAUTHORIZED,
+        );
+        stop();
+      });
+
+      it("stop removes the tab listener", async () => {
+        fetchTicket.mockImplementation(unauthorized);
+        const unsubscribe = vi.fn();
+        const stop = start({ subscribeShown: () => unsubscribe });
+        await vi.advanceTimersByTimeAsync(120_000);
+        stop();
+        expect(unsubscribe).toHaveBeenCalled();
+      });
     });
 
     it("leaves no timers and no reconnect after stop", async () => {

@@ -20,6 +20,10 @@ export type SocketLike = {
 
 export const PING_INTERVAL_MS = 30_000;
 export const REFRESH_DEBOUNCE_MS = 250;
+/** A connection must stay open this long before the reconnect backoff starts over. */
+export const STABLE_OPEN_MS = 10_000;
+/** After this many consecutive 401s from the ticket route the client stops asking until the tab is shown again. */
+export const MAX_CONSECUTIVE_UNAUTHORIZED = 3;
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_CAP_MS = 30_000;
 const REPLACED_BACKOFF_MS = 60_000;
@@ -99,14 +103,31 @@ export function coalesce(fn: () => void, ms: number) {
   };
 }
 
+/** Thrown by `fetchTicket` when the ticket route answered 401 (an expired session). */
+export class TicketUnauthorizedError extends Error {}
+
+/** Calls `onShown` each time the tab becomes visible; returns the unsubscribe. */
+function onTabShown(onShown: () => void): () => void {
+  if (typeof document === "undefined") return () => {};
+  const listener = () => {
+    if (document.visibilityState === "visible") onShown();
+  };
+  document.addEventListener("visibilitychange", listener);
+  return () => document.removeEventListener("visibilitychange", listener);
+}
+
 export type RealtimeClientOptions = {
-  /** A fresh single-use ticket. Rejects when none can be had. */
+  /** A fresh single-use ticket. Rejects when none can be had; throws `TicketUnauthorizedError` on 401. */
   fetchTicket: () => Promise<string>;
   createSocket: (url: string) => SocketLike;
   apiBase: string;
   onEvent: (event: RealtimeEvent) => void;
   /** After any connection that follows an earlier one: events in between were not replayed. */
   onReconnect: () => void;
+  /** Called for each 401 up to the cap, so the page can renew the session. */
+  onUnauthorized?: () => void;
+  /** Wakes a client that gave up after repeated 401s. Defaults to the tab becoming visible. */
+  subscribeShown?: (onShown: () => void) => () => void;
   random?: () => number;
 };
 
@@ -114,14 +135,25 @@ export type RealtimeClientOptions = {
 export function startRealtimeClient(
   options: RealtimeClientOptions,
 ): () => void {
-  const { fetchTicket, createSocket, apiBase, onEvent, onReconnect, random } =
-    options;
+  const {
+    fetchTicket,
+    createSocket,
+    apiBase,
+    onEvent,
+    onReconnect,
+    onUnauthorized,
+    subscribeShown = onTabShown,
+    random,
+  } = options;
   let stopped = false;
   let attempt = 0;
   let everConnected = false;
   let socket: SocketLike | undefined;
   let pingTimer: ReturnType<typeof setInterval> | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let stableTimer: ReturnType<typeof setTimeout> | undefined;
+  let unauthorized = 0;
+  let unsubscribeShown: (() => void) | undefined;
 
   const retry = (closeCode?: number) => {
     if (stopped) return;
@@ -131,19 +163,39 @@ export function startRealtimeClient(
     );
   };
 
+  /** A dead session: stop retrying and refreshing until the tab is shown again. */
+  const giveUp = () => {
+    unsubscribeShown ??= subscribeShown(() => {
+      unsubscribeShown?.();
+      unsubscribeShown = undefined;
+      unauthorized = 0;
+      attempt = 0;
+      void connect();
+    });
+  };
+
   async function connect() {
     let ticket: string;
     try {
       ticket = await fetchTicket();
-    } catch {
+    } catch (error) {
+      if (stopped) return;
+      if (error instanceof TicketUnauthorizedError) {
+        if (++unauthorized > MAX_CONSECUTIVE_UNAUTHORIZED) {
+          giveUp();
+          return;
+        }
+        onUnauthorized?.();
+      }
       retry();
       return;
     }
     if (stopped) return;
+    unauthorized = 0;
     const opened = createSocket(realtimeUrl(apiBase, ticket));
     socket = opened;
     opened.onopen = () => {
-      attempt = 0;
+      stableTimer = setTimeout(() => (attempt = 0), STABLE_OPEN_MS);
       if (everConnected) onReconnect();
       everConnected = true;
       pingTimer = setInterval(() => opened.send(PING_FRAME), PING_INTERVAL_MS);
@@ -154,6 +206,7 @@ export function startRealtimeClient(
     };
     opened.onclose = ({ code }) => {
       clearInterval(pingTimer);
+      clearTimeout(stableTimer);
       retry(code);
     };
   }
@@ -163,6 +216,8 @@ export function startRealtimeClient(
     stopped = true;
     clearInterval(pingTimer);
     clearTimeout(retryTimer);
+    clearTimeout(stableTimer);
+    unsubscribeShown?.();
     if (socket) {
       socket.onclose = null;
       socket.close();
