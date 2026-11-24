@@ -234,7 +234,7 @@ class MessengerHistoryClientTests {
         void aGraphPageCapEndsAnEndlessChainOfDistinctMessageLinks() {
             withLimits(50, 1000, 3);
             firstPage(edge(THREAD_URL + "?after=0", 9));
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 2; i++) {
                 server.expect(requestTo(THREAD_URL + "?after=" + i)).andRespond(withSuccess(
                         edge(THREAD_URL + "?after=" + (i + 1)), MediaType.APPLICATION_JSON));
             }
