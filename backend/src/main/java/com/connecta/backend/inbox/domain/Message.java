@@ -93,11 +93,17 @@ public class Message {
         return new Message(conversation, MessageDirection.OUTBOUND, null, sentBy, externalMessageId, body, sentAt);
     }
 
-    /** Names the agent on an outbound message the webhook echo stored before the send finished. */
-    public void attributeTo(User agent) {
+    /**
+     * Names the agent on an outbound message the webhook echo stored before the send finished.
+     *
+     * @return true when the sender changed, false when the message already had one or is inbound
+     */
+    public boolean attributeTo(User agent) {
         if (direction == MessageDirection.OUTBOUND && sentByUser == null) {
             this.sentByUser = agent;
+            return true;
         }
+        return false;
     }
 
     @PrePersist
