@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { RAIL_CONTROL, RAIL_LABEL } from "./rail-button";
 
 const ACTIVE =
-  "bg-selected text-primary before:absolute before:-left-3 before:top-2 before:h-5 before:w-0.5 before:rounded-full before:bg-accent max-[799px]:before:hidden";
+  "bg-selected text-primary before:absolute before:-left-3 before:top-2 before:h-5 before:w-0.5 before:rounded-full before:bg-accent";
 
 type RailLinkProps = {
   href: string;

@@ -14,7 +14,11 @@ const redirect = vi.hoisted(() =>
 const fetchMe = vi.hoisted(() => vi.fn());
 
 vi.mock("server-only", () => ({}));
-vi.mock("next/headers", () => ({ cookies: async () => store }));
+const requestHeaders = new Headers();
+vi.mock("next/headers", () => ({
+  cookies: async () => store,
+  headers: async () => requestHeaders,
+}));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("./api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./api")>()),
@@ -84,6 +88,20 @@ describe("getCurrentUser", () => {
     await expect(getCurrentUser()).rejects.toThrow(
       "NEXT_REDIRECT /session/refresh?next=%2F",
     );
+  });
+
+  it("returns to the requested page when the caller gives no path", async () => {
+    store.get.mockReturnValue({ value: "access" });
+    store.has.mockReturnValue(true);
+    fetchMe.mockRejectedValue(new ApiError(401, "expired"));
+    requestHeaders.set("x-requested-path", "/organizations/1/products");
+    try {
+      await expect(getCurrentUser()).rejects.toThrow(
+        "NEXT_REDIRECT /session/refresh?next=%2Forganizations%2F1%2Fproducts",
+      );
+    } finally {
+      requestHeaders.delete("x-requested-path");
+    }
   });
 
   it("keeps the query of next intact when refreshing", async () => {

@@ -12,6 +12,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -34,6 +35,8 @@ public class RefreshTokenService {
 
     private static final int TOKEN_BYTES = 32;
     private static final String HASH_ALGORITHM = "SHA-256";
+    /** A replay this soon after rotation is a race between concurrent requests, not a stolen token. */
+    private static final Duration ROTATION_GRACE = Duration.ofSeconds(10);
 
     private final RefreshTokenRepository tokens;
     private final JwtProperties props;
@@ -69,6 +72,9 @@ public class RefreshTokenService {
             // logout, "sign out this device" or a password change has no successor: a plain rejection,
             // so a signed-out device cannot take the user's other sessions down with it.
             if (wasRotated(stored)) {
+                if (stored.getRevokedAt().plus(ROTATION_GRACE).isAfter(now)) {
+                    throw new RefreshTokenJustRotatedException();
+                }
                 log.warn("Refresh token reuse detected, revoking all sessions of user {}", user.getId());
                 tokens.revokeAllForUser(user.getId(), now);
             }

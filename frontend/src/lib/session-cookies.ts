@@ -1,4 +1,6 @@
 export const ACCESS_COOKIE = "access_token";
+/** Request header the proxy sets so server code knows which page asked. */
+export const REQUESTED_PATH_HEADER = "x-requested-path";
 export const REFRESH_COOKIE = "refresh_token";
 
 // Matches the backend's default refresh token lifetime (app.jwt.refresh-ttl=7d).

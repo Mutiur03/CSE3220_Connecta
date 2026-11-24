@@ -54,6 +54,18 @@ export const SunIcon = () => (
   </Icon>
 );
 
+export const MenuIcon = () => (
+  <Icon>
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </Icon>
+);
+
+export const CloseIcon = () => (
+  <Icon>
+    <path d="M18 6 6 18M6 6l12 12" />
+  </Icon>
+);
+
 export const PlusIcon = () => (
   <Icon>
     <path d="M5 12h14M12 5v14" />
