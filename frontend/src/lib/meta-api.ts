@@ -15,11 +15,16 @@ export type MetaAvailablePage = {
   connected: boolean;
 };
 
+/** Why the last import of past conversations failed. Absent (null) when it did not. */
+export type HistoryImportError = "PERMISSION" | "FETCH";
+
 /** A Facebook Page this organization has connected for Messenger. */
 export type MetaConnectedPage = {
   pageId: string;
   name: string;
   connectedAt: string;
+  historyImportError: HistoryImportError | null;
+  historyImportFailedAt: string | null;
 };
 
 /** An Instagram professional account this organization has connected. */
@@ -28,6 +33,8 @@ export type MetaInstagramAccount = {
   externalAccountId: string;
   username: string | null;
   connectedAt: string;
+  historyImportError: HistoryImportError | null;
+  historyImportFailedAt: string | null;
 };
 
 const metaPath = (orgId: string) =>

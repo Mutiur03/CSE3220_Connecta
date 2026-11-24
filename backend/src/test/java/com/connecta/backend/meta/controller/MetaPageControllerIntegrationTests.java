@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.connecta.backend.config.JwtProperties;
+import com.connecta.backend.meta.domain.HistoryImportFailure;
 import com.connecta.backend.meta.domain.MetaAuthorization;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.repository.MetaAuthorizationRepository;
@@ -249,7 +250,22 @@ class MetaPageControllerIntegrationTests {
                     .andExpect(jsonPath("$.content[0].pageId").value("p1"))
                     .andExpect(jsonPath("$.content[0].name").value("Page One"))
                     .andExpect(jsonPath("$.content[0].pageAccessTokenEncrypted").doesNotExist())
-                    .andExpect(jsonPath("$.totalElements").value(1));
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].historyImportError").doesNotExist());
+        }
+
+        @Test
+        void aFailedHistoryImportShowsItsCodeAndTime() throws Exception {
+            Seeded s = seedAcmeWithGrant();
+            MetaConnectedPage page = new MetaConnectedPage(s.acme(), "p1");
+            page.replace("Page One", cipher.encrypt("page-token-1"), s.admin(), TestClock.NOW);
+            page.markHistoryImportFailed(HistoryImportFailure.PERMISSION, TestClock.NOW);
+            pages.saveAndFlush(page);
+
+            mvc.perform(get(path(s.acme())).header(AUTH, bearer(s.admin())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].historyImportError").value("PERMISSION"))
+                    .andExpect(jsonPath("$.content[0].historyImportFailedAt").exists());
         }
 
         @Test

@@ -22,7 +22,7 @@ class HistoryImportTriggerTests {
 
     private static final HistoryImportProperties ON = HistoryImportProperties.defaults();
     private static final HistoryImportProperties OFF = new HistoryImportProperties(false, 0, 0, 0, 0,
-            Duration.ofSeconds(1), 1, 1);
+            Duration.ofSeconds(1), 1, 1, 1);
 
     private final HistoryImportService imports = mock(HistoryImportService.class);
     private final HistoryAccountStore store = mock(HistoryAccountStore.class);

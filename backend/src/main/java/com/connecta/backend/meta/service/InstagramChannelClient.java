@@ -8,7 +8,6 @@ import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -43,7 +42,7 @@ class InstagramChannelClient extends GraphMessagingClient {
     @Override
     public String send(Conversation conversation, String text) {
         String token = cipher.decrypt(accountOf(conversation).getAccessTokenEncrypted());
-        return post(graph.post().uri("/me/messages").header(HttpHeaders.AUTHORIZATION, "Bearer " + token),
+        return post(graph.post().uri("/me/messages").headers(GraphAuth.bearer(token)),
                 payload(conversation.getExternalThreadId(), text));
     }
 

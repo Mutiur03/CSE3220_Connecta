@@ -1,11 +1,13 @@
 package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
@@ -36,7 +38,7 @@ import org.springframework.web.client.RestClient;
 class MessengerChannelClientTests {
 
     private static final String KEY = "dGVzdC1vbmx5LW1ldGEtdG9rZW4ta2V5LTAwMDAwMDE=";
-    private static final String URL = "https://graph.facebook.com/v27.0/me/messages?access_token=page-token";
+    private static final String URL = "https://graph.facebook.com/v27.0/me/messages";
 
     private final UUID organizationId = UUID.randomUUID();
     private final Organization organization = new Organization("Acme", "acme");
@@ -65,12 +67,24 @@ class MessengerChannelClientTests {
     @Test
     void postsTheTextToTheSendApiWithThePageTokenAndReturnsTheMessageId() {
         server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer page-token"))
                 .andExpect(jsonPath("$.recipient.id").value("psid-1"))
                 .andExpect(jsonPath("$.message.text").value("hello"))
                 .andRespond(withSuccess("{\"recipient_id\":\"psid-1\",\"message_id\":\"mid.1\"}",
                         MediaType.APPLICATION_JSON));
 
         assertEquals("mid.1", client.send(thread, "hello"));
+        server.verify();
+    }
+
+    @Test
+    void theSendRequestCarriesNoAccessTokenInTheUrl() {
+        server.expect(request -> assertNull(request.getURI().getRawQuery()))
+                .andExpect(header("Authorization", "Bearer page-token"))
+                .andRespond(withSuccess("{\"message_id\":\"mid.1\"}", MediaType.APPLICATION_JSON));
+
+        client.send(thread, "hello");
+
         server.verify();
     }
 
@@ -123,7 +137,8 @@ class MessengerChannelClientTests {
         }
 
         private void respondOkTo(String token) {
-            server.expect(requestTo("https://graph.facebook.com/v27.0/me/messages?access_token=" + token))
+            server.expect(requestTo(URL))
+                    .andExpect(header("Authorization", "Bearer " + token))
                     .andRespond(withSuccess("{\"message_id\":\"mid.2\"}", MediaType.APPLICATION_JSON));
         }
 

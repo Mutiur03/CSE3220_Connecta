@@ -20,6 +20,7 @@ import com.connecta.backend.inbox.service.HistoryImportedEvent;
 import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.inbox.service.ParticipantNameService;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
+import com.connecta.backend.meta.domain.HistoryImportFailure;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
 import com.connecta.backend.org.domain.Organization;
@@ -76,7 +77,7 @@ class HistoryImportServiceTests {
     }
 
     private static HistoryImportProperties limits(int conversations, int messages) {
-        return new HistoryImportProperties(true, conversations, 50, messages, 25, Duration.ofSeconds(5), 1, 10);
+        return new HistoryImportProperties(true, conversations, 50, messages, 25, Duration.ofSeconds(5), 1, 10, 200);
     }
 
     private static NormalizedMessage message(String id, String peer) {
@@ -268,6 +269,37 @@ class HistoryImportServiceTests {
             verify(inbox).importHistorical(any(), eq(message("m1", "c1")));
             verify(store, never()).markImported(any(), any(), any());
             verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
+        }
+
+        @Test
+        void aPermissionFailureIsRecordedAsPermission() {
+            when(client.conversations("page-1", "page-token")).thenThrow(new HistoryPermissionException());
+
+            assertThrows(HistoryPermissionException.class,
+                    () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
+
+            verify(store).markFailed(Channel.MESSENGER, pageRowId, HistoryImportFailure.PERMISSION,
+                    TestClock.FIXED.instant());
+        }
+
+        @Test
+        void aFetchFailureIsRecordedAsFetch() {
+            when(client.conversations("page-1", "page-token")).thenThrow(new HistoryFetchException("x"));
+
+            assertThrows(HistoryFetchException.class,
+                    () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
+
+            verify(store).markFailed(Channel.MESSENGER, pageRowId, HistoryImportFailure.FETCH,
+                    TestClock.FIXED.instant());
+        }
+
+        @Test
+        void aSuccessfulRunRecordsNoFailure() {
+            history();
+
+            service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId);
+
+            verify(store, never()).markFailed(any(), any(), any(), any());
         }
 
         @Test

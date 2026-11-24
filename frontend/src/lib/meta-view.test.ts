@@ -4,6 +4,7 @@ import {
   connectionFlash,
   facebookDetailLine,
   facebookStatus,
+  historyImportNotice,
   parsePageIds,
 } from "./meta-view";
 
@@ -83,5 +84,24 @@ describe("connectionFlash", () => {
   it("shows nothing for a normal visit or an unknown code", () => {
     expect(connectionFlash({})).toBeNull();
     expect(connectionFlash({ metaError: "something_else" })).toBeNull();
+  });
+});
+
+describe("historyImportNotice", () => {
+  it("says a missing permission failed the import and when it retries", () => {
+    const text = historyImportNotice("PERMISSION");
+
+    expect(text).toContain("Importing past conversations failed");
+    expect(text).toContain("permission missing");
+    expect(text).toContain("retries");
+  });
+
+  it("explains a fetch failure without Meta's own text", () => {
+    expect(historyImportNotice("FETCH")).toContain("Meta could not be read");
+  });
+
+  it("shows nothing when the import did not fail", () => {
+    expect(historyImportNotice(null)).toBeNull();
+    expect(historyImportNotice(undefined)).toBeNull();
   });
 });
