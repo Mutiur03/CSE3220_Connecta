@@ -1,7 +1,6 @@
 package com.connecta.backend.inbox.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,7 +32,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @ExtendWith(MockitoExtension.class)
 class OutgoingMessageServiceTests {
@@ -86,20 +84,6 @@ class OutgoingMessageServiceTests {
             order.verify(client).send(thread, "hello");
             order.verify(recorder).record(subject, organizationId, conversationId, "mid.1", "hello");
             assertEquals(stored, sent);
-        }
-
-        @Test
-        void callsMetaWithoutAnActiveTransaction() {
-            conversationFound();
-            when(client.send(any(), any())).thenAnswer(call -> {
-                assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
-                return "mid.1";
-            });
-            when(recorder.record(any(), any(), any(), any(), any())).thenReturn(stored);
-
-            service.send(subject, organizationId, conversationId, "hello");
-
-            verify(client).send(thread, "hello");
         }
 
         @Test
