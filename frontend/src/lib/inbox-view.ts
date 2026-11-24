@@ -55,3 +55,26 @@ export function inboxHref(
 
 export const participantLabel = (name: string | null) =>
   name?.trim() || UNKNOWN_PARTICIPANT;
+
+export const MESSAGES_PAGE_SIZE = 30;
+
+/** The backend sends the newest message first; a thread reads oldest at the top. */
+export const readingOrder = <T>(newestFirst: readonly T[]): T[] =>
+  [...newestFirst].reverse();
+
+/** The customer names on a thread, comma separated, or the unknown label. */
+export const participantsLabel = (
+  participants: readonly { displayName: string | null }[],
+) => {
+  const names = participants
+    .map((participant) => participant.displayName?.trim())
+    .filter((name): name is string => Boolean(name));
+  return names.length > 0 ? names.join(", ") : UNKNOWN_PARTICIPANT;
+};
+
+/** Thread URL for one page of history; page 0 is the clean address. */
+export const threadHref = (threadPath: string, page = 0) =>
+  page > 0 ? `${threadPath}?page=${page}` : threadPath;
+
+export const nextStatus = (status: "OPEN" | "CLOSED") =>
+  status === "OPEN" ? "CLOSED" : "OPEN";

@@ -60,3 +60,37 @@ describe("participantLabel", () => {
     expect(participantLabel("Ana")).toBe("Ana");
   });
 });
+
+import {
+  nextStatus,
+  participantsLabel,
+  readingOrder,
+  threadHref,
+} from "./inbox-view";
+
+describe("thread helpers", () => {
+  it("reverses without mutating", () => {
+    const input = [3, 2, 1];
+    expect(readingOrder(input)).toEqual([1, 2, 3]);
+    expect(input).toEqual([3, 2, 1]);
+  });
+
+  it("joins names or falls back", () => {
+    expect(
+      participantsLabel([{ displayName: "Ana" }, { displayName: " Bo " }]),
+    ).toBe("Ana, Bo");
+    expect(participantsLabel([{ displayName: null }])).toBe(
+      UNKNOWN_PARTICIPANT,
+    );
+  });
+
+  it("builds thread links, page 0 clean", () => {
+    expect(threadHref("/t")).toBe("/t");
+    expect(threadHref("/t", 2)).toBe("/t?page=2");
+  });
+
+  it("toggles status", () => {
+    expect(nextStatus("OPEN")).toBe("CLOSED");
+    expect(nextStatus("CLOSED")).toBe("OPEN");
+  });
+});
