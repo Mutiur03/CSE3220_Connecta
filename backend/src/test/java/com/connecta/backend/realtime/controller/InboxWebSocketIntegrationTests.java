@@ -15,6 +15,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.connecta.backend.org.service.ActiveCaller;
 import com.connecta.backend.org.service.MemberRemovedEvent;
+import com.connecta.backend.org.service.OrganizationDeletedEvent;
 import com.connecta.backend.org.service.TenantAccessService;
 import com.connecta.backend.realtime.service.RealtimeTicketService;
 import com.connecta.backend.support.MockRepositories;
@@ -173,6 +174,16 @@ class InboxWebSocketIntegrationTests {
         connect(ticketFor(orgA), ORIGIN, new LinkedBlockingQueue<>(), closed);
 
         events.publishEvent(new MemberRemovedEvent(orgA, user.getId()));
+
+        assertThat(closed.get(5, TimeUnit.SECONDS).getCode()).isEqualTo(4003);
+    }
+
+    @Test
+    void aDeletedOrganizationDisconnectsEverySessionOfItWithCode4003() throws Exception {
+        CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
+        connect(ticketFor(orgA), ORIGIN, new LinkedBlockingQueue<>(), closed);
+
+        events.publishEvent(new OrganizationDeletedEvent(orgA));
 
         assertThat(closed.get(5, TimeUnit.SECONDS).getCode()).isEqualTo(4003);
     }

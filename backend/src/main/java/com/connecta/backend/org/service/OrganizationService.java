@@ -15,6 +15,7 @@ import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -40,6 +41,7 @@ public class OrganizationService {
     private final UserService users;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
+    private final ApplicationEventPublisher events;
 
     /** Any signed-in user. The creator becomes the organization's ADMIN. */
     @Transactional
@@ -99,5 +101,6 @@ public class OrganizationService {
         Membership membership = tenants.requireRole(organizationId, activeCaller.load(subject).getId(), Roles.ADMIN);
         memberships.delete(membership);
         organizations.delete(membership.getOrganization());
+        events.publishEvent(new OrganizationDeletedEvent(organizationId));
     }
 }

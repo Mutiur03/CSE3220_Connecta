@@ -89,6 +89,12 @@ public class RealtimeSessionRegistry {
                 .forEach(e -> drop(e, status));
     }
 
+    /** Closes every session of the organization (it was deleted). */
+    public void closeOrganization(UUID organizationId, CloseStatus status) {
+        List.copyOf(entries.values()).stream().filter(e -> e.organizationId().equals(organizationId))
+                .forEach(e -> drop(e, status));
+    }
+
     public int count(UUID organizationId) {
         return (int) entries.values().stream().filter(e -> e.organizationId().equals(organizationId)).count();
     }
