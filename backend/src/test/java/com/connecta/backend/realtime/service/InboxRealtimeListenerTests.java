@@ -88,4 +88,25 @@ class InboxRealtimeListenerTests {
             assertThatCode(() -> listener().onMessageReceived(event)).doesNotThrowAnyException();
         }
     }
+
+    @Nested
+    class OnHistoryImported {
+
+        @Test
+        void broadcastsOneRefreshToTheOrganization() {
+            listener().onHistoryImported(new com.connecta.backend.inbox.service.HistoryImportedEvent(orgId));
+
+            ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
+            verify(registry).broadcast(eq(orgId), json.capture());
+            assertThat(json.getValue()).contains("\"type\":\"inbox.refresh\"");
+        }
+
+        @Test
+        void aBroadcastFailureIsSwallowed() {
+            doThrow(new IllegalStateException("boom")).when(registry).broadcast(any(), any());
+
+            assertThatCode(() -> listener().onHistoryImported(
+                    new com.connecta.backend.inbox.service.HistoryImportedEvent(orgId))).doesNotThrowAnyException();
+        }
+    }
 }

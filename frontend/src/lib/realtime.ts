@@ -2,9 +2,10 @@
 // is testable with a fake socket and fake timers.
 
 export type RealtimeEvent = {
-  type: "message.created" | "participant.updated";
+  type: "message.created" | "participant.updated" | "inbox.refresh";
+  /** Empty for inbox.refresh (many conversations changed: a history import). */
   conversationId: string;
-  /** Empty for participant.updated (a customer name was stored). */
+  /** Empty for participant.updated (a customer name was stored) and inbox.refresh. */
   messageId: string;
   channel: string;
   direction: string;
@@ -64,6 +65,16 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
   }
   if (typeof value !== "object" || value === null) return null;
   const e = value as Record<string, unknown>;
+  if (e.type === "inbox.refresh") {
+    return {
+      type: e.type,
+      conversationId: "",
+      messageId: "",
+      channel: "",
+      direction: "",
+      newConversation: false,
+    };
+  }
   if (typeof e.conversationId !== "string") return null;
   if (e.type === "participant.updated") {
     return {
@@ -90,6 +101,7 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
 
 /** The list (no conversation) wants every event; a thread only its own conversation's. */
 export function isRelevant(event: RealtimeEvent, conversationId?: string) {
+  if (event.type === "inbox.refresh") return true;
   return !conversationId || event.conversationId === conversationId;
 }
 

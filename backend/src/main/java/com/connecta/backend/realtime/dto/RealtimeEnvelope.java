@@ -18,10 +18,16 @@ public record RealtimeEnvelope(
 
     public static final String MESSAGE_CREATED = "message.created";
     public static final String PARTICIPANT_UPDATED = "participant.updated";
+    public static final String INBOX_REFRESH = "inbox.refresh";
 
     /** A customer name was stored: only the conversation id is set, and clients refresh that conversation. */
     public static RealtimeEnvelope participantUpdated(UUID conversationId) {
         return new RealtimeEnvelope(PARTICIPANT_UPDATED, conversationId, null, null, null, false, null);
+    }
+
+    /** Tells open inboxes to reload: many conversations changed at once (a history import). */
+    public static RealtimeEnvelope inboxRefresh() {
+        return new RealtimeEnvelope(INBOX_REFRESH, null, null, null, null, false, null);
     }
 
     public static RealtimeEnvelope messageCreated(MessageReceivedEvent event, MessageResponse message) {

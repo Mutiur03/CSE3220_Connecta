@@ -39,10 +39,23 @@ public class IncomingMessageService {
 
     @Transactional
     public void receive(ConnectedChannelAccount account, NormalizedMessage incoming) {
+        store(account, incoming, true);
+    }
+
+    /**
+     * Stores a message read from Meta's history: same dedupe, linking and tenant scoping as {@link #receive}, but
+     * announces nothing (the import publishes one summary event). Returns false when it was already stored.
+     */
+    @Transactional
+    public boolean importHistorical(ConnectedChannelAccount account, NormalizedMessage incoming) {
+        return store(account, incoming, false);
+    }
+
+    private boolean store(ConnectedChannelAccount account, NormalizedMessage incoming, boolean announce) {
         Organization organization = account.getOrganization();
         if (messages.existsByOrganizationIdAndExternalMessageId(organization.getId(), incoming.externalMessageId())) {
             log.debug("Skipping a message the organization already has");
-            return;
+            return false;
         }
         Channel channel = channelOf(incoming.channel());
         Participant customer = participantFor(organization, channel, incoming.peerId());
@@ -52,8 +65,11 @@ public class IncomingMessageService {
                 .orElseGet(() -> startConversation(organization, account, channel, customer, incoming.peerId()));
         Message saved = messages.save(toMessage(conversation, customer, incoming));
         conversation.recordMessageAt(incoming.sentAt());
-        publisher.publishEvent(new MessageReceivedEvent(organization.getId(), conversation.getId(), saved.getId(),
-                channel, saved.getDirection(), existing.isEmpty()));
+        if (announce) {
+            publisher.publishEvent(new MessageReceivedEvent(organization.getId(), conversation.getId(),
+                    saved.getId(), channel, saved.getDirection(), existing.isEmpty()));
+        }
+        return true;
     }
 
     private static Channel channelOf(WebhookObject object) {

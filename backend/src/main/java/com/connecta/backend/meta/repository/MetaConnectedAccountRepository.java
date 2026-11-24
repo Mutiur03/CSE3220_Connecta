@@ -23,4 +23,7 @@ public interface MetaConnectedAccountRepository extends JpaRepository<MetaConnec
      * the one lookup that is not scoped by organization.
      */
     List<MetaConnectedAccount> findAllByPlatformAndExternalAccountId(String platform, String externalAccountId);
+
+    /** Connections whose history was never imported to the end: the startup catch-up works through them. */
+    List<MetaConnectedAccount> findAllByHistoryImportedAtIsNull();
 }

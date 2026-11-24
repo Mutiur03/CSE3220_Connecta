@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.meta.domain.MetaAuthorization;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.repository.MetaAuthorizationRepository;
@@ -24,6 +25,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -53,6 +55,7 @@ public class MetaPageService {
     private final TenantAccessService tenants;
     private final ActiveCaller callers;
     private final Clock clock;
+    private final ApplicationEventPublisher publisher;
 
     /** The organization's connected Pages, by name. Never includes a token. */
     @Transactional(readOnly = true)
@@ -119,7 +122,9 @@ public class MetaPageService {
         MetaConnectedPage connected = pages.findByOrganizationIdAndPageId(organization.getId(), page.id())
                 .orElseGet(() -> new MetaConnectedPage(organization, page.id()));
         connected.replace(page.name(), cipher.encrypt(page.accessToken()), grantedBy, now);
-        return pages.save(connected);
+        MetaConnectedPage saved = pages.save(connected);
+        publisher.publishEvent(new ChannelConnectedEvent(Channel.MESSENGER, saved.getId()));
+        return saved;
     }
 
     private void requireConfigured() {

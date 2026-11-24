@@ -22,4 +22,7 @@ public interface MetaConnectedPageRepository extends JpaRepository<MetaConnected
      * the one lookup that is not scoped by organization.
      */
     List<MetaConnectedPage> findAllByPageId(String pageId);
+
+    /** Connections whose history was never imported to the end: the startup catch-up works through them. */
+    List<MetaConnectedPage> findAllByHistoryImportedAtIsNull();
 }
