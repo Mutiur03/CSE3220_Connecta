@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import MessageList from "@/components/message-list";
+import ReplyComposer from "@/components/reply-composer";
 import OrgActionButton from "@/components/org-action-button";
 import { Badge } from "@/components/ui/badge";
-import { setConversationStatusAction } from "@/lib/inbox-actions";
+import {
+  sendMessageAction,
+  setConversationStatusAction,
+} from "@/lib/inbox-actions";
 import { getConversation, listMessages } from "@/lib/inbox-api";
 import {
   INBOX_CHANNEL_LABELS,
@@ -49,7 +53,7 @@ export default async function ConversationPage({
       <header className="flex flex-col gap-3">
         <Link
           href={`/organizations/${id}/inbox`}
-          className="self-start text-sm text-secondary underline-offset-4 hover:underline"
+          className="inline-flex min-h-10 items-center self-start text-sm text-secondary underline-offset-4 hover:underline"
         >
           Back to inbox
         </Link>
@@ -58,7 +62,7 @@ export default async function ConversationPage({
             <h1 className="break-words text-display font-medium">
               {participantsLabel(conversation.participants)}
             </h1>
-            <p className="flex items-center gap-2">
+            <p aria-live="polite" className="flex items-center gap-2">
               <Badge>{INBOX_CHANNEL_LABELS[conversation.channel]}</Badge>
               <Badge tone={closed ? "neutral" : "accent"}>
                 {closed ? "Closed" : "Open"}
@@ -79,13 +83,17 @@ export default async function ConversationPage({
         </div>
       </header>
 
-      <section aria-label="Messages">
+      <section>
         <MessageList
           messages={messages.content}
           olderHref={hasOlder ? threadHref(threadPath, page + 1) : undefined}
           newerHref={page > 0 ? threadHref(threadPath, page - 1) : undefined}
         />
       </section>
+
+      <ReplyComposer
+        action={sendMessageAction.bind(null, id, conversationId)}
+      />
     </>
   );
 }
