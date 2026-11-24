@@ -53,3 +53,5 @@ Template Method for webhook intake: a fixed skeleton of verify, parse, dedupe, p
 
 - Retries: Meta resends an event that got no `200`. Duplicates are handled in #46 (the Meta message id is unique per organization), so reception stores every verified delivery.
 - Retention of raw payloads is not decided here; they are kept until processed, and a cleanup job is a later issue.
+
+Outgoing replies (`POST .../messages`) are stored with Meta's returned message id, so the webhook echo of the same message is deduped by the organization's existing `externalMessageId` check and never creates a second row.
