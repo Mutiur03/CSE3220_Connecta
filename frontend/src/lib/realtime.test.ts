@@ -304,6 +304,21 @@ describe("with fake timers", () => {
         stop();
       });
 
+      it("resets the count after a failure that is not a 401", async () => {
+        const onUnauthorized = vi.fn();
+        fetchTicket
+          .mockImplementationOnce(unauthorized)
+          .mockImplementationOnce(unauthorized)
+          .mockRejectedValueOnce(new Error("503"))
+          .mockImplementation(unauthorized);
+        const stop = start({ onUnauthorized, subscribeShown: () => () => {} });
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(onUnauthorized).toHaveBeenCalledTimes(
+          2 + MAX_CONSECUTIVE_UNAUTHORIZED,
+        );
+        stop();
+      });
+
       it("stop removes the tab listener", async () => {
         fetchTicket.mockImplementation(unauthorized);
         const unsubscribe = vi.fn();

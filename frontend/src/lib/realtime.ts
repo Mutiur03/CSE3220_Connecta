@@ -206,6 +206,8 @@ export function startRealtimeClient(
           return;
         }
         onUnauthorized?.();
+      } else {
+        unauthorized = 0;
       }
       retry();
       return;
