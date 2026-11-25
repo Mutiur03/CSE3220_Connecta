@@ -161,6 +161,13 @@ app:
       interval: 10m
       max-conversations: 10
       messages-per-conversation: 10
+    # A view-once photo arrives as the sender's echo (no media) and the receiver's normal image event, with the
+    # same timestamp. hide=false keeps the received photo permanently (default); true stores only the note
+    # "[Disappearing photo]" and never downloads the file. Marks of echoes expire after mark-ttl.
+    view-once:
+      hide: "${META_HIDE_VIEW_ONCE:false}"
+      mark-ttl: 1h
+      cleanup-interval: 10m
     webhook:
       # Verify token Meta sends back when it subscribes the webhook. Blank refuses every subscription.
       verify-token: "${META_WEBHOOK_VERIFY_TOKEN:}"

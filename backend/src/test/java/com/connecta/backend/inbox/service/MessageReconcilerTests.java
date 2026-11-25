@@ -125,6 +125,21 @@ class MessageReconcilerTests {
     }
 
     @Nested
+    class DisappearingPhoto {
+
+        @Test
+        void theNoteIsNeverDowngradedOrRefilled() {
+            Message message = stored("[Disappearing photo]");
+
+            assertFalse(reconciler.reconcile(message, fromMeta("[Attachment]")));
+            assertFalse(reconciler.reconcile(message, fromMeta("[Photo]", META_PHOTO)));
+
+            assertEquals("[Disappearing photo]", message.getBody());
+            verify(attachments, never()).saveAll(anyList());
+        }
+    }
+
+    @Nested
     class Attachments {
 
         @Test

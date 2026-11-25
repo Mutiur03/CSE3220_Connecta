@@ -20,6 +20,8 @@ type Props = {
 
 const NO_TEXT = "Attachment or unsupported message";
 /** The text the backend stores for a message that is only media; the media itself replaces it. */
+/** The stand-in for a view-once photo, which is never kept or shown. */
+const DISAPPEARING_PHOTO = "[Disappearing photo]";
 const MEDIA_LABELS = new Set([
   "[Photo]",
   "[Video]",
@@ -27,6 +29,7 @@ const MEDIA_LABELS = new Set([
   "[Attachment]",
   "[Shared post]",
   "[Story mention]",
+  DISAPPEARING_PHOTO,
 ]);
 const linkClass =
   "self-center text-sm text-secondary underline-offset-4 hover:text-primary hover:underline";
@@ -49,6 +52,13 @@ function caption({ text, attachments }: Message, appName?: string) {
     // Only a stand-in label and nothing to show: the platform sent the message but handed us no content for it
     // (some media types are not shared with apps). Say that, and where to see it, instead of a bracket label that
     // reads like a failed load. Inherits the bubble colour with reduced opacity, so it works on both bubbles.
+    if (text === DISAPPEARING_PHOTO) {
+      return (
+        <span className="italic opacity-75">
+          Disappearing photo. It isn’t kept or shown here.
+        </span>
+      );
+    }
     if (text && MEDIA_LABELS.has(text)) {
       return (
         <span className="italic opacity-75">

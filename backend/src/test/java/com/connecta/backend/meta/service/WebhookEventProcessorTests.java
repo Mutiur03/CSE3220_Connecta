@@ -12,6 +12,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.connecta.backend.config.ViewOnceProperties;
+import com.connecta.backend.inbox.service.DisappearingPhotoService;
 import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
@@ -21,6 +23,7 @@ import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import com.connecta.backend.meta.repository.MetaProcessedMessageRepository;
+import com.connecta.backend.meta.repository.MetaViewOnceMarkRepository;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
@@ -42,6 +45,8 @@ class WebhookEventProcessorTests {
     private MetaConnectedAccountRepository accounts;
     private MetaProcessedMessageRepository processed;
     private IncomingMessageService inbox;
+    private MetaViewOnceMarkRepository marks;
+    private DisappearingPhotoService storedPhotos;
     private WebhookEventProcessor processor;
 
     private Organization acme;
@@ -55,12 +60,20 @@ class WebhookEventProcessorTests {
         accounts = mock(MetaConnectedAccountRepository.class);
         processed = mock(MetaProcessedMessageRepository.class);
         inbox = mock(IncomingMessageService.class);
-        processor = new WebhookEventProcessor(pages, accounts, processed, new MessagingEventParser(), inbox,
-                new ObjectMapper(), TestClock.FIXED);
+        marks = mock(MetaViewOnceMarkRepository.class);
+        storedPhotos = mock(DisappearingPhotoService.class);
+        processor = processorWith(false);
         acme = organization();
         other = organization();
         acmePage = new MetaConnectedPage(acme, "page-1");
         otherPage = new MetaConnectedPage(other, "page-1");
+    }
+
+    private WebhookEventProcessor processorWith(boolean hide) {
+        ViewOnceService viewOnce = new ViewOnceService(marks, storedPhotos,
+                new ViewOnceProperties(hide, null, null), TestClock.FIXED);
+        return new WebhookEventProcessor(pages, accounts, processed, new MessagingEventParser(), inbox, viewOnce,
+                new ObjectMapper(), TestClock.FIXED);
     }
 
     private static Organization organization() {
@@ -71,6 +84,105 @@ class WebhookEventProcessorTests {
 
     private static MetaWebhookEvent event(WebhookObject object, String payload) {
         return new MetaWebhookEvent(object, payload, TestClock.NOW);
+    }
+
+    private static final long TS = 1700000000123L;
+    private static final String ECHO = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"ig-sender\",\"messaging\":["
+            + "{\"sender\":{\"id\":\"s\"},\"recipient\":{\"id\":\"r\"},\"timestamp\":" + TS + ","
+            + "\"message\":{\"mid\":\"m.echo\",\"is_echo\":true,\"attachments\":[{\"type\":\"ephemeral\","
+            + "\"payload\":{}}]}}]}]}";
+    private static final String PHOTO = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"ig-1\",\"messaging\":["
+            + "{\"sender\":{\"id\":\"c\"},\"timestamp\":" + TS + ",\"message\":{\"mid\":\"m.photo\","
+            + "\"attachments\":[{\"type\":\"image\",\"payload\":{\"url\":\"https://cdn.example/a.jpg\"}}]}}]}]}";
+
+    private MetaConnectedAccount routeInstagram(String accountId, Organization org) {
+        MetaConnectedAccount account = new MetaConnectedAccount(org, MetaConnectedAccount.PLATFORM_INSTAGRAM,
+                accountId);
+        when(accounts.findAllByPlatformAndExternalAccountId("INSTAGRAM", accountId)).thenReturn(List.of(account));
+        return account;
+    }
+
+    private NormalizedMessage delivered() {
+        ArgumentCaptor<NormalizedMessage> captor = ArgumentCaptor.forClass(NormalizedMessage.class);
+        verify(inbox).receive(any(), captor.capture());
+        return captor.getValue();
+    }
+
+    @Nested
+    class ViewOncePhotos {
+
+        @Test
+        void anEchoIsRecordedEvenWhenItsAccountIsNotConnected() {
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            verify(marks).record(TS, TestClock.NOW);
+            verify(inbox, never()).receive(any(), any());
+        }
+
+        @Test
+        void withTheSwitchOffAMarkedPhotoIsStoredAsAPhoto() {
+            routeInstagram("ig-1", acme);
+            when(marks.existsById(TS)).thenReturn(true);
+
+            processor.process(event(WebhookObject.INSTAGRAM, PHOTO));
+
+            assertEquals(1, delivered().attachments().size());
+            assertEquals("[Photo]", delivered().text());
+        }
+
+        @Test
+        void withTheSwitchOnAMarkedPhotoIsStoredAsTheNoteWithoutAttachment() {
+            processor = processorWith(true);
+            routeInstagram("ig-1", acme);
+            when(marks.existsById(TS)).thenReturn(true);
+
+            processor.process(event(WebhookObject.INSTAGRAM, PHOTO));
+
+            assertEquals("[Disappearing photo]", delivered().text());
+            assertEquals(List.of(), delivered().attachments());
+        }
+
+        @Test
+        void withTheSwitchOnAPhotoWithoutAMarkIsUntouched() {
+            processor = processorWith(true);
+            routeInstagram("ig-1", acme);
+            when(marks.existsById(TS)).thenReturn(false);
+
+            processor.process(event(WebhookObject.INSTAGRAM, PHOTO));
+
+            assertEquals(1, delivered().attachments().size());
+        }
+
+        @Test
+        void anEchoAfterThePhotoConvertsTheStoredPhotoOfTheRoutedOrganizationOnly() {
+            processor = processorWith(true);
+            MetaConnectedAccount sender = routeInstagram("ig-sender", acme);
+
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            verify(storedPhotos).convert(sender.getOrganization().getId(), java.time.Instant.ofEpochMilli(TS));
+            verify(storedPhotos, never()).convert(eq(other.getId()), any());
+        }
+
+        @Test
+        void withTheSwitchOffAnEchoConvertsNothing() {
+            routeInstagram("ig-sender", acme);
+
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            verify(storedPhotos, never()).convert(any(), any());
+            verify(marks).record(TS, TestClock.NOW);
+        }
+
+        @Test
+        void ourOwnDisappearingPhotoIsStoredAsTheNote() {
+            routeInstagram("ig-sender", acme);
+
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            assertEquals("[Disappearing photo]", delivered().text());
+            assertEquals(List.of(), delivered().attachments());
+        }
     }
 
     @Nested
