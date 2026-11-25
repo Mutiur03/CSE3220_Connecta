@@ -49,8 +49,13 @@ Backend configuration is one file, `application.yml`, with no profiles. What dif
 |---|---|---|---|
 | `app.public-base-url` | `PUBLIC_BASE_URL` | blank | This backend's public address. Attachment links (`/api/files/{id}`) are built from it, and Meta must be able to fetch them, so it cannot be `localhost`: use the deployed URL or a tunnel. Blank: sending an attachment answers `422`. Set it in production. |
 | `app.attachments.max-bytes` | `APP_ATTACHMENTS_MAXBYTES` | 8388608 (8 MB) | Largest attachment an agent may send. `spring.servlet.multipart.max-file-size` (8MB) and `max-request-size` (9MB) are aligned with it; raise them together. |
+| `app.attachments.mirror-max-bytes` | `APP_ATTACHMENTS_MIRRORMAXBYTES` | 26214400 (25 MB) | Largest incoming file copied from Meta; a bigger download is aborted and the attachment keeps Meta's URL. |
+| `app.attachments.mirror-allowed-host-suffixes` | `APP_ATTACHMENTS_MIRRORALLOWEDHOSTSUFFIXES` | `fbcdn.net,cdninstagram.com,fbsbx.com,facebook.com` | The only hosts incoming media is downloaded from (https, default port, every redirect hop re-checked, private and loopback addresses refused). |
+| `app.attachments.mirror-max-age` | `APP_ATTACHMENTS_MIRRORMAXAGE` | `3d` | Attachments older than this are no longer retried. |
+| `app.attachments.mirror-retry-after` / `mirror-sweep-delay` / `mirror-batch-size` | `APP_ATTACHMENTS_MIRRORRETRYAFTER` / `..._MIRRORSWEEPDELAY` / `..._MIRRORBATCHSIZE` | `15m` / `5m` / 20 | Retry sweep: every `mirror-sweep-delay`, up to `mirror-batch-size` uncopied attachments, each at most once per `mirror-retry-after`. |
+| `app.attachments.mirror-timeout` / `mirror-pool-size` / `mirror-queue-capacity` | `APP_ATTACHMENTS_MIRRORTIMEOUT` / `..._MIRRORPOOLSIZE` / `..._MIRRORQUEUECAPACITY` | `20s` / 2 / 100 | Connect and read timeout of each download, and the bounded executor the copies run on (a full queue leaves the copy to the sweep). |
 
-Attachment storage ceiling: Render has no persistent disk, so sent files live in PostgreSQL (`stored_files.data`, `bytea`). Each file is at most 8 MB, but they add up in the database plan's storage (the free Render PostgreSQL has 1 GB) and every read goes through the backend. Nothing expires files yet; deleting an organization deletes its files. Move them to object storage when volume grows.
+Attachment storage ceiling: Render has no persistent disk, so sent files and copies of incoming media live in PostgreSQL (`stored_files.data`, `bytea`). Each sent file is at most 8 MB and each incoming copy at most 25 MB (`mirror-max-bytes`); a download is held in memory while it is stored, so the copy executor (2 threads) bounds that memory at about 50 MB. The files add up in the database plan's storage (the free Render PostgreSQL has 1 GB) and every read goes through the backend. Nothing expires files yet; deleting an organization deletes its files. Move them to object storage when volume grows.
 
 ## Contributing
 Read [AGENTS.md](AGENTS.md) first. In short:
@@ -253,10 +258,14 @@ erDiagram
         uuid organization_id FK
         uuid message_id FK "on delete cascade"
         string kind "IMAGE, VIDEO, AUDIO or FILE"
-        text url "http(s) URL Meta serves it from"
+        text url "served URL: our copy once stored, else Meta's"
+        text source_url "nullable, the Meta link it came from"
+        uuid stored_file_id FK "nullable, our copy, on delete set null"
+        timestamp mirror_attempted_at "nullable, last copy attempt"
         string file_name "nullable"
         string content_type "nullable"
         timestamp created_at }
+    STORED_FILES |o--o{ MESSAGE_ATTACHMENTS : copy_of
     ORGANIZATIONS ||--o{ STORED_FILES : stores
     STORED_FILES { uuid id PK "random, the public read's only check"
         uuid organization_id FK "on delete cascade"
