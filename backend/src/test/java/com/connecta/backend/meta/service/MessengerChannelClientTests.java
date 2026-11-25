@@ -3,6 +3,7 @@ package com.connecta.backend.meta.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -15,6 +16,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.support.TestUsers;
@@ -175,6 +177,62 @@ class MessengerChannelClientTests {
                     .thenReturn(new PageImpl<>(List.of(pageWithToken("a", "t1"), pageWithToken("b", "t2"))));
 
             assertThrows(ConversationNotLinkedException.class, () -> client.send(thread, "hello"));
+        }
+    }
+
+    @Nested
+    class Attachments {
+
+        private static final String FILE_URL = "https://api.example.com/api/files/1";
+
+        @Test
+        void supportsEveryKind() {
+            for (AttachmentKind kind : AttachmentKind.values()) {
+                assertTrue(client.supports(kind), kind.name());
+            }
+        }
+
+        @Test
+        void postsTheAttachmentPayloadWithTheReusableUrlAndReturnsTheMessageId() {
+            server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
+                    .andExpect(header("Authorization", "Bearer page-token"))
+                    .andExpect(jsonPath("$.recipient.id").value("psid-1"))
+                    .andExpect(jsonPath("$.message.attachment.type").value("image"))
+                    .andExpect(jsonPath("$.message.attachment.payload.url").value(FILE_URL))
+                    .andExpect(jsonPath("$.message.attachment.payload.is_reusable").value(true))
+                    .andExpect(jsonPath("$.message.text").doesNotExist())
+                    .andRespond(withSuccess("{\"message_id\":\"mid.9\"}", MediaType.APPLICATION_JSON));
+
+            assertEquals("mid.9", client.sendAttachment(thread, AttachmentKind.IMAGE, FILE_URL));
+            server.verify();
+        }
+
+        @Test
+        void mapsEachKindToTheGraphType() {
+            server.expect(jsonPath("$.message.attachment.type").value("video"))
+                    .andRespond(withSuccess("{\"message_id\":\"m1\"}", MediaType.APPLICATION_JSON));
+            server.expect(jsonPath("$.message.attachment.type").value("audio"))
+                    .andRespond(withSuccess("{\"message_id\":\"m2\"}", MediaType.APPLICATION_JSON));
+            server.expect(jsonPath("$.message.attachment.type").value("file"))
+                    .andRespond(withSuccess("{\"message_id\":\"m3\"}", MediaType.APPLICATION_JSON));
+
+            client.sendAttachment(thread, AttachmentKind.VIDEO, FILE_URL);
+            client.sendAttachment(thread, AttachmentKind.AUDIO, FILE_URL);
+            client.sendAttachment(thread, AttachmentKind.FILE, FILE_URL);
+
+            server.verify();
+        }
+
+        @Test
+        void aClosedWindowAndOtherErrorsMapLikeText() {
+            server.expect(requestTo(URL)).andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":{\"code\":10}}"));
+            server.expect(requestTo(URL)).andRespond(withServerError());
+
+            assertThrows(MessagingWindowClosedException.class,
+                    () -> client.sendAttachment(thread, AttachmentKind.IMAGE, FILE_URL));
+            assertThrows(ChannelSendFailedException.class,
+                    () -> client.sendAttachment(thread, AttachmentKind.IMAGE, FILE_URL));
         }
     }
 }

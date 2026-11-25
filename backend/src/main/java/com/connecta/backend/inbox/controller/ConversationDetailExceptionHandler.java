@@ -1,10 +1,15 @@
 package com.connecta.backend.inbox.controller;
 
+import com.connecta.backend.file.service.PublicBaseUrlMissingException;
+import com.connecta.backend.inbox.service.AttachmentTooLargeException;
 import com.connecta.backend.inbox.service.ConversationNotFoundException;
+import com.connecta.backend.inbox.service.EmptyAttachmentException;
+import com.connecta.backend.inbox.service.UnsupportedAttachmentTypeException;
 import com.connecta.backend.meta.service.ChannelNotConnectedException;
 import com.connecta.backend.meta.service.ConversationNotLinkedException;
 import com.connecta.backend.meta.service.ChannelSendFailedException;
 import com.connecta.backend.meta.service.MessagingWindowClosedException;
+import com.connecta.backend.meta.service.UnsupportedAttachmentException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -26,6 +31,26 @@ class ConversationDetailExceptionHandler {
             MessagingWindowClosedException.class})
     ProblemDetail sendRefused(RuntimeException e) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
+    @ExceptionHandler({UnsupportedAttachmentException.class, PublicBaseUrlMissingException.class})
+    ProblemDetail attachmentRefused(RuntimeException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
+    @ExceptionHandler(EmptyAttachmentException.class)
+    ProblemDetail emptyAttachment(EmptyAttachmentException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+    }
+
+    @ExceptionHandler(AttachmentTooLargeException.class)
+    ProblemDetail attachmentTooLarge(AttachmentTooLargeException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONTENT_TOO_LARGE, e.getMessage());
+    }
+
+    @ExceptionHandler(UnsupportedAttachmentTypeException.class)
+    ProblemDetail unsupportedAttachmentType(UnsupportedAttachmentTypeException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNSUPPORTED_MEDIA_TYPE, e.getMessage());
     }
 
     @ExceptionHandler(ChannelSendFailedException.class)

@@ -1,7 +1,9 @@
 package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -14,6 +16,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.support.TestUsers;
@@ -148,6 +151,42 @@ class InstagramChannelClientTests {
                     .thenReturn(new PageImpl<>(List.of(accountWithToken("a", "t1"), accountWithToken("b", "t2"))));
 
             assertThrows(ConversationNotLinkedException.class, () -> client.send(thread, "hello"));
+        }
+    }
+
+    @Nested
+    class Attachments {
+
+        private static final String FILE_URL = "https://api.example.com/api/files/1";
+
+        @Test
+        void supportsImageVideoAndAudioButNotAGenericFile() {
+            assertTrue(client.supports(AttachmentKind.IMAGE));
+            assertTrue(client.supports(AttachmentKind.VIDEO));
+            assertTrue(client.supports(AttachmentKind.AUDIO));
+            assertFalse(client.supports(AttachmentKind.FILE));
+        }
+
+        @Test
+        void postsTheAttachmentPayloadWithTheAccountToken() {
+            server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
+                    .andExpect(header("Authorization", "Bearer ig-token"))
+                    .andExpect(jsonPath("$.recipient.id").value("igsid-1"))
+                    .andExpect(jsonPath("$.message.attachment.type").value("audio"))
+                    .andExpect(jsonPath("$.message.attachment.payload.url").value(FILE_URL))
+                    .andExpect(jsonPath("$.message.attachment.payload.is_reusable").value(true))
+                    .andRespond(withSuccess("{\"message_id\":\"aWdfZB\"}", MediaType.APPLICATION_JSON));
+
+            assertEquals("aWdfZB", client.sendAttachment(thread, AttachmentKind.AUDIO, FILE_URL));
+            server.verify();
+        }
+
+        @Test
+        void aGenericFileIsRefusedWithoutCallingInstagram() {
+            assertThrows(UnsupportedAttachmentException.class,
+                    () -> client.sendAttachment(thread, AttachmentKind.FILE, FILE_URL));
+
+            server.verify();
         }
     }
 }

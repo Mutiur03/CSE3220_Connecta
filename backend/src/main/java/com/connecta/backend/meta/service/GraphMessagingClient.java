@@ -1,5 +1,7 @@
 package com.connecta.backend.meta.service;
 
+import com.connecta.backend.inbox.domain.AttachmentKind;
+import com.connecta.backend.inbox.domain.Conversation;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
@@ -11,17 +13,45 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Shared send step of the channel adapters (Template Method): posts the message body, reads the provider
- * message id and maps Graph errors to domain exceptions. Subclasses supply the URL, the auth and the account.
+ * Shared send step of the channel adapters (Template Method): builds the text or attachment body, posts it, reads
+ * the provider message id and maps Graph errors to domain exceptions. Subclasses supply the request (URL, auth and
+ * account) and the attachment kinds their channel delivers.
  */
 @Slf4j
-abstract class GraphMessagingClient implements ChannelClient {
+abstract class GraphMessagingClient implements ChannelClient, AttachmentChannelClient {
 
     /** Graph error codes for "outside the allowed window" (10) and "person not available" (551). */
     private static final Set<Integer> WINDOW_CLOSED_CODES = Set.of(10, 551);
 
-    protected static Map<String, Object> payload(String recipientId, String text) {
-        return Map.of("recipient", Map.of("id", recipientId), "message", Map.of("text", text));
+    /** The Send API request for the conversation: messages URL and the token of its connected account. */
+    protected abstract RestClient.RequestBodySpec messagesRequest(Conversation conversation);
+
+    @Override
+    public final String send(Conversation conversation, String text) {
+        return post(messagesRequest(conversation), message(conversation, Map.of("text", text)));
+    }
+
+    @Override
+    public final String sendAttachment(Conversation conversation, AttachmentKind kind, String url) {
+        if (!supports(kind)) {
+            throw new UnsupportedAttachmentException();
+        }
+        Map<String, Object> attachment = Map.of("type", graphType(kind),
+                "payload", Map.of("url", url, "is_reusable", true));
+        return post(messagesRequest(conversation), message(conversation, Map.of("attachment", attachment)));
+    }
+
+    private static Map<String, Object> message(Conversation conversation, Map<String, Object> message) {
+        return Map.of("recipient", Map.of("id", conversation.getExternalThreadId()), "message", message);
+    }
+
+    private static String graphType(AttachmentKind kind) {
+        return switch (kind) {
+            case IMAGE -> "image";
+            case VIDEO -> "video";
+            case AUDIO -> "audio";
+            case FILE -> "file";
+        };
     }
 
     /** The fallback for a conversation without a recorded account: the organization's only account, else a refusal. */
@@ -35,7 +65,7 @@ abstract class GraphMessagingClient implements ChannelClient {
         return organizationAccounts.get(0);
     }
 
-    protected String post(RestClient.RequestBodySpec request, Map<String, Object> body) {
+    private String post(RestClient.RequestBodySpec request, Map<String, Object> body) {
         SendResponse response;
         try {
             response = request.contentType(MediaType.APPLICATION_JSON).accept(MediaType.APPLICATION_JSON)
