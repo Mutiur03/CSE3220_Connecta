@@ -40,6 +40,11 @@ import tools.jackson.databind.JsonNode;
  * attachment fields on the first request (a 400 with code 100, not a permission or token error), that request is
  * sent once more without them and the import goes on with labels only.
  *
+ * <p>A message with neither text nor attachments may still point at something: {@link #linksOf} is the hook a
+ * subclass overrides to look it up with one more request (default: none). That request counts toward
+ * {@code max-graph-pages} like every other, is skipped once the cap is reached, and a failure on one message is
+ * logged by reason and leaves that message label-only; it never fails the import.
+ *
  * <p>Never logs the token or a paging URL (it can carry a token). A paging URL on another host is refused.
  */
 @Slf4j
@@ -81,6 +86,20 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
 
     /** The value of the Graph {@code platform} query parameter. */
     protected abstract String platform();
+
+    /**
+     * Hook: the links a message without text or attachments points at, read with {@code graph}. Default: none,
+     * without a request. A Graph failure may be thrown; the caller logs it and keeps the message label-only.
+     */
+    protected List<NormalizedAttachment> linksOf(String messageId, GraphReader graph) {
+        return List.of();
+    }
+
+    /** One Graph GET (a URI template relative to the version path), counted and mapped like every request. */
+    @FunctionalInterface
+    protected interface GraphReader {
+        JsonNode get(String uriTemplate, Object... variables);
+    }
 
     @Override
     public Iterator<HistoryConversation> conversations(String accountExternalId, String accessToken) {
@@ -169,6 +188,23 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             String fields = fieldList.formatted(limits.messagesPerConversation());
             return graph.get().uri("/{id}/conversations?platform={platform}&fields={fields}&limit={limit}",
                     accountId, platform(), fields, limits.pageSize());
+        }
+
+        private JsonNode read(String uriTemplate, Object... variables) {
+            return fetch(graph.get().uri(uriTemplate, variables));
+        }
+
+        /** The links of a label-only message, or none when the request cap is reached or the lookup fails. */
+        private List<NormalizedAttachment> lookUpLinks(String messageId) {
+            if (graphRequests >= limits.maxGraphPages()) {
+                return List.of();
+            }
+            try {
+                return linksOf(messageId, this::read);
+            } catch (HistoryFetchException | HistoryPermissionException e) {
+                log.info("Meta message lookup skipped: {}", e.getClass().getSimpleName());
+                return List.of();
+            }
         }
 
         private RestClient.RequestHeadersSpec<?> nextRequest() {
@@ -300,7 +336,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             if (name == null && !outbound) {
                 name = nameOf(from);
             }
-            toMessage(message, peerId, outbound).ifPresent(messages::add);
+            toMessage(message, peerId, outbound, pages).ifPresent(messages::add);
         }
         Collections.reverse(messages);
         return Optional.of(new HistoryConversation(peerId, name, List.copyOf(messages), truncation.more));
@@ -325,7 +361,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         return username.isBlank() ? null : username;
     }
 
-    private Optional<NormalizedMessage> toMessage(JsonNode message, String peerId, boolean outbound) {
+    private Optional<NormalizedMessage> toMessage(JsonNode message, String peerId, boolean outbound, Pages pages) {
         String id = message.path("id").asText("");
         Instant sentAt = parseTime(message.path("created_time").asText(""));
         if (id.isBlank() || sentAt == null) {
@@ -333,8 +369,11 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
         List<NormalizedAttachment> attachments = attachmentsOf(message);
         String text = message.path("message").asText("");
+        if (text.isBlank() && attachments.isEmpty()) {
+            attachments = pages.lookUpLinks(id);
+        }
         if (text.isBlank()) {
-            text = attachments.isEmpty() ? AttachmentKind.FILE.label() : attachments.get(0).kind().label();
+            text = attachments.isEmpty() ? AttachmentKind.FILE.label() : attachments.get(0).label();
         }
         return Optional.of(new NormalizedMessage(object(), id, peerId,
                 outbound ? Direction.OUTBOUND : Direction.INBOUND, text, sentAt, attachments));

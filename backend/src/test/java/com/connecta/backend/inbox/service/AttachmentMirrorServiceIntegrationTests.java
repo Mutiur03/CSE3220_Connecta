@@ -226,6 +226,46 @@ class AttachmentMirrorServiceIntegrationTests {
     }
 
     @Test
+    void aSharedPostIsStoredAsALinkAndNeverCopiedByTheListenerOrTheSweep() {
+        String post = "https://www.instagram.com/p/" + UUID.randomUUID() + "/";
+        String mid = "mid-" + UUID.randomUUID();
+        NormalizedMessage shared = new NormalizedMessage(WebhookObject.PAGE, mid, "customer-" + mid,
+                Direction.INBOUND, "[Shared post]", TestClock.NOW,
+                List.of(NormalizedAttachment.link(post, "Shared post").orElseThrow()));
+
+        inbox.receive(page, shared);
+
+        MessageAttachment link = attachmentOf(mid);
+        assertEquals(AttachmentKind.LINK, link.getKind());
+        assertEquals(post, link.getUrl());
+        assertNull(link.getMirrorAttemptedAt());
+        assertEquals(0, mirror.mirrorPending(acme.getId()));
+        assertEquals(0, mirror.mirrorPending());
+        assertTrue(store.pendingOfMessage(acme.getId(), link.getMessage().getId()).isEmpty());
+        verify(downloader, never()).download(anyString());
+    }
+
+    @Test
+    void aReconcileAddsTheSharedPostLinkOnceAndCorrectsTheLabel() {
+        String post = "https://www.instagram.com/p/" + UUID.randomUUID() + "/";
+        String mid = "hist-" + UUID.randomUUID();
+        inbox.receive(page, new NormalizedMessage(WebhookObject.PAGE, mid, "customer-" + mid, Direction.INBOUND,
+                "[Attachment]", TestClock.NOW, List.of()));
+        NormalizedMessage fromMeta = new NormalizedMessage(WebhookObject.PAGE, mid, "customer-" + mid,
+                Direction.INBOUND, "[Shared post]", TestClock.NOW,
+                List.of(NormalizedAttachment.link(post, "Shared post").orElseThrow()));
+
+        assertEquals(HistoryMessageOutcome.UPDATED, inbox.importHistorical(page, fromMeta));
+        assertEquals(HistoryMessageOutcome.UNCHANGED, inbox.importHistorical(page, fromMeta));
+
+        UUID messageId = attachmentOf(mid).getMessage().getId();
+        assertEquals("[Shared post]", messages.findById(messageId).orElseThrow().getBody());
+        assertEquals(1, attachments.findByMessage(acme.getId(), List.of(messageId)).get(messageId).size());
+        assertEquals(0, mirror.mirrorPending(acme.getId()));
+        verify(downloader, never()).download(anyString());
+    }
+
+    @Test
     void aCopyCannotBeSavedThroughAnotherOrganization() {
         String source = metaUrl();
         when(downloader.download(source)).thenThrow(new MediaDownloadException(MediaDownloadFailure.NETWORK));

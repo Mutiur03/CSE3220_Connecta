@@ -192,6 +192,45 @@ class MessageReconcilerTests {
     }
 
     @Nested
+    class SharedPosts {
+
+        private static final String POST = "https://www.instagram.com/p/abc/";
+
+        private NormalizedMessage sharedPost() {
+            return new NormalizedMessage(WebhookObject.INSTAGRAM, "m.1", "customer-1", Direction.INBOUND,
+                    "[Shared post]", TestClock.NOW, List.of(NormalizedAttachment.link(POST, "Shared post")
+                            .orElseThrow()));
+        }
+
+        @Test
+        void aLabelOnlyMessageGetsTheLinkOnceAndItsLabelCorrected() {
+            Message message = stored("[Attachment]");
+            holding(message);
+
+            assertTrue(reconciler.reconcile(message, sharedPost()));
+
+            assertEquals("[Shared post]", message.getBody());
+            List<MessageAttachment> added = added();
+            assertEquals(1, added.size());
+            assertEquals(AttachmentKind.LINK, added.get(0).getKind());
+            assertEquals(POST, added.get(0).getUrl());
+            assertEquals("Shared post", added.get(0).getFileName());
+            assertNull(added.get(0).getContentType());
+        }
+
+        @Test
+        void aRerunFindsTheLinkByUrlAndAddsNothing() {
+            Message message = stored("[Shared post]");
+            holding(message, withId(MessageAttachment.fromProvider(message, AttachmentKind.LINK, POST,
+                    "Shared post", null)));
+
+            assertFalse(reconciler.reconcile(message, sharedPost()));
+
+            verify(attachments, never()).saveAll(anyList());
+        }
+    }
+
+    @Nested
     class Unchanged {
 
         @Test

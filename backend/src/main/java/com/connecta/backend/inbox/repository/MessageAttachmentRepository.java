@@ -18,6 +18,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface MessageAttachmentRepository extends JpaRepository<MessageAttachment, UUID> {
 
+    /** Mirror candidates: media from Meta without a copy. A LINK points at a web page, never at media. */
+    String MIRROR_PENDING = " a.sourceUrl is not null and a.storedFileId is null"
+            + " and a.kind <> com.connecta.backend.inbox.domain.AttachmentKind.LINK";
+
     /** The attachments of the given messages in saved order, scoped by organization. */
     List<MessageAttachment> findByOrganizationIdAndMessageIdInOrderByCreatedAtAscIdAsc(UUID organizationId,
             Collection<UUID> messageIds);
@@ -31,9 +35,9 @@ public interface MessageAttachmentRepository extends JpaRepository<MessageAttach
                 .collect(Collectors.groupingBy(attachment -> attachment.getMessage().getId()));
     }
 
-    /** The message's attachments from Meta that have no copy yet. Scoped by organization. */
+    /** The message's media from Meta that has no copy yet. Scoped by organization. */
     @Query("select a from MessageAttachment a where a.organization.id = :organizationId"
-            + " and a.message.id = :messageId and a.sourceUrl is not null and a.storedFileId is null")
+            + " and a.message.id = :messageId and" + MIRROR_PENDING)
     List<MessageAttachment> findMirrorPendingOfMessage(@Param("organizationId") UUID organizationId,
             @Param("messageId") UUID messageId);
 
@@ -41,7 +45,7 @@ public interface MessageAttachmentRepository extends JpaRepository<MessageAttach
      * Attachments from Meta without a copy, created after {@code since}, not tried since {@code retryBefore};
      * never tried first, then least recently tried. Every organization (the retry sweep).
      */
-    @Query("select a from MessageAttachment a where a.sourceUrl is not null and a.storedFileId is null"
+    @Query("select a from MessageAttachment a where" + MIRROR_PENDING
             + " and a.createdAt > :since and (a.mirrorAttemptedAt is null or a.mirrorAttemptedAt < :retryBefore)"
             + " order by a.mirrorAttemptedAt asc nulls first, a.createdAt asc")
     List<MessageAttachment> findMirrorPending(@Param("since") Instant since,
@@ -49,7 +53,7 @@ public interface MessageAttachmentRepository extends JpaRepository<MessageAttach
 
     /** {@link #findMirrorPending} for one organization (after its history import). */
     @Query("select a from MessageAttachment a where a.organization.id = :organizationId"
-            + " and a.sourceUrl is not null and a.storedFileId is null"
+            + " and" + MIRROR_PENDING
             + " and a.createdAt > :since and (a.mirrorAttemptedAt is null or a.mirrorAttemptedAt < :retryBefore)"
             + " order by a.mirrorAttemptedAt asc nulls first, a.createdAt asc")
     List<MessageAttachment> findMirrorPending(@Param("organizationId") UUID organizationId,

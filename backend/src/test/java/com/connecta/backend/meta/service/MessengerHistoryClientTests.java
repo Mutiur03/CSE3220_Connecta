@@ -128,6 +128,8 @@ class MessengerHistoryClientTests {
             HistoryConversation conversation = drain(client.conversations("page-1", "t")).get(0);
 
             assertEquals("[Attachment]", conversation.messages().get(1).text());
+            assertTrue(conversation.messages().get(1).attachments().isEmpty());
+            server.verify();
         }
 
         @Test
