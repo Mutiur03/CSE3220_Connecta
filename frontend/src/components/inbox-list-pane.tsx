@@ -8,6 +8,7 @@ import {
 import { pageCount, pageRange } from "@/lib/org-pagination";
 import ConversationList from "./conversation-list";
 import InboxFilterBar from "./inbox-filter-bar";
+import InboxStatusTabs from "./inbox-status-tabs";
 import OrgPagination from "./org-pagination";
 
 type Props = {
@@ -21,6 +22,34 @@ type Props = {
   headingLevel: 1 | 2;
   now: Date;
 };
+
+function emptyState(filtered: boolean, tab: InboxFilters["tab"]) {
+  if (filtered) {
+    return {
+      title: "No conversations match these filters",
+      detail: "Search for another name or choose a different channel.",
+    };
+  }
+  if (tab === "CLOSED") {
+    return {
+      title: "No closed conversations",
+      detail:
+        "Conversations you close move here, and reopen when you need them.",
+    };
+  }
+  if (tab === "ALL") {
+    return {
+      title: "No conversations yet",
+      detail:
+        "Messages that customers send to a connected Instagram or Messenger account appear here.",
+    };
+  }
+  return {
+    title: "No open conversations",
+    detail:
+      "New messages from Instagram and Messenger customers open a conversation here. Closed ones are under Closed.",
+  };
+}
 
 /** The left pane: title, filters, the scrolling conversation rows and the page links at the bottom. */
 export default function InboxListPane({
@@ -42,6 +71,7 @@ export default function InboxListPane({
   const count = pageCount(conversations.totalElements, conversations.size);
   const pageLink = (target: number) => inboxHref(listPath, filters, target);
   const Heading = headingLevel === 1 ? "h1" : "h2";
+  const empty = emptyState(filtered, filters.tab);
 
   return (
     <section
@@ -59,6 +89,7 @@ export default function InboxListPane({
             </p>
           )}
         </div>
+        <InboxStatusTabs listPath={listPath} filters={filters} />
         {(conversations.totalElements > 0 || filtered) && (
           <InboxFilterBar listPath={listPath} filters={filters} />
         )}
@@ -67,16 +98,8 @@ export default function InboxListPane({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {conversations.content.length === 0 ? (
           <div className="flex flex-col gap-1 p-4">
-            <p className="font-medium">
-              {filtered
-                ? "No conversations match these filters"
-                : "No conversations yet"}
-            </p>
-            <p className="text-sm text-secondary">
-              {filtered
-                ? "Search for another name or choose a different channel."
-                : "Messages that customers send to a connected Instagram or Messenger account appear here."}
-            </p>
+            <p className="font-medium">{empty.title}</p>
+            <p className="text-sm text-secondary">{empty.detail}</p>
           </div>
         ) : (
           <ConversationList

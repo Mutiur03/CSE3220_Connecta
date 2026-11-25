@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import Avatar from "@/components/avatar";
 import InboxListPane from "@/components/inbox-list-pane";
 import InboxShell from "@/components/inbox-shell";
+import MarkReadOnOpen from "@/components/mark-read-on-open";
 import MessageList from "@/components/message-list";
 import OrgActionButton from "@/components/org-action-button";
 import RealtimeInboxRefresher from "@/components/realtime-inbox-refresher";
 import ReplyComposer from "@/components/reply-composer";
 import { Badge } from "@/components/ui/badge";
 import {
+  markConversationUnreadAction,
   sendMessageAction,
   setConversationStatusAction,
 } from "@/lib/inbox-actions";
@@ -79,6 +81,11 @@ export default async function ConversationPage({
       }
     >
       <RealtimeInboxRefresher orgId={id} />
+      <MarkReadOnOpen
+        orgId={id}
+        conversationId={conversationId}
+        unread={conversation.unread}
+      />
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-3">
         <Link
           href={inboxHref(
@@ -107,6 +114,11 @@ export default async function ConversationPage({
             </p>
           </div>
         </div>
+        <OrgActionButton
+          action={markConversationUnreadAction.bind(null, id, conversationId)}
+          label="Mark unread"
+          pendingLabel="Marking…"
+        />
         <OrgActionButton
           key={conversation.status}
           action={setConversationStatusAction.bind(

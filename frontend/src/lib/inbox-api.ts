@@ -1,6 +1,7 @@
 import { request } from "./api";
 import type { Page } from "./org-api";
 import {
+  apiStatus,
   inboxListQuery,
   type InboxChannel,
   type InboxFilters,
@@ -9,6 +10,9 @@ import {
 export type Conversation = {
   id: string;
   channel: InboxChannel;
+  status: ConversationStatus;
+  /** A customer wrote since a member last read it. */
+  unread: boolean;
   participantName: string | null;
   /** Meta picture link (https, signed, may expire) or null. */
   avatarUrl: string | null;
@@ -17,17 +21,24 @@ export type Conversation = {
   lastMessageAt: string | null;
 };
 
-export const listConversations = (
+/** One page of the list. The tab becomes the API's status filter (Open by default, none for All). */
+export function listConversations(
   accessToken: string,
   orgId: string,
   filters: InboxFilters,
   page: number,
   size: number,
-) =>
-  request<Page<Conversation>>(
-    `/api/organizations/${encodeURIComponent(orgId)}/conversations?${inboxListQuery(filters, page, size)}`,
+) {
+  const query = new URLSearchParams(
+    inboxListQuery({ ...filters, tab: undefined }, page, size),
+  );
+  const status = apiStatus(filters.tab);
+  if (status) query.set("status", status);
+  return request<Page<Conversation>>(
+    `/api/organizations/${encodeURIComponent(orgId)}/conversations?${query}`,
     { accessToken },
   );
+}
 
 export const CONVERSATION_STATUSES = ["OPEN", "CLOSED"] as const;
 export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
@@ -45,6 +56,7 @@ export type ConversationDetail = {
   organizationId: string;
   channel: InboxChannel;
   status: ConversationStatus;
+  unread: boolean;
   participants: Participant[];
   lastMessageAt: string | null;
   createdAt: string;
@@ -110,5 +122,18 @@ export const sendMessage = (
   request<Message>(`${conversationPath(orgId, conversationId)}/messages`, {
     method: "POST",
     body: { text },
+    accessToken,
+  });
+
+/** Marks the conversation read (`unread: false`) or unread for the whole team. */
+export const updateReadState = (
+  accessToken: string,
+  orgId: string,
+  conversationId: string,
+  unread: boolean,
+) =>
+  request<void>(`${conversationPath(orgId, conversationId)}/read-state`, {
+    method: "PUT",
+    body: { unread },
     accessToken,
   });
