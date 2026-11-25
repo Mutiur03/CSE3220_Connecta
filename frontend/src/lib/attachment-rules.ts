@@ -55,3 +55,6 @@ export function formatFileSize(bytes: number): string {
 
 export const isImage = (file: { type: string }) =>
   file.type.startsWith("image/");
+
+export const isAudio = (file: { type: string }) =>
+  file.type.startsWith("audio/");

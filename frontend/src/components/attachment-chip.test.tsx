@@ -47,6 +47,25 @@ describe("AttachmentChip", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:thumb");
   });
 
+  it("gives an audio file a named player and revokes its URL on remove", () => {
+    act(() =>
+      root.render(
+        <AttachmentChip
+          file={file("voice-message-20261125-143005.wav", "audio/wav", 64)}
+          onRemove={() => {}}
+        />,
+      ),
+    );
+    const audio = container.querySelector("audio");
+    expect(audio?.controls).toBe(true);
+    expect(audio?.getAttribute("src")).toBe("blob:thumb");
+    expect(audio?.getAttribute("aria-label")).toBe(
+      "Listen to voice-message-20261125-143005.wav",
+    );
+    act(() => root.render(<></>));
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:thumb");
+  });
+
   it("shows a file icon for a PDF and removes through a named button", () => {
     const onRemove = vi.fn();
     act(() =>
