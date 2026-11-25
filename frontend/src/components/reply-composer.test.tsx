@@ -100,6 +100,43 @@ describe("ReplyComposer", () => {
     expect(box.value).toBe("");
   });
 
+  it("sends on Enter and keeps Shift+Enter for a new line", async () => {
+    const action = vi.fn().mockResolvedValue({});
+    const { box } = mount(action);
+    type(box, "hi");
+    const press = (shiftKey: boolean) =>
+      act(async () => {
+        box.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "Enter",
+            shiftKey,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      });
+    await press(true);
+    expect(action).not.toHaveBeenCalled();
+    await press(false);
+    expect(action).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not send a blank reply on Enter", async () => {
+    const action = vi.fn().mockResolvedValue({});
+    const { box } = mount(action);
+    type(box, "   ");
+    await act(async () => {
+      box.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(action).not.toHaveBeenCalled();
+  });
+
   it("shows the failure on the alert line and keeps the text", async () => {
     const { box, form, container } = mount(
       vi.fn().mockResolvedValue({ message: "The reply window is closed." }),

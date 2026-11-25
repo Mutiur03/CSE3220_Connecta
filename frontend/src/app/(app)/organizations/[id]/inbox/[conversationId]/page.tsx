@@ -125,6 +125,7 @@ export default async function ConversationPage({
         <div className="mx-auto w-full max-w-[680px] px-4 py-6">
           <MessageList
             messages={messages.content}
+            now={new Date()}
             olderHref={hasOlder ? historyLink(history + 1) : undefined}
             newerHref={history > 0 ? historyLink(history - 1) : undefined}
           />
