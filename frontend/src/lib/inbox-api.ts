@@ -71,7 +71,26 @@ export type Message = {
   sentAt: string;
   senderId: string | null;
   senderName: string | null;
+  /** Media the customer or agent sent. Empty for plain text. */
+  attachments: Attachment[];
 };
+
+export type AttachmentKind = "IMAGE" | "VIDEO" | "AUDIO" | "FILE";
+
+export type Attachment = {
+  id: string;
+  kind: AttachmentKind;
+  /** Meta media link (signed, expires). */
+  url: string;
+  fileName: string | null;
+  contentType: string | null;
+};
+
+/** An older backend sends no `attachments`; read that as none. */
+const withAttachments = (message: Message): Message => ({
+  ...message,
+  attachments: message.attachments ?? [],
+});
 
 const conversationPath = (orgId: string, conversationId: string) =>
   `/api/organizations/${encodeURIComponent(orgId)}/conversations/${encodeURIComponent(conversationId)}`;
@@ -96,7 +115,10 @@ export const listMessages = (
   request<Page<Message>>(
     `${conversationPath(orgId, conversationId)}/messages?page=${page}&size=${size}`,
     { accessToken },
-  );
+  ).then((result) => ({
+    ...result,
+    content: result.content.map(withAttachments),
+  }));
 
 export const updateConversationStatus = (
   accessToken: string,

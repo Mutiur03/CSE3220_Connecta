@@ -94,3 +94,11 @@ describe("conversation list and read state api", () => {
     expect(JSON.parse(init.body)).toEqual({ unread: false });
   });
 });
+
+describe("listMessages attachments", () => {
+  it("reads a message without attachments from an older backend as none", async () => {
+    respond({ content: [{ id: "m1", text: "hi" }], page: 0, size: 30 });
+    const page = await listMessages("tok", "o1", "c1", 0, 30);
+    expect(page.content[0].attachments).toEqual([]);
+  });
+});

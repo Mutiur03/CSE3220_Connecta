@@ -1,9 +1,12 @@
 "use client";
 
 import { useActionState, useRef, useState, type KeyboardEvent } from "react";
+import { flushSync } from "react-dom";
+import { insertAtCaret } from "@/lib/caret";
 import { MESSAGE_MAX_LENGTH } from "@/lib/inbox-api";
 import type { OrgActionState } from "@/lib/org-actions";
 import { alertText } from "@/lib/org-form-state";
+import EmojiPicker from "./emoji-picker";
 import { Alert } from "./ui/alert";
 import { SendIcon } from "./icons";
 import { Button, PendingLabel } from "./ui/button";
@@ -35,6 +38,7 @@ const KEY =
  */
 export default function ReplyComposer({ action, recipient }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const [state, formAction, pending] = useActionState(
     async (previous: OrgActionState, formData: FormData) => {
@@ -64,6 +68,21 @@ export default function ReplyComposer({ action, recipient }: Props) {
     if (canSend) formRef.current?.requestSubmit();
   };
 
+  // Puts the emoji where the caret (or selection) was and leaves the caret right after it.
+  const insertEmoji = (emoji: string) => {
+    const box = boxRef.current;
+    if (!box) return;
+    const next = insertAtCaret(
+      box.value,
+      box.selectionStart,
+      box.selectionEnd,
+      emoji,
+    );
+    flushSync(() => setText(next.value));
+    box.focus();
+    box.setSelectionRange(next.caret, next.caret);
+  };
+
   return (
     <form
       ref={formRef}
@@ -76,6 +95,7 @@ export default function ReplyComposer({ action, recipient }: Props) {
       </label>
       <div className={FRAME}>
         <textarea
+          ref={boxRef}
           id={BOX_ID}
           name="text"
           rows={2}
@@ -87,10 +107,16 @@ export default function ReplyComposer({ action, recipient }: Props) {
           aria-describedby={`${BOX_ID}-hint${error ? ` ${BOX_ID}-error` : ""}`}
           className="max-h-48 min-h-14 w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm text-primary [field-sizing:content] placeholder:text-secondary focus:outline-hidden"
         />
-        <div className="flex items-center justify-between gap-3 py-2 pr-2 pl-3">
+        <div className="flex items-center gap-3 py-2 pr-2 pl-2">
+          <div className="flex items-center gap-1">
+            <EmojiPicker
+              onPick={insertEmoji}
+              onDismiss={() => boxRef.current?.focus()}
+            />
+          </div>
           <p
             id={`${BOX_ID}-hint`}
-            className={`text-caption ${nearLimit ? "figure text-secondary" : "flex flex-wrap items-center gap-1 text-secondary max-sm:invisible pointer-coarse:invisible"}`}
+            className={`mr-auto text-caption ${nearLimit ? "figure text-secondary" : "flex flex-wrap items-center gap-1 text-secondary max-sm:invisible pointer-coarse:invisible"}`}
           >
             {nearLimit ? (
               `${remaining} characters left`

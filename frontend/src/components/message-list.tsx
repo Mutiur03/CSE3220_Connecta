@@ -1,7 +1,9 @@
 import Link from "next/link";
-import type { Message } from "@/lib/inbox-api";
+import type { Attachment, Message } from "@/lib/inbox-api";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { groupThread, readingOrder } from "@/lib/inbox-view";
+import { FileIcon } from "./icons";
+import MessageMedia from "./message-media";
 
 type Props = {
   /** One page as the backend sends it: newest first. */
@@ -15,13 +17,20 @@ type Props = {
 };
 
 const NO_TEXT = "Attachment or unsupported message";
+/** The text the backend stores for a message that is only media; the media itself replaces it. */
+const MEDIA_LABELS = new Set([
+  "[Photo]",
+  "[Video]",
+  "[Voice message]",
+  "[Attachment]",
+]);
 const linkClass =
   "self-center text-sm text-secondary underline-offset-4 hover:text-primary hover:underline";
 
 /** 10px bubbles; the last bubble of a group squares the corner that points at its sender. */
 const bubbleClass = (outbound: boolean, last: boolean) =>
   [
-    "whitespace-pre-wrap break-words rounded-[10px] px-3 py-2 text-message",
+    "flex flex-col gap-2 whitespace-pre-wrap break-words rounded-[10px] px-3 py-2 text-message",
     outbound
       ? "bg-accent text-accent-ink"
       : "border border-line bg-surface text-primary",
@@ -29,6 +38,55 @@ const bubbleClass = (outbound: boolean, last: boolean) =>
   ]
     .filter(Boolean)
     .join(" ");
+
+/** The message text, unless it is only the stand-in label for media that is shown. */
+function caption({ text, attachments }: Message) {
+  if (attachments.length === 0) return text ?? NO_TEXT;
+  return text && !MEDIA_LABELS.has(text) ? text : null;
+}
+
+function AttachmentView({
+  attachment,
+  sender,
+}: {
+  attachment: Attachment;
+  sender: string;
+}) {
+  switch (attachment.kind) {
+    case "IMAGE":
+    case "VIDEO":
+      return (
+        <MessageMedia
+          attachment={attachment}
+          alt={attachment.fileName ?? `Photo from ${sender}`}
+        />
+      );
+    case "AUDIO":
+      return (
+        <audio
+          src={attachment.url}
+          controls
+          preload="metadata"
+          aria-label={`Voice message from ${sender}`}
+          className="w-64 max-w-full"
+        />
+      );
+    default:
+      return (
+        <a
+          href={attachment.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 underline underline-offset-4 [&_svg]:size-4 [&_svg]:shrink-0"
+        >
+          <FileIcon />
+          <span className="min-w-0 break-all">
+            {attachment.fileName ?? "Attachment"}
+          </span>
+        </a>
+      );
+  }
+}
 
 /**
  * A thread in reading order, split by day. Consecutive messages from one sender form a group with the time
@@ -83,13 +141,23 @@ export default function MessageList({
                   }`}
                 >
                   {group.messages.map((message) => (
-                    <p
+                    <div
                       key={message.id}
                       title={formatDateTime(message.sentAt)}
                       className={bubbleClass(group.outbound, message === last)}
                     >
-                      {message.text ?? NO_TEXT}
-                    </p>
+                      {message.attachments.map((attachment) => (
+                        <AttachmentView
+                          key={attachment.id}
+                          attachment={attachment}
+                          sender={
+                            message.senderName ??
+                            (group.outbound ? "the team" : "the customer")
+                          }
+                        />
+                      ))}
+                      {caption(message)}
+                    </div>
                   ))}
                   <p className="mt-1 flex gap-2 text-caption text-secondary">
                     {group.outbound && group.senderName && (

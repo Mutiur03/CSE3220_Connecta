@@ -254,6 +254,58 @@
 }
 
 /*
+ * Emoji picker (emoji-picker.tsx): a native popover with the one soft shadow. Where anchor positioning
+ * exists it sits above its button; elsewhere it stays the popover's default, centred in the viewport.
+ */
+.emoji-picker {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+  opacity: 0;
+  transform: translateY(0.25rem);
+  transition:
+    opacity 150ms var(--ease-out),
+    transform 150ms var(--ease-out),
+    overlay 150ms allow-discrete,
+    display 150ms allow-discrete;
+}
+
+.emoji-picker:popover-open {
+  opacity: 1;
+  transform: none;
+}
+
+@starting-style {
+  .emoji-picker:popover-open {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+
+.emoji-anchor {
+  anchor-name: --emoji-anchor;
+}
+
+@supports (position-area: top) {
+  .emoji-picker {
+    position-anchor: --emoji-anchor;
+    position-area: top span-right;
+    position-try-fallbacks: flip-block;
+    inset: auto;
+    margin: 0 0 0.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emoji-picker {
+    transition: none;
+    transform: none;
+  }
+}
+
+/*
  * Motion. One short settle when a page opens and one staggered reveal on the sign-in preview.
  * Everything else is 150ms colour and press feedback. All of it is off under
  * prefers-reduced-motion.

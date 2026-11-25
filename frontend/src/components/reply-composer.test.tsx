@@ -25,7 +25,9 @@ function mount(action: Action) {
   act(() => root.render(<ReplyComposer action={action} />));
   return {
     box: container.querySelector("textarea") as HTMLTextAreaElement,
-    button: container.querySelector("button") as HTMLButtonElement,
+    button: container.querySelector(
+      'button[type="submit"]',
+    ) as HTMLButtonElement,
     form: container.querySelector("form") as HTMLFormElement,
     container,
   };
@@ -166,5 +168,48 @@ describe("ReplyComposer", () => {
       "The reply window is closed.",
     );
     expect(box.value).toBe("hi");
+  });
+
+  describe("emoji", () => {
+    const pick = (container: HTMLElement, name: string) =>
+      act(() =>
+        (
+          container.querySelector(
+            `button[aria-label="${name}"]`,
+          ) as HTMLButtonElement
+        ).click(),
+      );
+
+    it("has a named emoji button left of the key hints", () => {
+      const { container } = mount(async () => ({}));
+      const opener = container.querySelector(
+        'button[aria-label="Insert emoji"]',
+      );
+      const hint = container.querySelector("#reply-text-hint");
+      expect(opener).not.toBeNull();
+      expect(
+        opener!.compareDocumentPosition(hint!) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("inserts the emoji at the caret, keeps the caret after it and focus in the box", () => {
+      const { box, container } = mount(async () => ({}));
+      type(box, "Thanks!");
+      box.setSelectionRange(6, 6);
+      pick(container, "Folded hands");
+      expect(box.value).toBe("Thanks🙏!");
+      expect(box.selectionStart).toBe(6 + "🙏".length);
+      expect(document.activeElement).toBe(box);
+    });
+
+    it("replaces a selection and counts toward the limit", () => {
+      const { box, container } = mount(async () => ({}));
+      type(box, "x".repeat(999));
+      box.setSelectionRange(0, 0);
+      pick(container, "Thumbs up");
+      expect(box.value.startsWith("👍")).toBe(true);
+      expect(container.textContent).toContain("Remove 1 characters to send.");
+    });
   });
 });
