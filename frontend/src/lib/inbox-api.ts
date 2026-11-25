@@ -86,10 +86,34 @@ export type Attachment = {
   contentType: string | null;
 };
 
+/** The path of a file the backend stores itself (an agent's upload, or a copy of a customer's media). */
+const OWN_FILE_PATH = /^\/api\/files\/[0-9a-f-]{36}$/;
+
+/**
+ * Our own files are stored with the public address Meta downloads them from (a tunnel in development), which
+ * can answer a browser with a warning page. The browser loads them from the API address this app already uses;
+ * Meta's own links are left as they are.
+ */
+export function browserFileUrl(url: string): string {
+  try {
+    const { pathname } = new URL(url);
+    if (!OWN_FILE_PATH.test(pathname)) return url;
+    const base = (
+      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"
+    ).replace(/\/+$/, "");
+    return `${base}${pathname}`;
+  } catch {
+    return url;
+  }
+}
+
 /** An older backend sends no `attachments`; read that as none. */
 const withAttachments = (message: Message): Message => ({
   ...message,
-  attachments: message.attachments ?? [],
+  attachments: (message.attachments ?? []).map((attachment) => ({
+    ...attachment,
+    url: browserFileUrl(attachment.url),
+  })),
 });
 
 const conversationPath = (orgId: string, conversationId: string) =>
