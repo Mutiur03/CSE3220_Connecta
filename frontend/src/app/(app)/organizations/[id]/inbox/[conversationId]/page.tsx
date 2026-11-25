@@ -146,6 +146,7 @@ export default async function ConversationPage({
             now={new Date()}
             olderHref={hasOlder ? historyLink(history + 1) : undefined}
             newerHref={history > 0 ? historyLink(history - 1) : undefined}
+            appName={INBOX_CHANNEL_LABELS[conversation.channel]}
           />
         </div>
       </div>

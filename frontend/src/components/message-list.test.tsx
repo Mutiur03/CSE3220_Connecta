@@ -247,4 +247,33 @@ describe("MessageList", () => {
       expect(markup).toContain("Is this one in stock?");
     });
   });
+
+  describe("a message with only a stand-in label and no media", () => {
+    it("says it cannot be shown and where to open it, instead of showing the bracket label", () => {
+      const markup = html({
+        messages: [msg({ text: "[Attachment]", attachments: [] })],
+        appName: "Instagram",
+      });
+      expect(markup).toContain("Can’t show this attachment here.");
+      expect(markup).toContain("Open it in Instagram.");
+      expect(markup).not.toContain("[Attachment]");
+      expect(markup).not.toContain("not available");
+    });
+
+    it("does the same for the other stand-in labels, and leaves real text alone", () => {
+      const labels = html({
+        messages: [
+          msg({ id: "a", text: "[Photo]", attachments: [] }),
+          msg({ id: "b", text: "[Voice message]", attachments: [] }),
+        ],
+      });
+      expect(labels.match(/Can’t show this attachment here/g)).toHaveLength(2);
+      expect(labels).toContain("Open it in the app.");
+      const real = html({
+        messages: [msg({ text: "Hello", attachments: [] })],
+      });
+      expect(real).toContain("Hello");
+      expect(real).not.toContain("Can’t show this attachment here");
+    });
+  });
 });
