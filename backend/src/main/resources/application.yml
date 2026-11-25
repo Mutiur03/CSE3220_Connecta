@@ -137,6 +137,10 @@ app:
       pool-size: 2
       queue-capacity: 100
       shutdown-timeout: 10s
+      # A stored picture URL is looked up again after this long (Meta URLs are signed and expire).
+      picture-ttl: 12h
+      # Most customers looked up after one history import, so past conversations get pictures too.
+      import-refresh-limit: 20
     # Past conversations are imported automatically when a Page or Instagram account is connected, and at startup
     # for connections never imported. Bounds below; a hit limit marks the import truncated, not failed.
     history-import:

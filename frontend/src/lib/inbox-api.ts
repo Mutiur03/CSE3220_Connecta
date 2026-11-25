@@ -10,6 +10,8 @@ export type Conversation = {
   id: string;
   channel: InboxChannel;
   participantName: string | null;
+  /** Meta picture link (https, signed, may expire) or null. */
+  avatarUrl: string | null;
   lastMessagePreview: string | null;
   /** ISO instant of the newest message. */
   lastMessageAt: string | null;
@@ -34,6 +36,8 @@ export type Participant = {
   id: string;
   externalId: string;
   displayName: string | null;
+  /** Meta picture link (https, signed, may expire) or null. */
+  avatarUrl: string | null;
 };
 
 export type ConversationDetail = {

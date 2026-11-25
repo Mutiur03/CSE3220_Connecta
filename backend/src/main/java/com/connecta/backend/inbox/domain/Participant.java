@@ -14,6 +14,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -28,6 +29,8 @@ import lombok.NoArgsConstructor;
 public class Participant {
 
     public static final int DISPLAY_NAME_MAX_LENGTH = 150;
+    public static final int PROFILE_PICTURE_URL_MAX_LENGTH = 2048;
+    private static final String HTTPS_PREFIX = "https://";
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -46,6 +49,12 @@ public class Participant {
 
     @Column(name = "display_name", length = DISPLAY_NAME_MAX_LENGTH)
     private String displayName;
+
+    @Column(name = "profile_picture_url", columnDefinition = "text")
+    private String profilePictureUrl;
+
+    @Column(name = "profile_picture_fetched_at")
+    private Instant profilePictureFetchedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -73,6 +82,36 @@ public class Participant {
         displayName = trimmed.length() > DISPLAY_NAME_MAX_LENGTH ? trimmed.substring(0, DISPLAY_NAME_MAX_LENGTH)
                 : trimmed;
         return true;
+    }
+
+    /** True for an https URL of a sane length: the only kind of picture link we store and hand to browsers. */
+    public static boolean isStorablePictureUrl(String url) {
+        return url != null && url.length() <= PROFILE_PICTURE_URL_MAX_LENGTH
+                && url.length() > HTTPS_PREFIX.length()
+                && url.regionMatches(true, 0, HTTPS_PREFIX, 0, HTTPS_PREFIX.length());
+    }
+
+    /**
+     * True when a profile lookup is due: no name, never looked up, or the last lookup is {@code ttl} old or older
+     * (Meta picture URLs are signed and expire, and people change pictures).
+     */
+    public boolean needsProfileRefresh(Instant now, Duration ttl) {
+        return isNameless() || profilePictureFetchedAt == null
+                || !profilePictureFetchedAt.plus(ttl).isAfter(now);
+    }
+
+    /**
+     * Records a successful lookup: the name only if none is stored, the picture replaced when a valid new one came
+     * (an old one is kept when Meta sent none), and the lookup time. True when the name or picture changed.
+     */
+    public boolean applyProfile(String name, String pictureUrl, Instant now) {
+        boolean changed = nameIfAbsent(name);
+        if (isStorablePictureUrl(pictureUrl) && !pictureUrl.equals(profilePictureUrl)) {
+            profilePictureUrl = pictureUrl;
+            changed = true;
+        }
+        profilePictureFetchedAt = now;
+        return changed;
     }
 
     @PrePersist

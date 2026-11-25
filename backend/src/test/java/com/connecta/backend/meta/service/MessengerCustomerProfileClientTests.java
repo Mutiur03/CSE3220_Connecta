@@ -15,7 +15,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.connecta.backend.config.MetaProperties;
 import com.connecta.backend.inbox.domain.Channel;
-import com.connecta.backend.inbox.service.NamelessCustomer;
+import com.connecta.backend.inbox.service.ProfileTarget;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import com.connecta.backend.org.domain.Organization;
@@ -36,7 +36,7 @@ import org.springframework.web.client.RestClient;
 class MessengerCustomerProfileClientTests {
 
     private static final String KEY = "dGVzdC1vbmx5LW1ldGEtdG9rZW4ta2V5LTAwMDAwMDE=";
-    private static final String URL = "https://graph.facebook.com/v27.0/psid-1?fields=name";
+    private static final String URL = "https://graph.facebook.com/v27.0/psid-1?fields=name,profile_pic";
 
     private final UUID organizationId = UUID.randomUUID();
     private final UUID pageRowId = UUID.randomUUID();
@@ -57,8 +57,12 @@ class MessengerCustomerProfileClientTests {
         client = new MessengerCustomerProfileClient(pages, cipher, properties, builder);
     }
 
-    private NamelessCustomer customer(UUID linkedPage) {
-        return new NamelessCustomer(organizationId, UUID.randomUUID(), Channel.MESSENGER, "psid-1", linkedPage, null);
+    private ProfileTarget customer(UUID linkedPage) {
+        return new ProfileTarget(organizationId, UUID.randomUUID(), Channel.MESSENGER, "psid-1", linkedPage, null);
+    }
+
+    private void respondOk(String body) {
+        server.expect(requestTo(URL)).andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
     }
 
     @Test
@@ -80,7 +84,7 @@ class MessengerCustomerProfileClientTests {
                     .andExpect(header("Authorization", "Bearer page-token"))
                     .andRespond(withSuccess("{\"name\":\"Rina\"}", MediaType.APPLICATION_JSON));
 
-            client.fetchName(customer(pageRowId));
+            client.fetchProfile(customer(pageRowId));
 
             server.verify();
         }
@@ -91,7 +95,7 @@ class MessengerCustomerProfileClientTests {
                     .andExpect(header("Authorization", "Bearer page-token")).andRespond(withSuccess(
                     "{\"name\":\"Rina Das\",\"id\":\"psid-1\"}", MediaType.APPLICATION_JSON));
 
-            assertEquals(Optional.of("Rina Das"), client.fetchName(customer(pageRowId)));
+            assertEquals(Optional.of(new CustomerProfile("Rina Das", null)), client.fetchProfile(customer(pageRowId)));
             server.verify();
         }
 
@@ -100,8 +104,8 @@ class MessengerCustomerProfileClientTests {
             server.expect(requestTo(URL)).andRespond(withSuccess("{\"id\":\"psid-1\"}", MediaType.APPLICATION_JSON));
             server.expect(requestTo(URL)).andRespond(withSuccess("{\"name\":\" \"}", MediaType.APPLICATION_JSON));
 
-            assertEquals(Optional.empty(), client.fetchName(customer(pageRowId)));
-            assertEquals(Optional.empty(), client.fetchName(customer(pageRowId)));
+            assertEquals(Optional.empty(), client.fetchProfile(customer(pageRowId)));
+            assertEquals(Optional.empty(), client.fetchProfile(customer(pageRowId)));
         }
 
         @Test
@@ -109,14 +113,53 @@ class MessengerCustomerProfileClientTests {
             server.expect(requestTo(URL)).andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON)
                     .body("{\"error\":{\"code\":100,\"message\":\"secret detail\"}}"));
 
-            assertEquals(Optional.empty(), client.fetchName(customer(pageRowId)));
+            assertEquals(Optional.empty(), client.fetchProfile(customer(pageRowId)));
         }
 
         @Test
         void aServerErrorIsEmpty() {
             server.expect(requestTo(URL)).andRespond(withServerError());
 
-            assertEquals(Optional.empty(), client.fetchName(customer(pageRowId)));
+            assertEquals(Optional.empty(), client.fetchProfile(customer(pageRowId)));
+        }
+
+        @Test
+        void readsTheHttpsProfilePicture() {
+            respondOk("{\"name\":\"Rina\",\"profile_pic\":\"https://cdn.example/p.jpg?sig=1\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", "https://cdn.example/p.jpg?sig=1")),
+                    client.fetchProfile(customer(pageRowId)));
+        }
+
+        @Test
+        void aMissingPictureLeavesTheNameOnly() {
+            respondOk("{\"name\":\"Rina\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(pageRowId)));
+        }
+
+        @Test
+        void aPictureWithoutANameIsStillAProfile() {
+            respondOk("{\"profile_pic\":\"https://cdn.example/p.jpg\"}");
+
+            assertEquals(Optional.of(new CustomerProfile(null, "https://cdn.example/p.jpg")),
+                    client.fetchProfile(customer(pageRowId)));
+        }
+
+        @Test
+        void aNonHttpsPictureIsRejected() {
+            respondOk("{\"name\":\"Rina\",\"profile_pic\":\"http://cdn.example/p.jpg\"}");
+            respondOk("{\"name\":\"Rina\",\"profile_pic\":\"javascript:alert(1)\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(pageRowId)));
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(pageRowId)));
+        }
+
+        @Test
+        void anOverlongPictureUrlIsRejected() {
+            respondOk("{\"name\":\"Rina\",\"profile_pic\":\"https://cdn.example/" + "a".repeat(3000) + "\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(pageRowId)));
         }
     }
 
@@ -127,7 +170,7 @@ class MessengerCustomerProfileClientTests {
         void aLinkedPageOfAnotherOrganizationIsNotConnected() {
             when(pages.findByIdAndOrganizationId(pageRowId, organizationId)).thenReturn(Optional.empty());
 
-            assertThrows(ChannelNotConnectedException.class, () -> client.fetchName(customer(pageRowId)));
+            assertThrows(ChannelNotConnectedException.class, () -> client.fetchProfile(customer(pageRowId)));
         }
 
         @Test
@@ -136,7 +179,7 @@ class MessengerCustomerProfileClientTests {
                     .thenReturn(new PageImpl<>(List.of(page)));
             server.expect(requestTo(URL)).andRespond(withSuccess("{\"name\":\"Rina\"}", MediaType.APPLICATION_JSON));
 
-            assertEquals(Optional.of("Rina"), client.fetchName(customer(null)));
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(null)));
         }
 
         @Test
@@ -144,7 +187,7 @@ class MessengerCustomerProfileClientTests {
             when(pages.findByOrganizationId(any(UUID.class), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(page, page)));
 
-            assertThrows(ConversationNotLinkedException.class, () -> client.fetchName(customer(null)));
+            assertThrows(ConversationNotLinkedException.class, () -> client.fetchProfile(customer(null)));
         }
 
         @Test
@@ -152,7 +195,7 @@ class MessengerCustomerProfileClientTests {
             when(pages.findByOrganizationId(any(UUID.class), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
-            assertThrows(ChannelNotConnectedException.class, () -> client.fetchName(customer(null)));
+            assertThrows(ChannelNotConnectedException.class, () -> client.fetchProfile(customer(null)));
         }
     }
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  avatarInitials,
+  avatarTone,
   hasInboxFilters,
   inboxHref,
   inboxListQuery,
@@ -92,5 +94,23 @@ describe("thread helpers", () => {
   it("toggles status", () => {
     expect(nextStatus("OPEN")).toBe("CLOSED");
     expect(nextStatus("CLOSED")).toBe("OPEN");
+  });
+});
+
+describe("avatarInitials and avatarTone", () => {
+  it("takes up to two initials", () => {
+    expect(avatarInitials("ana maria silva")).toBe("AM");
+    expect(avatarInitials("  Rina ")).toBe("R");
+  });
+
+  it("is ? without a usable name", () => {
+    expect(avatarInitials(null)).toBe("?");
+    expect(avatarInitials("   ")).toBe("?");
+  });
+
+  it("keeps a person on one neutral token", () => {
+    expect(avatarTone("Ana Silva")).toBe(avatarTone("Ana Silva"));
+    expect(["bg-hover", "bg-selected"]).toContain(avatarTone("Bob"));
+    expect(["bg-hover", "bg-selected"]).toContain(avatarTone(null));
   });
 });

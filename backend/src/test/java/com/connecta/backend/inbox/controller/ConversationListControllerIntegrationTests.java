@@ -138,6 +138,25 @@ class ConversationListControllerIntegrationTests {
     class Listing {
 
         @Test
+        void theSummaryCarriesTheStoredPictureAndNullWhenThereIsNone() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            Conversation withPicture = conversation(acme, Channel.MESSENGER, "Bob", "Hi", TestClock.NOW);
+            conversation(acme, Channel.INSTAGRAM, "Ann", "Yo", TestClock.NOW.minusSeconds(60));
+            Participant bob = participants.findAll().stream().filter(p -> "Bob".equals(p.getDisplayName())
+                    && p.getOrganization().getId().equals(acme.getId())).findFirst().orElseThrow();
+            bob.applyProfile(null, "https://cdn.example/bob.jpg", TestClock.NOW);
+            participants.saveAndFlush(bob);
+
+            mvc.perform(get(path(acme)).header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].id").value(withPicture.getId().toString()))
+                    .andExpect(jsonPath("$.content[0].avatarUrl").value("https://cdn.example/bob.jpg"))
+                    .andExpect(jsonPath("$.content[1].avatarUrl").doesNotExist());
+        }
+
+        @Test
         void aMemberSeesBothChannelsNewestFirstWithTheSummaryFields() throws Exception {
             User agent = newUser();
             Organization acme = organization("Acme");

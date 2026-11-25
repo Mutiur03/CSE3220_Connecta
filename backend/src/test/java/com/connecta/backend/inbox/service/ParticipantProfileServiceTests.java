@@ -5,8 +5,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.connecta.backend.config.ProfileLookupProperties;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.Participant;
@@ -15,6 +17,11 @@ import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.support.TestUsers;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,8 +29,14 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 
 class ParticipantProfileServiceTests {
+
+    private static final Instant NOW = Instant.parse("2026-11-25T12:00:00Z");
+    private static final Duration TTL = Duration.ofHours(12);
+    private static final String OLD_PIC = "https://cdn.example/old.jpg";
+    private static final String PIC = "https://cdn.example/new.jpg";
 
     private final UUID orgId = UUID.randomUUID();
     private final UUID conversationId = UUID.randomUUID();
@@ -33,15 +46,18 @@ class ParticipantProfileServiceTests {
     private ParticipantRepository participants;
     private ApplicationEventPublisher publisher;
     private ParticipantProfileService service;
+    private Conversation conversation;
 
     @BeforeEach
     void setUp() {
         conversations = mock(ConversationRepository.class);
         participants = mock(ParticipantRepository.class);
         publisher = mock(ApplicationEventPublisher.class);
-        service = new ParticipantProfileService(conversations, participants, publisher);
+        ProfileLookupProperties lookup = new ProfileLookupProperties(null, null, null, null, TTL, 3);
+        service = new ParticipantProfileService(conversations, participants, publisher, lookup,
+                Clock.fixed(NOW, ZoneOffset.UTC));
         TestUsers.set(org, "id", orgId);
-        Conversation conversation = new Conversation(org, Channel.MESSENGER, "psid-1");
+        conversation = new Conversation(org, Channel.MESSENGER, "psid-1");
         TestUsers.set(conversation, "id", conversationId);
         MetaConnectedPage page = new MetaConnectedPage(org, "page-1");
         TestUsers.set(page, "id", pageId);
@@ -56,29 +72,59 @@ class ParticipantProfileServiceTests {
         return participant;
     }
 
+    private Participant lookedUpAt(Instant fetchedAt) {
+        Participant participant = participant("Rina");
+        participant.applyProfile(null, OLD_PIC, fetchedAt);
+        return participant;
+    }
+
+    private ProfileTarget target() {
+        return new ProfileTarget(orgId, conversationId, Channel.MESSENGER, "psid-1", pageId, null);
+    }
+
     @Nested
-    class FindNameless {
+    class FindNeedingRefresh {
 
         @Test
-        void returnsTheLookupTargetWhenTheCustomerHasNoName() {
+        void returnsTheTargetWhenTheCustomerHasNoName() {
             participant(null);
 
-            assertThat(service.findNameless(orgId, conversationId)).contains(
-                    new NamelessCustomer(orgId, conversationId, Channel.MESSENGER, "psid-1", pageId, null));
+            assertThat(service.findNeedingRefresh(orgId, conversationId)).contains(target());
         }
 
         @Test
         void aBlankNameCountsAsMissing() {
             participant("  ");
 
-            assertThat(service.findNameless(orgId, conversationId)).isPresent();
+            assertThat(service.findNeedingRefresh(orgId, conversationId)).isPresent();
         }
 
         @Test
-        void isEmptyWhenTheCustomerAlreadyHasAName() {
+        void returnsTheTargetWhenTheCustomerWasNeverLookedUp() {
             participant("Rina");
 
-            assertThat(service.findNameless(orgId, conversationId)).isEmpty();
+            assertThat(service.findNeedingRefresh(orgId, conversationId)).contains(target());
+        }
+
+        @Test
+        void isEmptyWhenTheProfileIsFresh() {
+            lookedUpAt(NOW.minus(TTL).plusSeconds(1));
+
+            assertThat(service.findNeedingRefresh(orgId, conversationId)).isEmpty();
+        }
+
+        @Test
+        void returnsTheTargetExactlyAtTheTtlBoundary() {
+            lookedUpAt(NOW.minus(TTL));
+
+            assertThat(service.findNeedingRefresh(orgId, conversationId)).isPresent();
+        }
+
+        @Test
+        void returnsTheTargetWhenThePictureIsStale() {
+            lookedUpAt(NOW.minus(TTL).minusSeconds(1));
+
+            assertThat(service.findNeedingRefresh(orgId, conversationId)).isPresent();
         }
 
         @Test
@@ -86,7 +132,7 @@ class ParticipantProfileServiceTests {
             UUID otherOrg = UUID.randomUUID();
             when(conversations.findByIdAndOrganizationId(conversationId, otherOrg)).thenReturn(Optional.empty());
 
-            assertThat(service.findNameless(otherOrg, conversationId)).isEmpty();
+            assertThat(service.findNeedingRefresh(otherOrg, conversationId)).isEmpty();
             verify(participants, never()).findByOrganizationIdAndChannelAndExternalId(any(), any(), any());
         }
 
@@ -95,23 +141,44 @@ class ParticipantProfileServiceTests {
             when(participants.findByOrganizationIdAndChannelAndExternalId(any(), any(), any()))
                     .thenReturn(Optional.empty());
 
-            assertThat(service.findNameless(orgId, conversationId)).isEmpty();
+            assertThat(service.findNeedingRefresh(orgId, conversationId)).isEmpty();
         }
     }
 
     @Nested
-    class StoreName {
-
-        private final NamelessCustomer customer = new NamelessCustomer(orgId, conversationId, Channel.MESSENGER,
-                "psid-1", pageId, null);
+    class FindNeverLookedUp {
 
         @Test
-        void storesTheNameAndAnnouncesIt() {
+        void asksForAtMostTheLimitInsideTheOrganization() {
+            when(conversations.findWithUnfetchedCustomer(any(), any())).thenReturn(List.of(conversation));
+
+            assertThat(service.findNeverLookedUp(orgId, 3)).containsExactly(target());
+
+            ArgumentCaptor<Pageable> page = ArgumentCaptor.forClass(Pageable.class);
+            verify(conversations).findWithUnfetchedCustomer(any(), page.capture());
+            assertThat(page.getValue().getPageSize()).isEqualTo(3);
+        }
+
+        @Test
+        void aZeroLimitSkipsTheQuery() {
+            assertThat(service.findNeverLookedUp(orgId, 0)).isEmpty();
+
+            verifyNoInteractions(conversations);
+        }
+    }
+
+    @Nested
+    class StoreProfile {
+
+        @Test
+        void storesNameAndPictureAndAnnouncesIt() {
             Participant participant = participant(null);
 
-            assertThat(service.storeName(customer, " Rina Das ")).isTrue();
+            assertThat(service.storeProfile(target(), " Rina Das ", PIC)).isTrue();
 
             assertThat(participant.getDisplayName()).isEqualTo("Rina Das");
+            assertThat(participant.getProfilePictureUrl()).isEqualTo(PIC);
+            assertThat(participant.getProfilePictureFetchedAt()).isEqualTo(NOW);
             ArgumentCaptor<ParticipantProfileUpdatedEvent> event = ArgumentCaptor
                     .forClass(ParticipantProfileUpdatedEvent.class);
             verify(publisher).publishEvent(event.capture());
@@ -119,29 +186,58 @@ class ParticipantProfileServiceTests {
         }
 
         @Test
-        void neverOverwritesAnExistingName() {
-            Participant participant = participant("Rina");
+        void aNewerPictureReplacesTheOldOneButTheNameIsKept() {
+            Participant participant = lookedUpAt(NOW.minus(TTL));
 
-            assertThat(service.storeName(customer, "Someone Else")).isFalse();
+            assertThat(service.storeProfile(target(), "Someone Else", PIC)).isTrue();
 
             assertThat(participant.getDisplayName()).isEqualTo("Rina");
+            assertThat(participant.getProfilePictureUrl()).isEqualTo(PIC);
+            assertThat(participant.getProfilePictureFetchedAt()).isEqualTo(NOW);
+        }
+
+        @Test
+        void theSamePictureAgainOnlyRefreshesTheTimeWithoutAnAnnouncement() {
+            Participant participant = lookedUpAt(NOW.minus(TTL));
+
+            assertThat(service.storeProfile(target(), null, OLD_PIC)).isFalse();
+
+            assertThat(participant.getProfilePictureFetchedAt()).isEqualTo(NOW);
             verify(publisher, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        void aMissingPictureKeepsTheOldOne() {
+            Participant participant = lookedUpAt(NOW.minus(TTL));
+
+            service.storeProfile(target(), "Rina", null);
+
+            assertThat(participant.getProfilePictureUrl()).isEqualTo(OLD_PIC);
+        }
+
+        @Test
+        void aNonHttpsPictureIsNotStored() {
+            Participant participant = participant(null);
+
+            service.storeProfile(target(), "Rina", "http://cdn.example/x.jpg");
+
+            assertThat(participant.getProfilePictureUrl()).isNull();
         }
 
         @Test
         void cutsAnOverlongNameToTheColumnLimit() {
             Participant participant = participant(null);
 
-            service.storeName(customer, "x".repeat(Participant.DISPLAY_NAME_MAX_LENGTH + 20));
+            service.storeProfile(target(), "x".repeat(Participant.DISPLAY_NAME_MAX_LENGTH + 20), null);
 
             assertThat(participant.getDisplayName()).hasSize(Participant.DISPLAY_NAME_MAX_LENGTH);
         }
 
         @Test
-        void aBlankNameIsNotStored() {
+        void aBlankNameAndNoPictureChangesNothing() {
             participant(null);
 
-            assertThat(service.storeName(customer, "  ")).isFalse();
+            assertThat(service.storeProfile(target(), "  ", null)).isFalse();
             verify(publisher, never()).publishEvent(any(Object.class));
         }
 
@@ -150,7 +246,7 @@ class ParticipantProfileServiceTests {
             when(participants.findByOrganizationIdAndChannelAndExternalId(any(), any(), any()))
                     .thenReturn(Optional.empty());
 
-            assertThat(service.storeName(customer, "Rina")).isFalse();
+            assertThat(service.storeProfile(target(), "Rina", PIC)).isFalse();
         }
     }
 }
