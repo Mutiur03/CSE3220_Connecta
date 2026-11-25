@@ -86,7 +86,7 @@ class InboxWebSocketIntegrationTests {
             CompletableFuture<CloseStatus> closed) throws Exception {
         WebSocketHttpHeaders headers = new WebSocketHttpHeaders();
         headers.setOrigin(origin);
-        return new StandardWebSocketClient().execute(new TextWebSocketHandler() {
+        WebSocketSession session = new StandardWebSocketClient().execute(new TextWebSocketHandler() {
             @Override
             protected void handleTextMessage(WebSocketSession session, TextMessage message) {
                 inbox.add(message.getPayload());
@@ -97,6 +97,17 @@ class InboxWebSocketIntegrationTests {
                 closed.complete(status);
             }
         }, headers, URI.create("ws://localhost:" + port + "/ws/inbox?ticket=" + ticket)).get(5, TimeUnit.SECONDS);
+        awaitRegistered(session, inbox);
+        return session;
+    }
+
+    /**
+     * The client handshake can finish before the server registers the session. The server answers a frame
+     * only after it has registered the session, so a pong means a published event will reach it.
+     */
+    private static void awaitRegistered(WebSocketSession session, BlockingQueue<String> inbox) throws Exception {
+        session.sendMessage(new TextMessage(InboxWebSocketHandler.PING));
+        assertThat(inbox.poll(5, TimeUnit.SECONDS)).isEqualTo(InboxWebSocketHandler.PONG);
     }
 
     private String ticketFor(UUID org) {
