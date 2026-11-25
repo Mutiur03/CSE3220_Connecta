@@ -78,6 +78,9 @@ public class ConversationQueryService {
         if (filter.channel() != null) {
             spec = spec.and(ConversationSpecifications.onChannel(filter.channel()));
         }
+        if (filter.status() != null) {
+            spec = spec.and(ConversationSpecifications.withStatus(filter.status()));
+        }
         if (filter.participantName() != null && !filter.participantName().isBlank()) {
             spec = spec.and(ConversationSpecifications.participantNameContains(filter.participantName().strip()));
         }

@@ -14,6 +14,7 @@ import com.connecta.backend.common.dto.PageResponse;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationParticipant;
+import com.connecta.backend.inbox.domain.ConversationStatus;
 import com.connecta.backend.inbox.domain.Message;
 import com.connecta.backend.inbox.domain.Participant;
 import com.connecta.backend.inbox.dto.ConversationSummaryResponse;
@@ -68,7 +69,7 @@ class ConversationQueryServiceTests {
     private final Organization organization = organization();
     private final User caller = TestUsers.user("caller@example.com", Roles.AGENT);
     private final String subject = caller.getId().toString();
-    private final ConversationFilter noFilter = new ConversationFilter(null, null);
+    private final ConversationFilter noFilter = new ConversationFilter(null, null, null);
 
     @BeforeEach
     void setUp() {
@@ -152,6 +153,7 @@ class ConversationQueryServiceTests {
             ConversationSummaryResponse first = page.content().get(0);
             assertEquals(instagram.getId(), first.id());
             assertEquals(Channel.INSTAGRAM, first.channel());
+            assertEquals(ConversationStatus.OPEN, first.status());
             assertEquals("Ann", first.participantName());
             assertEquals("Hello there", first.lastMessagePreview());
             assertEquals(TestClock.NOW, first.lastMessageAt());
@@ -222,11 +224,26 @@ class ConversationQueryServiceTests {
     class Filters {
 
         @Test
-        void channelAndNameFiltersAreAccepted() {
+        void aClosedConversationReportsItsStatus() {
+            callerIs(Roles.AGENT);
+            Conversation closed = conversation(Channel.MESSENGER);
+            closed.changeStatus(ConversationStatus.CLOSED);
+            pageOf(closed);
+            when(links.findWithParticipantByConversationIdIn(anyCollection())).thenReturn(List.of());
+            when(conversations.findLastMessages(anyCollection())).thenReturn(List.of());
+
+            ConversationSummaryResponse row = service.list(subject, organizationId, noFilter, 0, 20).content().get(0);
+
+            assertEquals(ConversationStatus.CLOSED, row.status());
+        }
+
+        @Test
+        void channelNameAndStatusFiltersAreAccepted() {
             callerIs(Roles.AGENT);
             pageOf();
 
-            service.list(subject, organizationId, new ConversationFilter(Channel.INSTAGRAM, " ann "), 0, 20);
+            service.list(subject, organizationId, new ConversationFilter(Channel.INSTAGRAM, " ann ",
+                    ConversationStatus.OPEN), 0, 20);
 
             verify(conversations).findAll(any(Specification.class), any(Pageable.class));
         }
@@ -236,7 +253,7 @@ class ConversationQueryServiceTests {
             callerIs(Roles.AGENT);
             pageOf();
 
-            service.list(subject, organizationId, new ConversationFilter(null, "   "), 0, 20);
+            service.list(subject, organizationId, new ConversationFilter(null, "   ", null), 0, 20);
 
             verify(conversations).findAll(any(Specification.class), any(Pageable.class));
         }

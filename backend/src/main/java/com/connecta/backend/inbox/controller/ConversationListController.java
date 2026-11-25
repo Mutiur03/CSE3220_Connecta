@@ -2,6 +2,7 @@ package com.connecta.backend.inbox.controller;
 
 import com.connecta.backend.common.dto.PageResponse;
 import com.connecta.backend.inbox.domain.Channel;
+import com.connecta.backend.inbox.domain.ConversationStatus;
 import com.connecta.backend.inbox.dto.ConversationSummaryResponse;
 import com.connecta.backend.inbox.service.ConversationFilter;
 import com.connecta.backend.inbox.service.ConversationQueryService;
@@ -31,11 +32,11 @@ public class ConversationListController {
 
     private final ConversationQueryService conversations;
 
-    @Operation(summary = "List the organization's conversations, most recent message first; filter with channel "
-            + "and q (customer name) (any member)",
+    @Operation(summary = "List the organization's conversations, most recent message first; filter with channel, "
+            + "status and q (customer name) (any member)",
             security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponse(responseCode = "200", description = "One page of conversation summaries")
-    @ApiResponse(responseCode = "400", description = "Page or size out of range, or unknown channel")
+    @ApiResponse(responseCode = "400", description = "Page or size out of range, or unknown channel or status")
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
     @ApiResponse(responseCode = "404", description = "Organization not found, or the caller is not a member")
     @GetMapping("/api/organizations/{organizationId}/conversations")
@@ -43,9 +44,10 @@ public class ConversationListController {
             @PathVariable UUID organizationId,
             @RequestParam(required = false) Channel channel,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) ConversationStatus status,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "" + PageResponse.DEFAULT_SIZE) @Min(1) @Max(PageResponse.MAX_SIZE) int size) {
-        return conversations.list(jwt.getSubject(), organizationId, new ConversationFilter(channel, q), page,
-                size);
+        return conversations.list(jwt.getSubject(), organizationId, new ConversationFilter(channel, q, status),
+                page, size);
     }
 }
