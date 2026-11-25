@@ -116,7 +116,6 @@ class MessagingEventParserTests {
         @ParameterizedTest
         @CsvSource({
             "share, Shared post, [Shared post]",
-            "ig_post, Shared post, [Shared post]",
             "ig_reel, Shared post, [Shared post]",
             "reel, Shared post, [Shared post]",
             "story_mention, Story mention, [Story mention]"})
@@ -136,6 +135,28 @@ class MessagingEventParserTests {
         void aShareWithoutAWebUrlKeepsOnlyTheGenericLabel() {
             NormalizedMessage message = withAttachments(
                     "{\"type\":\"share\",\"payload\":{\"url\":\"javascript:alert(1)\"}}");
+
+            assertEquals("[Attachment]", message.text());
+            assertTrue(message.attachments().isEmpty());
+        }
+
+        @Test
+        void aPostIsItsSignedImageNotALinkAndNeverItsCaption() {
+            String cdn = "https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1&signature=x";
+            NormalizedMessage message = withAttachments("{\"type\":\"ig_post\",\"payload\":{"
+                    + "\"ig_post_media_id\":\"9\",\"title\":\"A long caption\",\"url\":\"" + cdn + "\"}}");
+
+            assertEquals("[Shared post]", message.text());
+            assertEquals(1, message.attachments().size());
+            assertEquals(AttachmentKind.IMAGE, message.attachments().get(0).kind());
+            assertEquals(cdn, message.attachments().get(0).url());
+            assertEquals("Shared post", message.attachments().get(0).fileName());
+            assertNull(message.attachments().get(0).contentType());
+        }
+
+        @Test
+        void aPostWithoutAUrlKeepsOnlyTheGenericLabel() {
+            NormalizedMessage message = withAttachments("{\"type\":\"ig_post\",\"payload\":{\"title\":\"x\"}}");
 
             assertEquals("[Attachment]", message.text());
             assertTrue(message.attachments().isEmpty());

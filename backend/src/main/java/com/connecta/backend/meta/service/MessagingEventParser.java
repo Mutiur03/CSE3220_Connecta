@@ -16,8 +16,8 @@ import tools.jackson.databind.JsonNode;
  * {@link NormalizedMessage}s. Messenger and Instagram send the same messaging shape, so one parser serves both;
  * the product is carried on each message. Events without a message id, or with neither text nor an attachment,
  * carry nothing to show and are skipped. Each attachment of a known type with an http(s) {@code payload.url} is
- * kept: media by its kind, an Instagram shared post or reel ({@code share}, {@code ig_post}, {@code ig_reel},
- * {@code reel}) or {@code story_mention} as a LINK titled for what it is.
+ * kept: media by its kind, an Instagram shared post ({@code ig_post}, its image), a shared reel or post link
+ * ({@code share}, {@code ig_reel}, {@code reel}) or {@code story_mention} as a LINK titled for what it is.
  * Any other attachment only contributes the label used as text when the message has none.
  */
 @Component
@@ -40,10 +40,16 @@ public class MessagingEventParser {
      */
     private static final Map<String, String> LINK_TITLES = Map.of(
             "share", NormalizedAttachment.SHARED_POST,
-            "ig_post", NormalizedAttachment.SHARED_POST,
             "ig_reel", NormalizedAttachment.SHARED_POST,
             "reel", NormalizedAttachment.SHARED_POST,
             "story_mention", "Story mention");
+
+    /**
+     * Instagram's attachment types that are a picture under another type name, by their title. A regular post's
+     * {@code payload.url} is a signed CDN image (Instagram sends no post permalink), so it is an IMAGE: the mirror
+     * copies it before the signature expires. The caption ({@code title}) is never used.
+     */
+    private static final Map<String, String> IMAGE_TITLES = Map.of("ig_post", NormalizedAttachment.SHARED_POST);
 
     public List<NormalizedMessage> parse(WebhookObject object, JsonNode entry) {
         List<NormalizedMessage> messages = new ArrayList<>();
@@ -102,7 +108,12 @@ public class MessagingEventParser {
     private static Optional<NormalizedAttachment> toAttachment(JsonNode attachment) {
         JsonNode payload = attachment.path("payload");
         String url = payload.path("url").asText("");
-        String linkTitle = LINK_TITLES.get(attachment.path("type").asText(""));
+        String type = attachment.path("type").asText("");
+        String imageTitle = IMAGE_TITLES.get(type);
+        if (imageTitle != null) {
+            return NormalizedAttachment.of(AttachmentKind.IMAGE, url, imageTitle, null);
+        }
+        String linkTitle = LINK_TITLES.get(type);
         if (linkTitle != null) {
             return NormalizedAttachment.link(url, linkTitle);
         }
