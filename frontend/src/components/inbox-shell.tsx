@@ -13,7 +13,8 @@ type Props = {
 
 /**
  * The inbox frame. From 1024px the list (340px) sits beside the thread, separated by a 1px border, each
- * scrolling on its own inside the viewport height. Below that the list and the thread are separate screens.
+ * scrolling on its own inside the viewport height (the app layout pins itself to it). Below that the list and
+ * the thread are separate screens, scrolling the same way.
  * `data-inbox` tells the organization layout to drop its width and gutter for this page.
  */
 export default function InboxShell({
@@ -23,7 +24,7 @@ export default function InboxShell({
   details,
 }: Props) {
   return (
-    <div data-inbox className="flex min-h-0 flex-1 lg:h-dvh">
+    <div data-inbox className="flex min-h-0 flex-1">
       <div
         className={`min-h-0 w-full flex-col border-line bg-surface lg:flex lg:w-[340px] lg:shrink-0 lg:border-r ${
           threadOpen ? "hidden" : "flex"

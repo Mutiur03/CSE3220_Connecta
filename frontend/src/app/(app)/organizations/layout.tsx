@@ -8,7 +8,7 @@ export default function OrganizationsLayout({
   children: ReactNode;
 }) {
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-6 sm:p-8 has-[[data-inbox]]:max-w-none has-[[data-inbox]]:gap-0 has-[[data-inbox]]:p-0">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-6 sm:p-8 has-[[data-inbox]]:min-h-0 has-[[data-inbox]]:max-w-none has-[[data-inbox]]:gap-0 has-[[data-inbox]]:p-0">
       {children}
     </main>
   );
