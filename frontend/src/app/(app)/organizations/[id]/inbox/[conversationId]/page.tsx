@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/components/avatar";
+import ContactDetailsPane from "@/components/contact-details-pane";
 import InboxListPane from "@/components/inbox-list-pane";
 import InboxShell from "@/components/inbox-shell";
 import MarkReadOnOpen from "@/components/mark-read-on-open";
@@ -70,6 +71,7 @@ export default async function ConversationPage({
   return (
     <InboxShell
       threadOpen
+      details={<ContactDetailsPane conversation={conversation} />}
       list={
         <InboxListPane
           orgId={id}
@@ -119,17 +121,20 @@ export default async function ConversationPage({
           label="Mark unread"
           pendingLabel="Marking…"
         />
-        <OrgActionButton
-          key={conversation.status}
-          action={setConversationStatusAction.bind(
-            null,
-            id,
-            conversationId,
-            nextStatus(conversation.status),
-          )}
-          label={closed ? "Reopen" : "Close"}
-          pendingLabel={closed ? "Reopening…" : "Closing…"}
-        />
+        {/* data-shortcut lets the E key press this button. */}
+        <span data-shortcut="status" className="contents">
+          <OrgActionButton
+            key={conversation.status}
+            action={setConversationStatusAction.bind(
+              null,
+              id,
+              conversationId,
+              nextStatus(conversation.status),
+            )}
+            label={closed ? "Reopen" : "Close"}
+            pendingLabel={closed ? "Reopening…" : "Closing…"}
+          />
+        </span>
       </header>
 
       {/* column-reverse starts the scroll at the newest message, with no script. */}

@@ -7,6 +7,8 @@ type Props = {
   children: ReactNode;
   /** A conversation is open: below 1024px only the thread shows; without one only the list does. */
   threadOpen: boolean;
+  /** The contact details pane, shown from 1280px beside an open thread. */
+  details?: ReactNode;
 };
 
 /**
@@ -14,7 +16,12 @@ type Props = {
  * scrolling on its own inside the viewport height. Below that the list and the thread are separate screens.
  * `data-inbox` tells the organization layout to drop its width and gutter for this page.
  */
-export default function InboxShell({ list, children, threadOpen }: Props) {
+export default function InboxShell({
+  list,
+  children,
+  threadOpen,
+  details,
+}: Props) {
   return (
     <div data-inbox className="flex min-h-0 flex-1 lg:h-dvh">
       <div
@@ -31,6 +38,7 @@ export default function InboxShell({ list, children, threadOpen }: Props) {
       >
         {children}
       </div>
+      {details}
     </div>
   );
 }
