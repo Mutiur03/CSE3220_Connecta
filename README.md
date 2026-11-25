@@ -45,6 +45,13 @@ cd frontend && pnpm lint && pnpm test && pnpm build   # build also type-checks
 ### Configuration
 Backend configuration is one file, `application.yml`, with no profiles. What differs between environments comes from environment variables (`backend/.env` locally, the container environment in production). A value without a default, such as `DB_URL`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, `META_TOKEN_KEY`, `CORS_ALLOWED_ORIGINS`, `MAIL_FROM` and `FRONTEND_URL`, is required and startup fails without it. Production also sets `S3_REQUIRED=true` and leaves `SWAGGER_ENABLED` unset. Variables are listed in `.env.example`.
 
+| Setting | Variable | Default | Purpose |
+|---|---|---|---|
+| `app.public-base-url` | `PUBLIC_BASE_URL` | blank | This backend's public address. Attachment links (`/api/files/{id}`) are built from it, and Meta must be able to fetch them, so it cannot be `localhost`: use the deployed URL or a tunnel. Blank: sending an attachment answers `422`. Set it in production. |
+| `app.attachments.max-bytes` | `APP_ATTACHMENTS_MAXBYTES` | 8388608 (8 MB) | Largest attachment an agent may send. `spring.servlet.multipart.max-file-size` (8MB) and `max-request-size` (9MB) are aligned with it; raise them together. |
+
+Attachment storage ceiling: Render has no persistent disk, so sent files live in PostgreSQL (`stored_files.data`, `bytea`). Each file is at most 8 MB, but they add up in the database plan's storage (the free Render PostgreSQL has 1 GB) and every read goes through the backend. Nothing expires files yet; deleting an organization deletes its files. Move them to object storage when volume grows.
+
 ## Contributing
 Read [AGENTS.md](AGENTS.md) first. In short:
 - Work only on issues assigned to you; one issue = one branch = one PR; branch `type/<issue#>-slug`.
@@ -250,6 +257,14 @@ erDiagram
         string file_name "nullable"
         string content_type "nullable"
         timestamp created_at }
+    ORGANIZATIONS ||--o{ STORED_FILES : stores
+    STORED_FILES { uuid id PK "random, the public read's only check"
+        uuid organization_id FK "on delete cascade"
+        string content_type
+        string file_name "nullable"
+        bigint size_bytes "equals the data length"
+        bytea data
+        timestamp created_at }
 ```
 `users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
 
@@ -307,6 +322,7 @@ erDiagram
 | PUT | `/api/organizations/{id}/conversations/{conversationId}/read-state` | `ADMIN` or `AGENT` of it | 204 | Mark read `{unread: false}` or unread `{unread: true}` for the whole team. A live customer message marks a conversation unread; a reply from the team marks it read; imported history does neither. `400` missing flag, `404` non-member or another organization. |
 | POST | `/api/organizations/{id}/realtime/tickets` | `ADMIN` or `AGENT` of it | 201 | A single-use ticket for the live inbox WebSocket: `{"ticket", "expiresInSeconds"}` (30 s). Non-member or another organization `404`; too many tickets `429` with a `Retry-After` header (seconds). See Realtime below. |
 | POST | `/api/organizations/{id}/conversations/{conversationId}/messages` | `ADMIN` or `AGENT` of it | 201 | Send a reply `{text}` (1-1000 chars) through the conversation's channel (Messenger or Instagram) and store it as an outbound message; `Location` header and the message (`id`, `direction`, `text`, `sentAt`, `senderId`, `senderName`, `attachments` always empty) in the body. `400` blank or too long, `404` non-member or another organization, `422` channel not connected, conversation not linked to one of several accounts, or Meta's reply window closed, `502` Meta failed (nothing stored). |
+| POST | `/api/organizations/{id}/conversations/{conversationId}/messages/attachments` | `ADMIN` or `AGENT` of it | 201 | Send one file (multipart field `file`) through the conversation's channel. Allowed: JPEG, PNG, GIF images; MP4 video; MP3, M4A/MP4, AAC, WAV audio; PDF (Messenger only). The declared type must be allowed and the file's leading bytes must match it. Up to `app.attachments.max-bytes` (8 MB). The file is kept in `stored_files`, Meta fetches it from `PUBLIC_BASE_URL/api/files/{fileId}`, and the message is stored with a label (`[Photo]`, `[Video]`, `[Voice message]`, `[Attachment]`) as `text` and the attachment (that URL) in `attachments`. `Location` header and the message in the body. `400` file part missing or empty, `404` non-member or another organization, `413` over the limit, `415` type not allowed or content does not match, `422` channel not connected, reply window closed, kind not supported on the channel (a PDF on Instagram) or `PUBLIC_BASE_URL` not set, `502` Meta failed (the stored file is deleted, nothing recorded). |
 | POST | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Start connecting Meta. Returns `{"authorizationUrl"}`, the Facebook login dialog with a signed, 10-minute state. `503` if the Meta app is not configured. |
 | GET | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Whether the organization is connected: `{"connected", "connectedAt", "expiresAt"}`. No token is returned. |
 | GET | `/api/meta/oauth/callback` | public (the signed state is the check) | 302 | Meta's redirect target. Exchanges the code for a long-lived token and stores it encrypted, then redirects the browser to the Integrations page (`?facebook=connected`). A failure redirects back with `metaError` (`denied`, `invalid_state`, `forbidden`, `meta_failed`, `not_configured`). |
@@ -317,6 +333,7 @@ erDiagram
 | GET | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | The organization's connected Instagram accounts, paginated (`page`, `size` max 100): `id`, `externalAccountId`, `username`, `connectedAt`, `historyImportError`, `historyImportFailedAt` (as for Pages). No token is returned. |
 | GET | `/api/meta/instagram/callback` | public (the signed state is the check) | 302 | Instagram's redirect target. Exchanges the code, extends the token and stores the account with its token encrypted. `400` bad or expired state, `403` if the admin lost the role, `502` if Instagram refused. |
 | GET | `/api/meta/webhooks` | public (the verify token is the check) | 200 | Meta's subscription check. Returns `hub.challenge` as plain text when `hub.mode` is `subscribe` and `hub.verify_token` matches `META_WEBHOOK_VERIFY_TOKEN`; `403` otherwise. |
+| GET | `/api/files/{fileId}` | public on purpose (the random UUID is the check) | 200 | A stored file, so Meta can fetch an attachment without a token. `Content-Type` is the stored type, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` with the encoded file name, `Cache-Control: max-age=31536000, private, immutable`. `404` unknown id. |
 | POST | `/api/meta/webhooks` | public (the `X-Hub-Signature-256` is the check) | 200 | Receive a Messenger (`page`) or Instagram event. The signature is verified over the raw body with that product's app secret, then the event is stored unprocessed. `401` bad or missing signature, `400` body not JSON, `503` app secret not set. Other Meta products are acknowledged and not stored. |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
