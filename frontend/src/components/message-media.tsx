@@ -9,8 +9,10 @@ type Props = {
   alt: string;
 };
 
-// A fixed box, so the thread does not jump when the media loads; the media is contained inside it.
-const BOX = "h-60 w-70 max-w-full rounded-[6px] bg-hover object-contain";
+// Natural size, capped: a small sticker stays small and a large photo shrinks to fit, never letterboxed. The thread
+// is anchored to its newest message, so media loading above does not move what the agent is reading.
+const IMAGE = "block h-auto max-h-80 w-auto max-w-70 rounded-[6px] bg-hover";
+const VIDEO = "block max-h-80 w-70 max-w-full rounded-[6px] bg-hover";
 
 /**
  * A photo or video inside a bubble. Meta media links are signed and expire, so a link that fails to load
@@ -32,7 +34,7 @@ export default function MessageMedia({ attachment, alt }: Props) {
         src={attachment.url}
         controls
         preload="metadata"
-        className={BOX}
+        className={VIDEO}
         onError={() => setFailed(true)}
       />
     );
@@ -51,7 +53,7 @@ export default function MessageMedia({ attachment, alt }: Props) {
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
-        className={BOX}
+        className={IMAGE}
         onError={() => setFailed(true)}
       />
       <span className="sr-only"> (opens in a new tab)</span>

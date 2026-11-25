@@ -41,7 +41,7 @@ export default function InboxKeyboard() {
           action === "next" ? 1 : -1,
         );
         if (index === null) return false;
-        router.push(rows[index].getAttribute("href") ?? "");
+        router.push(rows[index].getAttribute("href") ?? "", { scroll: false });
         rows[index].scrollIntoView({ block: "nearest" });
         return true;
       }
