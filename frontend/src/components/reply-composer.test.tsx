@@ -48,6 +48,25 @@ const submit = async (form: HTMLFormElement) =>
   });
 
 describe("ReplyComposer", () => {
+  it("names the recipient in the placeholder, with a plain fallback", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    mounted.push({ container, root });
+    act(() =>
+      root.render(
+        <ReplyComposer
+          action={async () => ({})}
+          recipient="Nadia Rahman on Messenger"
+        />,
+      ),
+    );
+    expect(container.querySelector("textarea")?.placeholder).toBe(
+      "Reply to Nadia Rahman on Messenger",
+    );
+    expect(mount(async () => ({})).box.placeholder).toBe("Write a reply");
+  });
+
   it("has a labelled box and a Send button disabled while blank", () => {
     const { box, button, container } = mount(async () => ({}));
     expect(

@@ -149,10 +149,11 @@ export default async function ConversationPage({
         </div>
       </div>
 
-      <div className="border-t border-line px-4 py-3">
+      <div className="px-4 pt-1 pb-4">
         <div className="mx-auto w-full max-w-[680px]">
           <ReplyComposer
             action={sendMessageAction.bind(null, id, conversationId)}
+            recipient={`${participantsLabel(conversation.participants)} on ${INBOX_CHANNEL_LABELS[conversation.channel]}`}
           />
         </div>
       </div>

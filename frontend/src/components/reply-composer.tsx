@@ -5,25 +5,35 @@ import { MESSAGE_MAX_LENGTH } from "@/lib/inbox-api";
 import type { OrgActionState } from "@/lib/org-actions";
 import { alertText } from "@/lib/org-form-state";
 import { Alert } from "./ui/alert";
+import { SendIcon } from "./icons";
 import { Button, PendingLabel } from "./ui/button";
-import { fieldClasses } from "./ui/classes";
 
 type Props = {
   action: (
     previous: OrgActionState,
     formData: FormData,
   ) => Promise<OrgActionState>;
+  /** Who the reply goes to and where, e.g. "Nadia Rahman on Messenger"; shown as the placeholder. */
+  recipient?: string;
 };
 
 /** Show the remaining characters only when the limit is near. */
 const COUNTER_FROM = 100;
 const BOX_ID = "reply-text";
 
+// One frame holds the text and its footer. It takes the field's focus ring and invalid border, so the
+// whole composer reads as a single input.
+const FRAME =
+  "flex flex-col rounded-panel border border-line-field bg-surface shadow-[0_1px_1px_rgb(0_0_0/0.03)] transition-[border-color,box-shadow] duration-150 ease-out hover:not-focus-within:border-line-strong focus-within:border-accent focus-within:shadow-none focus-within:ring-3 focus-within:ring-accent/20 has-[textarea[aria-invalid=true]]:border-danger has-[textarea[aria-invalid=true]]:focus-within:ring-danger/20 motion-reduce:transition-none";
+const KEY =
+  "inline-grid min-w-5 place-items-center rounded-[4px] border border-line bg-app px-1 font-sans text-[11px] leading-4 font-medium text-secondary";
+
 /**
- * The reply box pinned under a thread. It grows with its text (CSS field-sizing, capped), Enter sends and
- * Shift+Enter adds a line. The text is kept on failure and cleared on success.
+ * The reply box pinned under a thread: one frame with the text on top and a footer of key hints and Send.
+ * It grows with its text (CSS field-sizing, capped), Enter sends and Shift+Enter adds a line. The text is
+ * kept on failure and cleared on success.
  */
-export default function ReplyComposer({ action }: Props) {
+export default function ReplyComposer({ action, recipient }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const [text, setText] = useState("");
   const [state, formAction, pending] = useActionState(
@@ -41,10 +51,7 @@ export default function ReplyComposer({ action }: Props) {
   const error = over
     ? `Remove ${-remaining} characters to send.`
     : state.errors?.text;
-  const hint =
-    !over && remaining <= COUNTER_FROM
-      ? `${remaining} characters left`
-      : "Enter to send, Shift+Enter for a new line";
+  const nearLimit = !over && remaining <= COUNTER_FROM;
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (
@@ -67,26 +74,46 @@ export default function ReplyComposer({ action }: Props) {
       <label htmlFor={BOX_ID} className="sr-only">
         Reply
       </label>
-      <div className="flex items-end gap-2">
+      <div className={FRAME}>
         <textarea
           id={BOX_ID}
           name="text"
-          rows={1}
+          rows={2}
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Write a reply"
+          placeholder={recipient ? `Reply to ${recipient}` : "Write a reply"}
           aria-invalid={error ? true : undefined}
           aria-describedby={`${BOX_ID}-hint${error ? ` ${BOX_ID}-error` : ""}`}
-          className={`${fieldClasses} max-h-48 resize-none [field-sizing:content]`}
+          className="max-h-48 min-h-14 w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-sm text-primary [field-sizing:content] placeholder:text-secondary focus:outline-hidden"
         />
-        <Button type="submit" variant="primary" disabled={!canSend}>
-          <PendingLabel pending={pending} busy="Sending…" idle="Send" />
-        </Button>
+        <div className="flex items-center justify-between gap-3 py-2 pr-2 pl-3">
+          <p
+            id={`${BOX_ID}-hint`}
+            className={`text-caption ${nearLimit ? "figure text-secondary" : "flex flex-wrap items-center gap-1 text-secondary max-sm:invisible pointer-coarse:invisible"}`}
+          >
+            {nearLimit ? (
+              `${remaining} characters left`
+            ) : (
+              <>
+                <kbd className={KEY}>Enter</kbd> to send,
+                <kbd className={KEY}>Shift</kbd>+
+                <kbd className={KEY}>Enter</kbd> for a new line
+              </>
+            )}
+          </p>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            disabled={!canSend}
+            className="[&_svg]:size-3.5"
+          >
+            <SendIcon />
+            <PendingLabel pending={pending} busy="Sending…" idle="Send" />
+          </Button>
+        </div>
       </div>
-      <p id={`${BOX_ID}-hint`} className="text-caption text-secondary">
-        {hint}
-      </p>
       {error && (
         <p id={`${BOX_ID}-error`} className="text-sm text-danger">
           {error}
