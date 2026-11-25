@@ -147,6 +147,21 @@ export const sendMessage = (
     accessToken,
   });
 
+/** Sends one file (multipart `file`) through the conversation's channel, as its own message. */
+export const sendAttachment = (
+  accessToken: string,
+  orgId: string,
+  conversationId: string,
+  file: File,
+) => {
+  const form = new FormData();
+  form.append("file", file);
+  return request<Message>(
+    `${conversationPath(orgId, conversationId)}/messages/attachments`,
+    { method: "POST", form, accessToken },
+  ).then(withAttachments);
+};
+
 /** Marks the conversation read (`unread: false`) or unread for the whole team. */
 export const updateReadState = (
   accessToken: string,

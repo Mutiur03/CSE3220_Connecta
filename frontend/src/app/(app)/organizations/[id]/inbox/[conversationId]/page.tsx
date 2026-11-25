@@ -13,6 +13,7 @@ import ReplyComposer from "@/components/reply-composer";
 import { Badge } from "@/components/ui/badge";
 import {
   markConversationUnreadAction,
+  sendAttachmentAction,
   sendMessageAction,
   setConversationStatusAction,
 } from "@/lib/inbox-actions";
@@ -153,6 +154,7 @@ export default async function ConversationPage({
         <div className="mx-auto w-full max-w-[680px]">
           <ReplyComposer
             action={sendMessageAction.bind(null, id, conversationId)}
+            attachAction={sendAttachmentAction.bind(null, id, conversationId)}
             recipient={`${participantsLabel(conversation.participants)} on ${INBOX_CHANNEL_LABELS[conversation.channel]}`}
           />
         </div>

@@ -5,6 +5,7 @@ const redirect = vi.hoisted(() => vi.fn());
 const api = vi.hoisted(() => ({
   updateConversationStatus: vi.fn(),
   sendMessage: vi.fn(),
+  sendAttachment: vi.fn(),
   updateReadState: vi.fn(),
   MESSAGE_MAX_LENGTH: 1000,
   CONVERSATION_STATUSES: ["OPEN", "CLOSED"],
@@ -20,6 +21,7 @@ import { ApiError } from "./api";
 import {
   markConversationReadAction,
   markConversationUnreadAction,
+  sendAttachmentAction,
   sendMessageAction,
   setConversationStatusAction,
 } from "./inbox-actions";
@@ -135,5 +137,47 @@ describe("read state actions", () => {
       message: "gone",
     });
     expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendAttachmentAction", () => {
+  const png = () =>
+    new File([new Uint8Array(10)], "receipt.png", { type: "image/png" });
+  const send = (file?: File) => {
+    const data = new FormData();
+    if (file) data.set("file", file);
+    return sendAttachmentAction("o1", "c1", {}, data);
+  };
+
+  it("uploads the file and refreshes the thread and the list", async () => {
+    api.sendAttachment.mockResolvedValue({});
+    expect(await send(png())).toEqual({});
+    expect(api.sendAttachment).toHaveBeenCalledWith(
+      "tok",
+      "o1",
+      "c1",
+      expect.any(File),
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/organizations/o1/inbox/c1");
+    expect(revalidatePath).toHaveBeenCalledWith("/organizations/o1/inbox");
+  });
+
+  it("refuses a missing or unsupported file without calling the API", async () => {
+    expect((await send()).message).toBeDefined();
+    expect(
+      (await send(new File(["x"], "a.txt", { type: "text/plain" }))).message,
+    ).toBe("This file type is not supported.");
+    expect(api.sendAttachment).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [413, "too big", "This file is larger than 8 MB."],
+    [415, "bad type", "This file type is not supported."],
+    [422, "The reply window is closed.", "The reply window is closed."],
+    [502, "upstream", "Meta could not deliver the file. Try again."],
+  ])("maps a %i to plain words", async (status, detail, message) => {
+    api.sendAttachment.mockRejectedValue(new ApiError(status, detail));
+    expect(await send(png())).toEqual({ message });
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });
