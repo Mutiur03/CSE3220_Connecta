@@ -191,7 +191,7 @@ class AttachmentMirrorServiceIntegrationTests {
         String source = metaUrl();
         when(downloader.download(source)).thenReturn(new DownloadedMedia(PNG, "image/png"));
         String mid = "hist-" + UUID.randomUUID();
-        assertTrue(inbox.importHistorical(page, photo(mid, source)));
+        assertEquals(HistoryMessageOutcome.INSERTED, inbox.importHistorical(page, photo(mid, source)));
         verify(downloader, never()).download(anyString());
 
         assertEquals(0, mirror.mirrorPending(UUID.randomUUID()));
@@ -200,6 +200,29 @@ class AttachmentMirrorServiceIntegrationTests {
         MessageAttachment copied = attachmentOf(mid);
         assertTrue(copied.isMirrored());
         assertFalse(copied.getUrl().contains("fbcdn"));
+    }
+
+    @Test
+    void aReconcileAddsOnlyTheMissingAttachmentAndOnlyThatOneIsCopied() {
+        String first = metaUrl();
+        String second = metaUrl();
+        when(downloader.download(anyString())).thenReturn(new DownloadedMedia(PNG, "image/png"));
+        String mid = "mid-" + UUID.randomUUID();
+        inbox.receive(page, photo(mid, first));
+        assertTrue(attachmentOf(mid).isMirrored());
+        NormalizedMessage fromMeta = new NormalizedMessage(WebhookObject.PAGE, mid, "customer-" + mid,
+                Direction.INBOUND, "[Photo]", TestClock.NOW, List.of(
+                        new NormalizedAttachment(AttachmentKind.IMAGE, first, "cat.png", null),
+                        new NormalizedAttachment(AttachmentKind.IMAGE, second, "dog.png", null)));
+
+        assertEquals(HistoryMessageOutcome.UPDATED, inbox.importHistorical(page, fromMeta));
+        assertEquals(1, mirror.mirrorPending(acme.getId()));
+        assertEquals(HistoryMessageOutcome.UNCHANGED, inbox.importHistorical(page, fromMeta));
+
+        verify(downloader, times(1)).download(first);
+        verify(downloader, times(1)).download(second);
+        UUID messageId = attachmentOf(mid).getMessage().getId();
+        assertEquals(2, attachments.findByMessage(acme.getId(), List.of(messageId)).get(messageId).size());
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.connecta.backend.meta.service;
 import com.connecta.backend.config.HistoryImportProperties;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.service.HistoryImportedEvent;
+import com.connecta.backend.inbox.service.HistoryMessageOutcome;
 import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.meta.domain.HistoryImportFailure;
 import com.connecta.backend.inbox.service.ParticipantNameService;
@@ -17,13 +18,15 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 /**
- * Imports one connected account past conversations through the normal inbox pipeline (idempotent, tenant
- * scoped). Meta is read page by page and every message is stored in its own short transaction, so no connection
+ * Reconciles one connected account past conversations with the inbox (idempotent, tenant scoped): a message the
+ * organization lacks is stored, one it has is brought in line with Meta (body corrected, missing attachments
+ * added), and nothing absent from Meta is deleted. Meta is read page by page and every message is stored in its own short transaction, so no connection
  * is held across a Meta call and a failure part-way keeps what was stored; running again continues. Conversations
  * are read newest first, each stored oldest message first so the conversation last activity ends up right.
  * Stops at the configured limits and then reports {@code truncated}. After a successful run the account is marked
- * imported and one {@link HistoryImportedEvent} is published (no per-message pushes), also when nothing new was stored, so
- * customers still without a picture get looked up on a reconnect.
+ * imported and one {@link HistoryImportedEvent} is published (no per-message pushes), also when nothing changed, so
+ * customers still without a picture get looked up on a reconnect; a failed run publishes it only when it inserted
+ * or updated something.
  *
  * <p>Only one import per account runs at a time: the guard is in memory, so it holds for a single server
  * instance. A second instance would only repeat work, since storing is idempotent.
@@ -78,12 +81,13 @@ public class HistoryImportService {
             recordFailure(source, HistoryImportFailure.FETCH);
             throw e;
         } finally {
-            if (completed || tally.imported > 0) {
+            if (completed || tally.changed() > 0) {
                 publisher.publishEvent(new HistoryImportedEvent(source.organizationId()));
             }
         }
         store.markImported(source.channel(), source.accountId(), clock.instant());
-        return new HistoryImportResult(tally.conversations, tally.imported, tally.skipped, tally.truncated);
+        return new HistoryImportResult(tally.conversations, tally.inserted, tally.updated, tally.unchanged,
+                tally.truncated);
     }
 
     private void recordFailure(HistorySource source, HistoryImportFailure failure) {
@@ -106,15 +110,11 @@ public class HistoryImportService {
     private void importConversation(HistorySource source, HistoryConversation conversation, Tally tally) {
         tally.conversations++;
         for (NormalizedMessage message : conversation.messages()) {
-            if (tally.imported + tally.skipped >= limits.maxMessages()) {
+            if (tally.changed() + tally.unchanged >= limits.maxMessages()) {
                 tally.truncated = true;
                 return;
             }
-            if (inbox.importHistorical(source.account(), message)) {
-                tally.imported++;
-            } else {
-                tally.skipped++;
-            }
+            tally.count(inbox.importHistorical(source.account(), message));
         }
         names.nameIfAbsent(source.organizationId(), source.channel(), conversation.peerId(), conversation.peerName());
         if (conversation.moreMessages()) {
@@ -124,8 +124,21 @@ public class HistoryImportService {
 
     private static final class Tally {
         int conversations;
-        int imported;
-        int skipped;
+        int inserted;
+        int updated;
+        int unchanged;
         boolean truncated;
+
+        void count(HistoryMessageOutcome outcome) {
+            switch (outcome) {
+                case INSERTED -> inserted++;
+                case UPDATED -> updated++;
+                case UNCHANGED -> unchanged++;
+            }
+        }
+
+        int changed() {
+            return inserted + updated;
+        }
     }
 }

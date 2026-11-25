@@ -53,6 +53,7 @@ class IncomingMessageServiceTests {
     private ConversationParticipantRepository links;
     private MessageRepository messages;
     private MessageAttachmentRepository attachments;
+    private MessageReconciler reconciler;
     private ApplicationEventPublisher publisher;
     private IncomingMessageService service;
 
@@ -69,9 +70,10 @@ class IncomingMessageServiceTests {
         links = mock(ConversationParticipantRepository.class);
         messages = mock(MessageRepository.class);
         attachments = mock(MessageAttachmentRepository.class);
+        reconciler = mock(MessageReconciler.class);
         publisher = mock(ApplicationEventPublisher.class);
         service = new IncomingMessageService(participants, conversations, links, messages, attachments,
-                publisher);
+                reconciler, publisher);
         acme = organization();
         other = organization();
         acmePage = new MetaConnectedPage(acme, "page-1");
@@ -322,6 +324,16 @@ class IncomingMessageServiceTests {
             verify(conversations, never()).save(any());
             verify(publisher, never()).publishEvent(any(Object.class));
         }
+
+        @Test
+        void aDuplicateWebhookDeliveryNeverReconcilesTheStoredRow() {
+            when(messages.existsByOrganizationIdAndExternalMessageId(acme.getId(), "m.1")).thenReturn(true);
+
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.1"));
+
+            verify(reconciler, never()).reconcile(any(), any());
+            verify(messages, never()).findByOrganizationIdAndExternalMessageId(any(), any());
+        }
     }
 
     @Nested
@@ -401,11 +413,17 @@ class IncomingMessageServiceTests {
     @Nested
     class ImportHistorical {
 
+        private Message stored(Organization org, String mid) {
+            Conversation thread = withId(new Conversation(org, Channel.MESSENGER, "customer-1"));
+            return withId(Message.inbound(thread, null, mid, "[Attachment]", SENT_AT));
+        }
+
         @Test
         void storesTheMessageLikeAWebhookOneButAnnouncesNothing() {
-            boolean stored = service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.1"));
+            HistoryMessageOutcome outcome = service.importHistorical(acmePage,
+                    message(WebhookObject.PAGE, Direction.INBOUND, "h.1"));
 
-            assertTrue(stored);
+            assertEquals(HistoryMessageOutcome.INSERTED, outcome);
             ArgumentCaptor<Message> saved = ArgumentCaptor.forClass(Message.class);
             verify(messages).save(saved.capture());
             assertEquals(SENT_AT, saved.getValue().getSentAt());
@@ -415,23 +433,42 @@ class IncomingMessageServiceTests {
             assertEquals(SENT_AT, conversation.getValue().getLastMessageAt());
             assertFalse(conversation.getValue().isUnread());
             verify(publisher, never()).publishEvent(any(Object.class));
+            verify(reconciler, never()).reconcile(any(), any());
         }
 
         @Test
-        void aMessageTheOrganizationAlreadyHasReturnsFalseAndStoresNothing() {
-            when(messages.existsByOrganizationIdAndExternalMessageId(acme.getId(), "h.2")).thenReturn(true);
+        void aStoredMessageThatDiffersIsReconciledAndReportedUpdated() {
+            Message existing = stored(acme, "h.2");
+            NormalizedMessage fromMeta = message(WebhookObject.PAGE, Direction.INBOUND, "h.2");
+            when(messages.findByOrganizationIdAndExternalMessageId(acme.getId(), "h.2"))
+                    .thenReturn(Optional.of(existing));
+            when(reconciler.reconcile(existing, fromMeta)).thenReturn(true);
 
-            boolean stored = service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.2"));
+            assertEquals(HistoryMessageOutcome.UPDATED, service.importHistorical(acmePage, fromMeta));
+            verify(messages, never()).save(any(Message.class));
+            verify(publisher, never()).publishEvent(any(Object.class));
+        }
 
-            assertFalse(stored);
+        @Test
+        void aStoredMessageThatMatchesIsReportedUnchanged() {
+            Message existing = stored(acme, "h.3");
+            when(messages.findByOrganizationIdAndExternalMessageId(acme.getId(), "h.3"))
+                    .thenReturn(Optional.of(existing));
+
+            assertEquals(HistoryMessageOutcome.UNCHANGED,
+                    service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.3")));
             verify(messages, never()).save(any(Message.class));
         }
 
         @Test
-        void aMessageAnotherOrganizationHasIsStillStoredForThisOne() {
-            when(messages.existsByOrganizationIdAndExternalMessageId(other.getId(), "h.3")).thenReturn(true);
+        void aMessageAnotherOrganizationHasIsStillInsertedForThisOne() {
+            when(messages.findByOrganizationIdAndExternalMessageId(other.getId(), "h.4"))
+                    .thenReturn(Optional.of(stored(other, "h.4")));
 
-            assertTrue(service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.3")));
+            assertEquals(HistoryMessageOutcome.INSERTED,
+                    service.importHistorical(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "h.4")));
+            verify(messages).findByOrganizationIdAndExternalMessageId(acme.getId(), "h.4");
+            verify(reconciler, never()).reconcile(any(), any());
         }
     }
 }
