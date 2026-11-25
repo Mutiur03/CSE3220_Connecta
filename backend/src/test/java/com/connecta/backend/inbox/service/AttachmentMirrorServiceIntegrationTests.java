@@ -226,6 +226,23 @@ class AttachmentMirrorServiceIntegrationTests {
     }
 
     @Test
+    void aSharedPostImageIsCopiedLikeAnyPhoto() {
+        String source = metaUrl();
+        when(downloader.download(source)).thenReturn(new DownloadedMedia(PNG, "application/octet-stream"));
+        String mid = "mid-" + UUID.randomUUID();
+
+        inbox.receive(page, new NormalizedMessage(WebhookObject.PAGE, mid, "customer-" + mid, Direction.INBOUND,
+                "[Shared post]", TestClock.NOW,
+                List.of(NormalizedAttachment.of(AttachmentKind.IMAGE, source, "Shared post", null).orElseThrow())));
+
+        MessageAttachment copied = attachmentOf(mid);
+        assertEquals(AttachmentKind.IMAGE, copied.getKind());
+        assertNotNull(copied.getStoredFileId());
+        assertEquals(source, copied.getSourceUrl());
+        verify(downloader, times(1)).download(source);
+    }
+
+    @Test
     void aSharedPostIsStoredAsALinkAndNeverCopiedByTheListenerOrTheSweep() {
         String post = "https://www.instagram.com/p/" + UUID.randomUUID() + "/";
         String mid = "mid-" + UUID.randomUUID();

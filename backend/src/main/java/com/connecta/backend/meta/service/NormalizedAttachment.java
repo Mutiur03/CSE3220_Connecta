@@ -34,7 +34,12 @@ public record NormalizedAttachment(AttachmentKind kind, String url, String fileN
 
     /** The message text when this attachment arrives without text: a link's title in brackets, else the kind's. */
     public String label() {
-        return kind == AttachmentKind.LINK && fileName != null ? "[" + fileName + "]" : kind.label();
+        return titled() ? "[" + fileName + "]" : kind.label();
+    }
+
+    /** A link, or the image of a shared post, is labelled by its title. */
+    private boolean titled() {
+        return fileName != null && (kind == AttachmentKind.LINK || SHARED_POST.equals(fileName));
     }
 
     private static boolean isWebUrl(String url) {
