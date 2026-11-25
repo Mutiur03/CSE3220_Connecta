@@ -42,7 +42,6 @@ export default function InboxKeyboard() {
         );
         if (index === null) return false;
         router.push(rows[index].getAttribute("href") ?? "", { scroll: false });
-        rows[index].scrollIntoView({ block: "nearest" });
         return true;
       }
       if (action === "toggleStatus") {
