@@ -1,6 +1,12 @@
 package com.connecta.backend.support;
 
 import com.connecta.backend.auth.repository.RefreshTokenRepository;
+import com.connecta.backend.file.repository.StoredFileRepository;
+import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
+import com.connecta.backend.inbox.repository.ConversationRepository;
+import com.connecta.backend.inbox.repository.MessageAttachmentRepository;
+import com.connecta.backend.inbox.repository.MessageRepository;
+import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.org.repository.InvitationRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
@@ -11,6 +17,7 @@ import com.connecta.backend.meta.repository.MetaAuthorizationRepository;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import com.connecta.backend.meta.repository.MetaProcessedMessageRepository;
+import com.connecta.backend.meta.repository.MetaViewOnceMarkRepository;
 import com.connecta.backend.meta.repository.MetaWebhookEventRepository;
 import com.connecta.backend.product.repository.StockMovementRepository;
 import com.connecta.backend.user.repository.RoleRepository;
@@ -40,6 +47,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         StockMovementRepository.class,
         ProductImageRepository.class, MetaAuthorizationRepository.class, MetaConnectedPageRepository.class,
         MetaConnectedAccountRepository.class, MetaWebhookEventRepository.class,
-        MetaProcessedMessageRepository.class})
+        MetaProcessedMessageRepository.class, MetaViewOnceMarkRepository.class, ParticipantRepository.class, ConversationRepository.class,
+        ConversationParticipantRepository.class, MessageRepository.class, MessageAttachmentRepository.class,
+        StoredFileRepository.class})
 public @interface MockRepositories {
 }

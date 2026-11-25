@@ -19,6 +19,10 @@ springdoc:
     enabled: true
 
 app:
+  # Incoming media is never downloaded in tests: no real host is allowed, and the sweep waits an hour.
+  attachments:
+    mirror-allowed-host-suffixes: media.test.invalid
+    mirror-sweep-delay: 1h
   cors:
     allowed-origins: http://localhost:3000
   jwt:
@@ -35,6 +39,10 @@ app:
     frontend-url: http://localhost:3000
   # Meta: fake app values and a fixed test key (base64 of 32 bytes). Tests stub the Graph API, so nothing is called.
   meta:
+    history-import:
+      enabled: false
+    sync:
+      enabled: false
     app-id: test-app-id
     app-secret: test-app-secret
     graph-version: v27.0

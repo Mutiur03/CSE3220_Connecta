@@ -15,10 +15,11 @@ spring:
     open-in-view: false
   servlet:
     multipart:
-      # Product image uploads: the limits sit at or just above app.product-images.max-size-bytes so an
-      # oversize upload is rejected as 413 before it is buffered.
-      max-file-size: 5MB
-      max-request-size: 6MB
+      # Uploads (product images, message attachments): the limits sit at or just above the larger of
+      # app.product-images.max-size-bytes and app.attachments.max-bytes, so an oversize upload is rejected as
+      # 413 before it is buffered. Raise them together with app.attachments.max-bytes.
+      max-file-size: 8MB
+      max-request-size: 9MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -82,6 +83,19 @@ app:
     # Public address of the web app, used to build the link in the invitation email.
     frontend-url: ${FRONTEND_URL}
 
+  # Live inbox updates over WebSocket (/ws/inbox). Defaults shown; override with APP_REALTIME_* if needed.
+  realtime:
+    ticket-ttl: 30s
+    idle-timeout: 90s
+    sweep-interval: 30s
+    max-sessions-per-user: 5
+    send-time-limit: 5s
+    send-buffer-size-limit: 65536
+    max-outstanding-tickets: 5
+    max-tickets-per-window: 20
+    ticket-rate-window: 1m
+    max-frame-bytes: 1024
+
   frontend:
     # Where the browser goes after a Meta callback (the Integrations page).
     url: ${FRONTEND_URL}
@@ -118,9 +132,67 @@ app:
     instagram:
       app-id: "${META_INSTAGRAM_APP_ID:}"
       app-secret: "${META_INSTAGRAM_APP_SECRET:}"
+    # Customer name lookup after a message commits: Graph call timeout and its bounded executor.
+    profile-lookup:
+      timeout: 3s
+      pool-size: 2
+      queue-capacity: 100
+      shutdown-timeout: 10s
+      # A stored picture URL is looked up again after this long (Meta URLs are signed and expire).
+      picture-ttl: 12h
+      # Most customers looked up after one history import, so past conversations get pictures too.
+      import-refresh-limit: 20
+    # Past conversations are imported automatically when a Page or Instagram account is connected, and at startup
+    # for connections never imported. Bounds below; a hit limit marks the import truncated, not failed.
+    history-import:
+      enabled: true
+      max-conversations: 50
+      messages-per-conversation: 50
+      max-messages: 1000
+      page-size: 5
+      request-timeout: 15s
+      worker-threads: 2
+      queue-capacity: 100
+      max-graph-pages: 200
+    # Safety net behind the webhook: at startup and every interval the newest messages of each connected account
+    # are read and any missing one is stored (idempotent, nothing deleted). Smaller than a full import.
+    sync:
+      enabled: true
+      interval: 10m
+      max-conversations: 10
+      messages-per-conversation: 10
+    # A view-once photo arrives as the sender's echo (no media) and the receiver's normal image event, with the
+    # same timestamp. hide=false keeps the received photo permanently (default); true stores only the note
+    # "[Disappearing photo]" and never downloads the file. Marks of echoes expire after mark-ttl.
+    view-once:
+      hide: "${META_HIDE_VIEW_ONCE:false}"
+      mark-ttl: 1h
+      cleanup-interval: 10m
     webhook:
       # Verify token Meta sends back when it subscribes the webhook. Blank refuses every subscription.
       verify-token: "${META_WEBHOOK_VERIFY_TOKEN:}"
+
+  # This backend's public address, used to build the absolute link of a stored file (/api/files/{id}) that Meta
+  # fetches when an agent sends an attachment. Meta cannot reach localhost: use the deployed URL or a tunnel.
+  # Blank means attachments cannot be sent (422).
+  public-base-url: "${PUBLIC_BASE_URL:}"
+
+  # Message attachments: largest file an agent may send (8 MB). Stored in PostgreSQL (stored_files).
+  attachments:
+    max-bytes: 8388608
+    # Incoming media is copied from Meta's CDN into stored_files once the message is saved (Meta's links expire).
+    # Needs PUBLIC_BASE_URL. Downloads only over https from these host suffixes, up to mirror-max-bytes (25 MB).
+    # A failed copy is retried every mirror-sweep-delay (mirror-batch-size at a time, each attachment at most
+    # once per mirror-retry-after) until the attachment is older than mirror-max-age.
+    mirror-max-bytes: 26214400
+    mirror-allowed-host-suffixes: fbcdn.net,cdninstagram.com,fbsbx.com,facebook.com
+    mirror-max-age: 3d
+    mirror-retry-after: 15m
+    mirror-sweep-delay: 5m
+    mirror-batch-size: 20
+    mirror-timeout: 20s
+    mirror-pool-size: 2
+    mirror-queue-capacity: 100
 
   # Product image uploads: largest file and most images per product.
   product-images:

@@ -1,5 +1,7 @@
 package com.connecta.backend.inbox.domain;
 
+import com.connecta.backend.meta.domain.MetaConnectedAccount;
+import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.org.domain.Organization;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -45,6 +47,24 @@ public class Conversation {
             updatable = false)
     private String externalThreadId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private ConversationStatus status = ConversationStatus.OPEN;
+
+    /** The Facebook Page this Messenger conversation belongs to. Null on older rows or once the Page is removed. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "meta_page_id")
+    private MetaConnectedPage metaPage;
+
+    /** The Instagram account this conversation belongs to. Null on older rows or once the account is removed. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "instagram_account_id")
+    private MetaConnectedAccount instagramAccount;
+
+    /** A customer wrote since a member last read the conversation. Shared by the whole team. */
+    @Column(nullable = false)
+    private boolean unread;
+
     @Column(name = "last_message_at")
     private Instant lastMessageAt;
 
@@ -58,6 +78,37 @@ public class Conversation {
         this.organization = organization;
         this.channel = channel;
         this.externalThreadId = externalThreadId;
+    }
+
+    public void linkToPage(MetaConnectedPage page) {
+        this.metaPage = page;
+    }
+
+    public void linkToInstagramAccount(MetaConnectedAccount account) {
+        this.instagramAccount = account;
+    }
+
+    /** Moves the last-message time forward only, so a late or retried older message cannot rewind it. */
+    public void recordMessageAt(Instant sentAt) {
+        if (lastMessageAt == null || sentAt.isAfter(lastMessageAt)) {
+            lastMessageAt = sentAt;
+        }
+    }
+
+    public void changeStatus(ConversationStatus newStatus) {
+        this.status = newStatus;
+    }
+
+    public void markUnread() {
+        this.unread = true;
+    }
+
+    public void markRead() {
+        this.unread = false;
+    }
+
+    public void changeReadState(boolean unread) {
+        this.unread = unread;
     }
 
     @PrePersist

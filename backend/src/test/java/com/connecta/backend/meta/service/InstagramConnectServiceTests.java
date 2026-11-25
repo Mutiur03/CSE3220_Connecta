@@ -7,7 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import org.springframework.context.ApplicationEventPublisher;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -48,6 +51,7 @@ class InstagramConnectServiceTests {
     private TenantAccessService tenants;
     private ActiveCaller callers;
     private MetaConnectedAccountRepository accounts;
+    private ApplicationEventPublisher publisher;
     private InstagramConnectService service;
 
     private Organization acme;
@@ -62,8 +66,10 @@ class InstagramConnectServiceTests {
         tenants = mock(TenantAccessService.class);
         callers = mock(ActiveCaller.class);
         accounts = mock(MetaConnectedAccountRepository.class);
+        publisher = mock(ApplicationEventPublisher.class);
         service = new InstagramConnectService(meta, new InstagramProperties("ig-app", "ig-secret"), states, client,
-                cipher, tenants, callers, accounts, TestClock.FIXED);
+                cipher, tenants, callers, accounts, TestClock.FIXED, publisher,
+                new InstagramWebhookSubscriber(client, accounts, cipher));
 
         acme = new Organization("Acme", "acme");
         TestUsers.set(acme, "id", UUID.randomUUID());
@@ -127,11 +133,46 @@ class InstagramConnectServiceTests {
 
             MetaConnectedAccount saved = service.completeConnection("code", state);
 
+            verify(publisher).publishEvent(new ChannelConnectedEvent(
+                    com.connecta.backend.inbox.domain.Channel.INSTAGRAM, saved.getId()));
             assertEquals("17841", saved.getExternalAccountId());
             assertEquals("acme_shop", saved.getUsername());
             assertEquals(admin, saved.getGrantedBy());
             assertEquals("long-token", cipher.decrypt(saved.getAccessTokenEncrypted()));
             assertFalse(saved.getAccessTokenEncrypted().contains("long-token"));
+        }
+
+        @Test
+        void subscribesTheConnectedAccountToWebhooksWithItsToken() {
+            String state = states.issue(acme.getId(), admin.getId(), TestClock.NOW);
+            connectsAccount17841();
+
+            service.completeConnection("code", state);
+
+            verify(client).subscribeToWebhooks("17841", "long-token");
+        }
+
+        @Test
+        void aFailedWebhookSubscriptionStillConnectsTheAccount() {
+            String state = states.issue(acme.getId(), admin.getId(), TestClock.NOW);
+            connectsAccount17841();
+            doThrow(new MetaAuthorizationFailedException("Instagram request failed"))
+                    .when(client).subscribeToWebhooks("17841", "long-token");
+
+            MetaConnectedAccount saved = service.completeConnection("code", state);
+
+            assertEquals("17841", saved.getExternalAccountId());
+            verify(accounts).save(saved);
+        }
+
+        private void connectsAccount17841() {
+            adminIsAMember();
+            when(client.exchangeCode("code", REDIRECT)).thenReturn(new MetaUserToken("short", TestClock.NOW));
+            when(client.extendToken("short")).thenReturn(new MetaUserToken("long-token", null));
+            when(client.fetchAccount("long-token")).thenReturn(new InstagramAccount("17841", "acme_shop"));
+            when(accounts.findByOrganizationIdAndPlatformAndExternalAccountId(
+                    acme.getId(), MetaConnectedAccount.PLATFORM_INSTAGRAM, "17841")).thenReturn(Optional.empty());
+            when(accounts.save(any(MetaConnectedAccount.class))).thenAnswer(call -> call.getArgument(0));
         }
 
         @Test

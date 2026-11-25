@@ -2,6 +2,7 @@ package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -11,6 +12,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.connecta.backend.config.ViewOnceProperties;
+import com.connecta.backend.inbox.service.DisappearingPhotoService;
+import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.domain.MetaProcessedMessage;
@@ -19,6 +23,7 @@ import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import com.connecta.backend.meta.repository.MetaProcessedMessageRepository;
+import com.connecta.backend.meta.repository.MetaViewOnceMarkRepository;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
@@ -28,7 +33,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.context.ApplicationEventPublisher;
 import tools.jackson.databind.ObjectMapper;
 
 class WebhookEventProcessorTests {
@@ -40,22 +44,36 @@ class WebhookEventProcessorTests {
     private MetaConnectedPageRepository pages;
     private MetaConnectedAccountRepository accounts;
     private MetaProcessedMessageRepository processed;
-    private ApplicationEventPublisher publisher;
+    private IncomingMessageService inbox;
+    private MetaViewOnceMarkRepository marks;
+    private DisappearingPhotoService storedPhotos;
     private WebhookEventProcessor processor;
 
     private Organization acme;
     private Organization other;
+    private MetaConnectedPage acmePage;
+    private MetaConnectedPage otherPage;
 
     @BeforeEach
     void setUp() {
         pages = mock(MetaConnectedPageRepository.class);
         accounts = mock(MetaConnectedAccountRepository.class);
         processed = mock(MetaProcessedMessageRepository.class);
-        publisher = mock(ApplicationEventPublisher.class);
-        processor = new WebhookEventProcessor(pages, accounts, processed, new MessagingEventParser(), publisher,
-                new ObjectMapper(), TestClock.FIXED);
+        inbox = mock(IncomingMessageService.class);
+        marks = mock(MetaViewOnceMarkRepository.class);
+        storedPhotos = mock(DisappearingPhotoService.class);
+        processor = processorWith(false);
         acme = organization();
         other = organization();
+        acmePage = new MetaConnectedPage(acme, "page-1");
+        otherPage = new MetaConnectedPage(other, "page-1");
+    }
+
+    private WebhookEventProcessor processorWith(boolean hide) {
+        ViewOnceService viewOnce = new ViewOnceService(marks, storedPhotos,
+                new ViewOnceProperties(hide, null, null), TestClock.FIXED);
+        return new WebhookEventProcessor(pages, accounts, processed, new MessagingEventParser(), inbox, viewOnce,
+                new ObjectMapper(), TestClock.FIXED);
     }
 
     private static Organization organization() {
@@ -64,12 +82,107 @@ class WebhookEventProcessorTests {
         return org;
     }
 
-    private MetaConnectedPage pageOf(Organization org, String pageId) {
-        return new MetaConnectedPage(org, pageId);
-    }
-
     private static MetaWebhookEvent event(WebhookObject object, String payload) {
         return new MetaWebhookEvent(object, payload, TestClock.NOW);
+    }
+
+    private static final long TS = 1700000000123L;
+    private static final String ECHO = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"ig-sender\",\"messaging\":["
+            + "{\"sender\":{\"id\":\"s\"},\"recipient\":{\"id\":\"r\"},\"timestamp\":" + TS + ","
+            + "\"message\":{\"mid\":\"m.echo\",\"is_echo\":true,\"attachments\":[{\"type\":\"ephemeral\","
+            + "\"payload\":{}}]}}]}]}";
+    private static final String PHOTO = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"ig-1\",\"messaging\":["
+            + "{\"sender\":{\"id\":\"c\"},\"timestamp\":" + TS + ",\"message\":{\"mid\":\"m.photo\","
+            + "\"attachments\":[{\"type\":\"image\",\"payload\":{\"url\":\"https://cdn.example/a.jpg\"}}]}}]}]}";
+
+    private MetaConnectedAccount routeInstagram(String accountId, Organization org) {
+        MetaConnectedAccount account = new MetaConnectedAccount(org, MetaConnectedAccount.PLATFORM_INSTAGRAM,
+                accountId);
+        when(accounts.findAllByPlatformAndExternalAccountId("INSTAGRAM", accountId)).thenReturn(List.of(account));
+        return account;
+    }
+
+    private NormalizedMessage delivered() {
+        ArgumentCaptor<NormalizedMessage> captor = ArgumentCaptor.forClass(NormalizedMessage.class);
+        verify(inbox).receive(any(), captor.capture());
+        return captor.getValue();
+    }
+
+    @Nested
+    class ViewOncePhotos {
+
+        @Test
+        void anEchoIsRecordedEvenWhenItsAccountIsNotConnected() {
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            verify(marks).record(TS, TestClock.NOW);
+            verify(inbox, never()).receive(any(), any());
+        }
+
+        @Test
+        void withTheSwitchOffAMarkedPhotoIsStoredAsAPhoto() {
+            routeInstagram("ig-1", acme);
+            when(marks.existsById(TS)).thenReturn(true);
+
+            processor.process(event(WebhookObject.INSTAGRAM, PHOTO));
+
+            assertEquals(1, delivered().attachments().size());
+            assertEquals("[Photo]", delivered().text());
+        }
+
+        @Test
+        void withTheSwitchOnAMarkedPhotoIsStoredAsTheNoteWithoutAttachment() {
+            processor = processorWith(true);
+            routeInstagram("ig-1", acme);
+            when(marks.existsById(TS)).thenReturn(true);
+
+            processor.process(event(WebhookObject.INSTAGRAM, PHOTO));
+
+            assertEquals("[Disappearing photo]", delivered().text());
+            assertEquals(List.of(), delivered().attachments());
+        }
+
+        @Test
+        void withTheSwitchOnAPhotoWithoutAMarkIsUntouched() {
+            processor = processorWith(true);
+            routeInstagram("ig-1", acme);
+            when(marks.existsById(TS)).thenReturn(false);
+
+            processor.process(event(WebhookObject.INSTAGRAM, PHOTO));
+
+            assertEquals(1, delivered().attachments().size());
+        }
+
+        @Test
+        void anEchoAfterThePhotoConvertsTheStoredPhotoOfTheRoutedOrganizationOnly() {
+            processor = processorWith(true);
+            MetaConnectedAccount sender = routeInstagram("ig-sender", acme);
+
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            verify(storedPhotos).convert(sender.getOrganization().getId(), java.time.Instant.ofEpochMilli(TS));
+            verify(storedPhotos, never()).convert(eq(other.getId()), any());
+        }
+
+        @Test
+        void withTheSwitchOffAnEchoConvertsNothing() {
+            routeInstagram("ig-sender", acme);
+
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            verify(storedPhotos, never()).convert(any(), any());
+            verify(marks).record(TS, TestClock.NOW);
+        }
+
+        @Test
+        void ourOwnDisappearingPhotoIsStoredAsTheNote() {
+            routeInstagram("ig-sender", acme);
+
+            processor.process(event(WebhookObject.INSTAGRAM, ECHO));
+
+            assertEquals("[Disappearing photo]", delivered().text());
+            assertEquals(List.of(), delivered().attachments());
+        }
     }
 
     @Nested
@@ -77,32 +190,29 @@ class WebhookEventProcessorTests {
 
         @Test
         void aMessageIsDeliveredToTheOrganizationThatConnectedThePage() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(any(), any(), anyString()))
                     .thenReturn(false);
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            ArgumentCaptor<MessageReceivedEvent> captor = ArgumentCaptor.forClass(MessageReceivedEvent.class);
-            verify(publisher).publishEvent(captor.capture());
-            assertEquals(acme.getId(), captor.getValue().organizationId());
-            assertEquals("m.1", captor.getValue().message().externalMessageId());
+            ArgumentCaptor<NormalizedMessage> captor = ArgumentCaptor.forClass(NormalizedMessage.class);
+            verify(inbox).receive(eq(acmePage), captor.capture());
+            assertEquals("m.1", captor.getValue().externalMessageId());
         }
 
         @Test
         void aPageConnectedByTwoOrganizationsIsDeliveredToBoth() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1"), pageOf(other, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage, otherPage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(any(), any(), anyString()))
                     .thenReturn(false);
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher).publishEvent(new MessageReceivedEvent(acme.getId(),
-                    new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT)));
-            verify(publisher).publishEvent(new MessageReceivedEvent(other.getId(),
-                    new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT)));
+            verify(inbox).receive(acmePage, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
+                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT, List.of()));
+            verify(inbox).receive(otherPage, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
+                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT, List.of()));
         }
 
         @Test
@@ -111,7 +221,7 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher, never()).publishEvent(any());
+            verify(inbox, never()).receive(any(), any());
             verify(processed, never()).save(any());
         }
 
@@ -127,7 +237,7 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.INSTAGRAM, payload));
 
-            verify(publisher).publishEvent(any(MessageReceivedEvent.class));
+            verify(inbox).receive(any(), any());
         }
 
         @Test
@@ -146,19 +256,19 @@ class WebhookEventProcessorTests {
 
         @Test
         void aRedeliveredMessageIsNotDeliveredAgain() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(acme.getId(), WebhookObject.PAGE,
                     "m.1")).thenReturn(true);
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher, never()).publishEvent(any());
+            verify(inbox, never()).receive(any(), any());
             verify(processed, never()).save(any());
         }
 
         @Test
         void aNewMessageIsRecordedBeforeItIsPublished() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(any(), any(), anyString()))
                     .thenReturn(false);
 
@@ -173,7 +283,7 @@ class WebhookEventProcessorTests {
 
         @Test
         void theSameMidInAnotherOrganizationIsStillDelivered() {
-            when(pages.findAllByPageId("page-1")).thenReturn(List.of(pageOf(acme, "page-1"), pageOf(other, "page-1")));
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage, otherPage));
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(acme.getId(), WebhookObject.PAGE, "m.1"))
                     .thenReturn(true);
             when(processed.existsByOrganizationIdAndObjectAndExternalMessageId(eq(other.getId()), eq(WebhookObject.PAGE),
@@ -181,10 +291,54 @@ class WebhookEventProcessorTests {
 
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
-            verify(publisher, never()).publishEvent(eq(new MessageReceivedEvent(acme.getId(),
-                    new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT))));
-            verify(publisher).publishEvent(any(MessageReceivedEvent.class));
+            verify(inbox, never()).receive(eq(acmePage), any());
+            verify(inbox).receive(eq(otherPage), any());
+            verify(inbox).receive(any(), any());
+        }
+    }
+
+    @Nested
+    class WebhookHealth {
+
+        @Test
+        void everyRoutedConnectionRecordsWhenTheWebhookArrived() {
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage, otherPage));
+
+            processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
+
+            assertEquals(TestClock.NOW, acmePage.getLastWebhookAt());
+            assertEquals(TestClock.NOW, otherPage.getLastWebhookAt());
+        }
+
+        @Test
+        void aRoutedInstagramAccountRecordsIt() {
+            MetaConnectedAccount account = new MetaConnectedAccount(acme, MetaConnectedAccount.PLATFORM_INSTAGRAM,
+                    "ig-1");
+            when(accounts.findAllByPlatformAndExternalAccountId("INSTAGRAM", "ig-1")).thenReturn(List.of(account));
+            String payload = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"ig-1\"}]}";
+
+            processor.process(event(WebhookObject.INSTAGRAM, payload));
+
+            assertEquals(TestClock.NOW, account.getLastWebhookAt());
+        }
+
+        @Test
+        void aConnectionNotNamedByTheEventIsLeftUnchanged() {
+            MetaConnectedPage unrelated = new MetaConnectedPage(acme, "page-2");
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
+
+            processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
+
+            assertNull(unrelated.getLastWebhookAt());
+        }
+
+        @Test
+        void anUnroutedIdChangesNothing() {
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of());
+
+            processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
+
+            assertNull(acmePage.getLastWebhookAt());
         }
     }
 }

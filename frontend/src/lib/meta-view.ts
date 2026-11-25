@@ -1,3 +1,5 @@
+import { formatRelative } from "./format";
+import type { HistoryImportError } from "./meta-api";
 import type { OrgRole } from "./org-permissions";
 
 /** Connecting Meta is an admin's job. The backend enforces it; the UI only hides the controls. */
@@ -48,6 +50,28 @@ export const STATUS_LABELS: Record<ChannelStatus, string> = {
   expired: "Access expired",
   not_connected: "Not connected",
 };
+
+const RETRY_NOTE =
+  "It retries when the server restarts or the account is reconnected.";
+
+const HISTORY_IMPORT_TEXT: Record<HistoryImportError, string> = {
+  PERMISSION: `Importing past conversations failed: permission missing. ${RETRY_NOTE}`,
+  FETCH: `Importing past conversations failed: Meta could not be read. ${RETRY_NOTE}`,
+};
+
+/** The quiet warning for an account whose last history import failed, or null when it did not. */
+export function historyImportNotice(
+  error: HistoryImportError | null | undefined,
+): string | null {
+  return error ? HISTORY_IMPORT_TEXT[error] : null;
+}
+
+/** When a webhook last reached a connection, in words; a connection nothing has reached says so. */
+export function webhookLine(lastWebhookAt: string | null, now: Date): string {
+  return lastWebhookAt
+    ? `Last webhook ${formatRelative(lastWebhookAt, now)}`
+    : "No webhook received yet";
+}
 
 /** The query parameters the Meta callbacks send the browser back with. */
 export type ConnectionResultParams = {

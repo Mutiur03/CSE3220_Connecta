@@ -13,6 +13,8 @@ public interface MetaConnectedPageRepository extends JpaRepository<MetaConnected
     /** One organization's connected Pages. Scoped by organization, so no other tenant's Page is returned. */
     Page<MetaConnectedPage> findByOrganizationId(UUID organizationId, Pageable pageable);
 
+    Optional<MetaConnectedPage> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
     Optional<MetaConnectedPage> findByOrganizationIdAndPageId(UUID organizationId, String pageId);
 
     /**
@@ -20,4 +22,7 @@ public interface MetaConnectedPageRepository extends JpaRepository<MetaConnected
      * the one lookup that is not scoped by organization.
      */
     List<MetaConnectedPage> findAllByPageId(String pageId);
+
+    /** Connections whose history was never imported to the end: the startup catch-up works through them. */
+    List<MetaConnectedPage> findAllByHistoryImportedAtIsNull();
 }

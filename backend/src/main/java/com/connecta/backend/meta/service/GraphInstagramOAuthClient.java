@@ -29,6 +29,9 @@ class GraphInstagramOAuthClient implements InstagramOAuthClient {
     private static final String API_HOST = "https://api.instagram.com";
     private static final String GRAPH_HOST = "https://graph.instagram.com/";
     private static final String SCOPES = "instagram_business_basic,instagram_business_manage_messages";
+    private static final String SUBSCRIBED_APPS_PATH = "/{accountId}/subscribed_apps";
+    /** Only messages: the webhook intake does not read reactions or edits. */
+    static final String SUBSCRIBED_FIELDS = "messages";
 
     private final InstagramProperties instagram;
     private final RestClient api;
@@ -119,6 +122,32 @@ class GraphInstagramOAuthClient implements InstagramOAuthClient {
         return new InstagramAccount(body.userId(), body.username());
     }
 
+    @Override
+    public void subscribeToWebhooks(String accountId, String accessToken) {
+        GraphMetaOAuthClient.SuccessResponse body = request(() -> graph.post()
+                .uri(uri -> uri.path(SUBSCRIBED_APPS_PATH)
+                        .queryParam("subscribed_fields", SUBSCRIBED_FIELDS)
+                        .build(accountId))
+                .headers(GraphAuth.bearer(accessToken))
+                .retrieve()
+                .body(GraphMetaOAuthClient.SuccessResponse.class));
+        if (body == null || !body.success()) {
+            throw new MetaAuthorizationFailedException("Instagram did not subscribe the account");
+        }
+    }
+
+    @Override
+    public boolean isSubscribedToWebhooks(String accountId, String accessToken) {
+        SubscribedAppsResponse body = request(() -> graph.get()
+                .uri(SUBSCRIBED_APPS_PATH, accountId)
+                .headers(GraphAuth.bearer(accessToken))
+                .retrieve()
+                .body(SubscribedAppsResponse.class));
+        return body != null && body.data() != null && body.data().stream()
+                .anyMatch(app -> app.subscribedFields() != null
+                        && app.subscribedFields().contains(SUBSCRIBED_FIELDS));
+    }
+
     private static <T> T request(Supplier<T> call) {
         try {
             return call.get();
@@ -134,6 +163,13 @@ class GraphInstagramOAuthClient implements InstagramOAuthClient {
     }
 
     record ShortTokenEntry(@JsonProperty("access_token") String accessToken) {
+    }
+
+    /** The apps subscribed to the account (GET /{id}/subscribed_apps); only ours is visible to our token. */
+    record SubscribedAppsResponse(List<SubscribedApp> data) {
+    }
+
+    record SubscribedApp(@JsonProperty("subscribed_fields") List<String> subscribedFields) {
     }
 
     record AccountResponse(@JsonProperty("user_id") String userId, String username) {

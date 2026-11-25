@@ -12,6 +12,10 @@ type Props = {
   pages: MetaAvailablePage[];
   /** A formatted "connected on" date per Page id, for the Pages already connected. */
   connectedOn?: Record<string, string>;
+  /** A warning per Page id, shown under the Page (a failed import of past conversations). */
+  notices?: Record<string, string>;
+  /** The "last webhook" line per connected Page id. */
+  webhookLines?: Record<string, string>;
   action: (
     previous: OrgActionState,
     formData: FormData,
@@ -25,6 +29,8 @@ type Props = {
 export default function MetaPagePicker({
   pages,
   connectedOn = {},
+  notices = {},
+  webhookLines = {},
   action,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
@@ -52,6 +58,16 @@ export default function MetaPagePicker({
                 <span className="figure text-caption text-secondary">
                   Page {page.pageId}
                 </span>
+                {page.connected && webhookLines[page.pageId] && (
+                  <span className="text-caption text-secondary">
+                    {webhookLines[page.pageId]}
+                  </span>
+                )}
+                {notices[page.pageId] && (
+                  <span className="text-caption text-danger">
+                    {notices[page.pageId]}
+                  </span>
+                )}
               </span>
             </span>
             {page.connected ? (

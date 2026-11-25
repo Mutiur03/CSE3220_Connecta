@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -19,6 +20,7 @@ import java.time.Clock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -127,6 +129,62 @@ class GraphInstagramOAuthClientTests {
 
             assertFalse(e.getMessage().contains("Invalid OAuth access token"));
             assertEquals("Instagram request failed", e.getMessage());
+        }
+    }
+
+    @Nested
+    class WebhookSubscription {
+
+        private static final String SUBSCRIBED_APPS_URL = "https://graph.instagram.com/v27.0/17841/subscribed_apps";
+
+        @Test
+        void subscribesMessagesWithTheTokenAsBearerHeaderNotInTheUrl() {
+            server.expect(requestTo(SUBSCRIBED_APPS_URL + "?subscribed_fields=messages"))
+                    .andExpect(method(HttpMethod.POST))
+                    .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer ig-token"))
+                    .andRespond(withSuccess("{\"success\":true}", MediaType.APPLICATION_JSON));
+
+            client.subscribeToWebhooks("17841", "ig-token");
+
+            server.verify();
+        }
+
+        @Test
+        void aGraphErrorBecomesTheGenericFailure() {
+            server.expect(requestTo(startsWithUrl(SUBSCRIBED_APPS_URL)))
+                    .andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON)
+                            .body("{\"error\":{\"message\":\"Invalid OAuth access token\",\"code\":190}}"));
+
+            MetaAuthorizationFailedException e = assertThrows(MetaAuthorizationFailedException.class,
+                    () -> client.subscribeToWebhooks("17841", "bad"));
+
+            assertEquals("Instagram request failed", e.getMessage());
+        }
+
+        @Test
+        void anAnswerWithoutSuccessIsAFailure() {
+            server.expect(requestTo(startsWithUrl(SUBSCRIBED_APPS_URL)))
+                    .andRespond(withSuccess("{\"success\":false}", MediaType.APPLICATION_JSON));
+
+            assertThrows(MetaAuthorizationFailedException.class, () -> client.subscribeToWebhooks("17841", "t"));
+        }
+
+        @Test
+        void readsAnExistingMessagesSubscription() {
+            server.expect(requestTo(SUBSCRIBED_APPS_URL)).andExpect(method(HttpMethod.GET))
+                    .andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer ig-token"))
+                    .andRespond(withSuccess("{\"data\":[{\"subscribed_fields\":[\"messages\"]}]}",
+                            MediaType.APPLICATION_JSON));
+
+            assertTrue(client.isSubscribedToWebhooks("17841", "ig-token"));
+        }
+
+        @Test
+        void anEmptySubscriptionListIsNotSubscribed() {
+            server.expect(requestTo(SUBSCRIBED_APPS_URL))
+                    .andRespond(withSuccess("{\"data\":[]}", MediaType.APPLICATION_JSON));
+
+            assertFalse(client.isSubscribedToWebhooks("17841", "ig-token"));
         }
     }
 

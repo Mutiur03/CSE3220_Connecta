@@ -56,13 +56,14 @@ public class Message {
 
     /** Set for outbound messages. Null once the agent's user is deleted. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sent_by_user_id", updatable = false)
+    @JoinColumn(name = "sent_by_user_id")
     private User sentByUser;
 
     @Column(name = "external_message_id", length = EXTERNAL_MESSAGE_ID_MAX_LENGTH, updatable = false)
     private String externalMessageId;
 
-    @Column(nullable = false, columnDefinition = "TEXT", updatable = false)
+    /** The only column a history reconcile may change, through {@link #correctBody}. */
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String body;
 
     @Column(name = "sent_at", nullable = false, updatable = false)
@@ -91,6 +92,33 @@ public class Message {
     public static Message outbound(Conversation conversation, User sentBy, String externalMessageId,
             String body, Instant sentAt) {
         return new Message(conversation, MessageDirection.OUTBOUND, null, sentBy, externalMessageId, body, sentAt);
+    }
+
+    /**
+     * Names the agent on an outbound message the webhook echo stored before the send finished.
+     *
+     * @return true when the sender changed, false when the message already had one or is inbound
+     */
+    public boolean attributeTo(User agent) {
+        if (direction == MessageDirection.OUTBOUND && sentByUser == null) {
+            this.sentByUser = agent;
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Replaces the body with the text Meta now returns for this message (for example the label {@code [Attachment]}
+     * becomes {@code [Photo]} once the media is known). Nothing else about the message changes.
+     *
+     * @return true when the body changed, false when the text is null or already equal
+     */
+    public boolean correctBody(String providerText) {
+        if (providerText == null || providerText.equals(body)) {
+            return false;
+        }
+        this.body = providerText;
+        return true;
     }
 
     @PrePersist

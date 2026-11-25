@@ -1,9 +1,12 @@
 package com.connecta.backend.meta.domain;
 
+import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -22,7 +25,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "meta_connected_pages")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class MetaConnectedPage {
+public class MetaConnectedPage implements ConnectedChannelAccount {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -46,6 +49,26 @@ public class MetaConnectedPage {
     @JoinColumn(name = "granted_by_user_id")
     private User grantedBy;
 
+    /** When the past conversations were last imported to the end of a run; null until one succeeded. */
+    @Column(name = "history_imported_at")
+    private Instant historyImportedAt;
+
+    /** Why the last import failed; null when none did or a later one succeeded. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "history_import_error", length = 16)
+    private HistoryImportFailure historyImportError;
+
+    /** When the scheduled recent-message sync last finished without error; null until one did. */
+    @Column(name = "last_synced_at")
+    private Instant lastSyncedAt;
+
+    @Column(name = "history_import_failed_at")
+    private Instant historyImportFailedAt;
+
+    /** When a webhook last arrived for this connection; null until one does. */
+    @Column(name = "last_webhook_at")
+    private Instant lastWebhookAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -66,6 +89,31 @@ public class MetaConnectedPage {
         if (createdAt == null) {
             this.createdAt = now;
         }
+    }
+
+    public void markSynced(Instant at) {
+        this.lastSyncedAt = at;
+    }
+
+    public void markHistoryImported(Instant at) {
+        this.historyImportedAt = at;
+        this.historyImportError = null;
+        this.historyImportFailedAt = null;
+    }
+
+    public void markHistoryImportFailed(HistoryImportFailure failure, Instant at) {
+        this.historyImportError = failure;
+        this.historyImportFailedAt = at;
+    }
+
+    @Override
+    public void markWebhookReceived(Instant at) {
+        this.lastWebhookAt = at;
+    }
+
+    @Override
+    public void linkTo(Conversation conversation) {
+        conversation.linkToPage(this);
     }
 
     @Override

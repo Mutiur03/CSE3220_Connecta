@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.connecta.backend.inbox.repository.ConversationRepository;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.OrganizationRepository;
 import com.connecta.backend.support.RandomJwtSecret;
@@ -13,6 +14,7 @@ import com.connecta.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Nested;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -63,6 +66,9 @@ class InboxEntitiesIntegrationTests {
     @Autowired
     UserRepository users;
 
+    @Autowired
+    ConversationRepository conversationRepository;
+
     @Nested
     class Relationships {
 
@@ -94,6 +100,76 @@ class InboxEntitiesIntegrationTests {
                 assertEquals(MessageDirection.OUTBOUND, messages.get(1).getDirection());
                 assertNotNull(messages.get(0).getCreatedAt());
             });
+        }
+    }
+
+    @Nested
+    class ProfilePicture {
+
+        @Test
+        void thePictureAndLookupTimeSurviveARoundTrip() {
+            Organization org = newOrganization();
+            Participant participant = new Participant(org, Channel.MESSENGER, "psid-pic", "Rina");
+            participant.applyProfile(null, "https://cdn.example/r.jpg?sig=abc", TestClock.NOW);
+            persistInTransaction(participant);
+            entities.clear();
+
+            Participant loaded = entities.find(Participant.class, participant.getId());
+
+            assertEquals("https://cdn.example/r.jpg?sig=abc", loaded.getProfilePictureUrl());
+            assertEquals(TestClock.NOW, loaded.getProfilePictureFetchedAt().truncatedTo(
+                    ChronoUnit.MILLIS));
+        }
+
+        @Test
+        void theDatabaseRejectsANonHttpsPicture() {
+            Organization org = newOrganization();
+            Participant participant = new Participant(org, Channel.MESSENGER, "psid-http", "Rina");
+            persistInTransaction(participant);
+
+            assertThrows(PersistenceException.class, () -> transactions.executeWithoutResult(status -> entities
+                    .createNativeQuery("update participants set profile_picture_url = 'http://x/y.jpg'"
+                            + " where id = :id").setParameter("id", participant.getId()).executeUpdate()));
+        }
+
+        @Test
+        void onlyCustomersNeverLookedUpAreFoundInsideTheirOrganization() {
+            Organization org = newOrganization();
+            Organization other = newOrganization();
+            Participant fresh = new Participant(org, Channel.MESSENGER, "t-fresh", "A");
+            fresh.applyProfile(null, null, TestClock.NOW);
+            Participant never = new Participant(org, Channel.MESSENGER, "t-never", "B");
+            Participant foreign = new Participant(other, Channel.MESSENGER, "t-foreign", "C");
+            persistInTransaction(fresh);
+            persistInTransaction(never);
+            persistInTransaction(foreign);
+            persistInTransaction(new Conversation(org, Channel.MESSENGER, "t-fresh"));
+            persistInTransaction(new Conversation(org, Channel.MESSENGER, "t-never"));
+            persistInTransaction(new Conversation(other, Channel.MESSENGER, "t-foreign"));
+
+            List<Conversation> found = transactions.execute(status -> conversationRepository
+                    .findWithUnfetchedCustomer(org.getId(), PageRequest.of(0, 10)));
+
+            assertEquals(List.of("t-never"), found.stream().map(Conversation::getExternalThreadId).toList());
+        }
+
+        @Test
+        void neverLookedUpCustomersOfEveryOrganizationAreFoundWithinThePageSize() {
+            Organization org = newOrganization();
+            Organization other = newOrganization();
+            persistInTransaction(new Participant(org, Channel.MESSENGER, "x-a", "A"));
+            persistInTransaction(new Participant(other, Channel.MESSENGER, "x-b", "B"));
+            persistInTransaction(new Conversation(org, Channel.MESSENGER, "x-a"));
+            persistInTransaction(new Conversation(other, Channel.MESSENGER, "x-b"));
+
+            List<Conversation> all = transactions.execute(status -> conversationRepository
+                    .findAllWithUnfetchedCustomer(PageRequest.of(0, 1000)));
+            List<Conversation> one = transactions.execute(status -> conversationRepository
+                    .findAllWithUnfetchedCustomer(PageRequest.of(0, 1)));
+
+            assertEquals(true, all.stream().map(Conversation::getExternalThreadId).toList()
+                    .containsAll(List.of("x-a", "x-b")));
+            assertEquals(1, one.size());
         }
     }
 

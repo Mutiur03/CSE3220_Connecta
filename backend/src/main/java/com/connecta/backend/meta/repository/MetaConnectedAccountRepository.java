@@ -13,6 +13,8 @@ public interface MetaConnectedAccountRepository extends JpaRepository<MetaConnec
     /** Every lookup is scoped to the organization, so another tenant's account is never returned. */
     Page<MetaConnectedAccount> findByOrganizationIdAndPlatform(UUID organizationId, String platform, Pageable pageable);
 
+    Optional<MetaConnectedAccount> findByIdAndOrganizationId(UUID id, UUID organizationId);
+
     Optional<MetaConnectedAccount> findByOrganizationIdAndPlatformAndExternalAccountId(
             UUID organizationId, String platform, String externalAccountId);
 
@@ -21,4 +23,10 @@ public interface MetaConnectedAccountRepository extends JpaRepository<MetaConnec
      * the one lookup that is not scoped by organization.
      */
     List<MetaConnectedAccount> findAllByPlatformAndExternalAccountId(String platform, String externalAccountId);
+
+    /** Every account of the platform, across organizations: only the startup webhook catch-up reads it. */
+    List<MetaConnectedAccount> findAllByPlatform(String platform);
+
+    /** Connections whose history was never imported to the end: the startup catch-up works through them. */
+    List<MetaConnectedAccount> findAllByHistoryImportedAtIsNull();
 }

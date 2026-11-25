@@ -33,7 +33,9 @@ import {
   connectionFlash,
   facebookDetailLine,
   facebookStatus,
+  historyImportNotice,
   STATUS_LABELS,
+  webhookLine,
   type ChannelStatus,
   type ConnectionResultParams,
 } from "@/lib/meta-view";
@@ -250,6 +252,23 @@ function PagesBody({
         ]),
       )
     : {};
+  const now = new Date();
+  const webhookLines = connectedPages.ok
+    ? Object.fromEntries(
+        connectedPages.value.content.map((page) => [
+          page.pageId,
+          webhookLine(page.lastWebhookAt, now),
+        ]),
+      )
+    : {};
+  const notices = connectedPages.ok
+    ? Object.fromEntries(
+        connectedPages.value.content.flatMap((page) => {
+          const notice = historyImportNotice(page.historyImportError);
+          return notice ? [[page.pageId, notice]] : [];
+        }),
+      )
+    : {};
 
   if (!available.ok) {
     return (
@@ -271,6 +290,8 @@ function PagesBody({
     <MetaPagePicker
       pages={available.value}
       connectedOn={connectedOn}
+      notices={notices}
+      webhookLines={webhookLines}
       action={connectPagesAction.bind(null, orgId)}
     />
   );
@@ -325,6 +346,14 @@ function InstagramSection({
                   <span className="figure text-caption text-secondary">
                     Account {account.externalAccountId}
                   </span>
+                  <span className="text-caption text-secondary">
+                    {webhookLine(account.lastWebhookAt, new Date())}
+                  </span>
+                  {historyImportNotice(account.historyImportError) && (
+                    <span className="text-caption text-danger">
+                      {historyImportNotice(account.historyImportError)}
+                    </span>
+                  )}
                 </span>
                 <span className="figure shrink-0 text-caption text-secondary">
                   {formatDate(account.connectedAt)}
