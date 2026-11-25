@@ -14,6 +14,8 @@ type Props = {
   olderHref?: string;
   /** Link back toward newer history, when this is not the first page. */
   newerHref?: string;
+  /** The messaging app the thread comes from ("Instagram", "Messenger"), for the note on content we cannot show. */
+  appName?: string;
 };
 
 const NO_TEXT = "Attachment or unsupported message";
@@ -42,8 +44,20 @@ const bubbleClass = (outbound: boolean, last: boolean) =>
     .join(" ");
 
 /** The message text, unless it is only the stand-in label for media that is shown. */
-function caption({ text, attachments }: Message) {
-  if (attachments.length === 0) return text ?? NO_TEXT;
+function caption({ text, attachments }: Message, appName?: string) {
+  if (attachments.length === 0) {
+    // Only a stand-in label and nothing to show: the platform sent the message but handed us no content for it
+    // (some media types are not shared with apps). Say that, and where to see it, instead of a bracket label that
+    // reads like a failed load. Inherits the bubble colour with reduced opacity, so it works on both bubbles.
+    if (text && MEDIA_LABELS.has(text)) {
+      return (
+        <span className="italic opacity-75">
+          Can’t show this attachment here. Open it in {appName ?? "the app"}.
+        </span>
+      );
+    }
+    return text ?? NO_TEXT;
+  }
   return text && !MEDIA_LABELS.has(text) ? text : null;
 }
 
@@ -143,6 +157,7 @@ export default function MessageList({
   now,
   olderHref,
   newerHref,
+  appName,
 }: Props) {
   if (messages.length === 0) {
     return (
@@ -202,7 +217,7 @@ export default function MessageList({
                           }
                         />
                       ))}
-                      {caption(message)}
+                      {caption(message, appName)}
                     </div>
                   ))}
                   <p className="mt-1 flex gap-2 text-caption text-secondary">
