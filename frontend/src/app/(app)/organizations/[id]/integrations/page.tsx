@@ -35,6 +35,7 @@ import {
   facebookStatus,
   historyImportNotice,
   STATUS_LABELS,
+  webhookLine,
   type ChannelStatus,
   type ConnectionResultParams,
 } from "@/lib/meta-view";
@@ -251,6 +252,15 @@ function PagesBody({
         ]),
       )
     : {};
+  const now = new Date();
+  const webhookLines = connectedPages.ok
+    ? Object.fromEntries(
+        connectedPages.value.content.map((page) => [
+          page.pageId,
+          webhookLine(page.lastWebhookAt, now),
+        ]),
+      )
+    : {};
   const notices = connectedPages.ok
     ? Object.fromEntries(
         connectedPages.value.content.flatMap((page) => {
@@ -281,6 +291,7 @@ function PagesBody({
       pages={available.value}
       connectedOn={connectedOn}
       notices={notices}
+      webhookLines={webhookLines}
       action={connectPagesAction.bind(null, orgId)}
     />
   );
@@ -334,6 +345,9 @@ function InstagramSection({
                   </span>
                   <span className="figure text-caption text-secondary">
                     Account {account.externalAccountId}
+                  </span>
+                  <span className="text-caption text-secondary">
+                    {webhookLine(account.lastWebhookAt, new Date())}
                   </span>
                   {historyImportNotice(account.historyImportError) && (
                     <span className="text-caption text-danger">

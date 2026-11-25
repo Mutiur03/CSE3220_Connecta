@@ -11,6 +11,9 @@ public interface ConnectedChannelAccount {
 
     Organization getOrganization();
 
+    /** Records that a webhook for this connection was processed at the given time. */
+    void markWebhookReceived(java.time.Instant at);
+
     /** Records this account as the one the conversation belongs to. */
     void linkTo(Conversation conversation);
 }

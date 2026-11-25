@@ -25,6 +25,7 @@ export type MetaConnectedPage = {
   connectedAt: string;
   historyImportError: HistoryImportError | null;
   historyImportFailedAt: string | null;
+  lastWebhookAt: string | null;
 };
 
 /** An Instagram professional account this organization has connected. */
@@ -35,6 +36,7 @@ export type MetaInstagramAccount = {
   connectedAt: string;
   historyImportError: HistoryImportError | null;
   historyImportFailedAt: string | null;
+  lastWebhookAt: string | null;
 };
 
 const metaPath = (orgId: string) =>

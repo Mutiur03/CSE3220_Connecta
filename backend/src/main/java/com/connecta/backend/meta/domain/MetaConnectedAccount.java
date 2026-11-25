@@ -66,6 +66,10 @@ public class MetaConnectedAccount implements ConnectedChannelAccount {
     @Column(name = "history_import_failed_at")
     private Instant historyImportFailedAt;
 
+    /** When a webhook last arrived for this connection; null until one does. */
+    @Column(name = "last_webhook_at")
+    private Instant lastWebhookAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -98,6 +102,11 @@ public class MetaConnectedAccount implements ConnectedChannelAccount {
     public void markHistoryImportFailed(HistoryImportFailure failure, Instant at) {
         this.historyImportError = failure;
         this.historyImportFailedAt = at;
+    }
+
+    @Override
+    public void markWebhookReceived(Instant at) {
+        this.lastWebhookAt = at;
     }
 
     @Override

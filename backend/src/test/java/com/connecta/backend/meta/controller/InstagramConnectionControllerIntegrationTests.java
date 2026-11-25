@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -146,11 +147,11 @@ class InstagramConnectionControllerIntegrationTests {
         return new Seeded(acme, admin, agent);
     }
 
-    private void connectAccount(Organization organization, User by, String externalId, String token) {
+    private MetaConnectedAccount connectAccount(Organization organization, User by, String externalId, String token) {
         MetaConnectedAccount account = new MetaConnectedAccount(organization, MetaConnectedAccount.PLATFORM_INSTAGRAM,
                 externalId);
         account.refresh("acme_shop", cipher.encrypt(token), by, TestClock.NOW);
-        accounts.saveAndFlush(account);
+        return accounts.saveAndFlush(account);
     }
 
     @Nested
@@ -217,6 +218,21 @@ class InstagramConnectionControllerIntegrationTests {
 
             assertFalse(body.contains("ig-secret-token"));
             assertFalse(body.contains("accessToken"));
+        }
+
+        @Test
+        void lastWebhookAtIsNullUntilAWebhookArrivesThenShowsWhen() throws Exception {
+            Seeded s = seedAcme();
+            MetaConnectedAccount account = connectAccount(s.acme(), s.admin(), "17841", "ig-secret-token");
+
+            mvc.perform(get(path(s.acme())).header(AUTH, bearer(s.admin())))
+                    .andExpect(jsonPath("$.content[0].lastWebhookAt").value(nullValue()));
+
+            account.markWebhookReceived(TestClock.NOW);
+            accounts.saveAndFlush(account);
+
+            mvc.perform(get(path(s.acme())).header(AUTH, bearer(s.admin())))
+                    .andExpect(jsonPath("$.content[0].lastWebhookAt").value(TestClock.NOW.toString()));
         }
 
         @Test
