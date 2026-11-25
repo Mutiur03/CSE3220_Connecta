@@ -25,6 +25,14 @@ public record RealtimeEnvelope(
         return new RealtimeEnvelope(PARTICIPANT_UPDATED, conversationId, null, null, null, false, null);
     }
 
+    /**
+     * Something shown in the conversation changed (an attachment copy is ready). Sent as {@code participant.updated},
+     * which clients already treat as "reload this conversation", so no client change is needed.
+     */
+    public static RealtimeEnvelope conversationChanged(UUID conversationId) {
+        return participantUpdated(conversationId);
+    }
+
     /** Tells open inboxes to reload: many conversations changed at once (a history import). */
     public static RealtimeEnvelope inboxRefresh() {
         return new RealtimeEnvelope(INBOX_REFRESH, null, null, null, null, false, null);

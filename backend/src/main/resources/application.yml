@@ -166,6 +166,19 @@ app:
   # Message attachments: largest file an agent may send (8 MB). Stored in PostgreSQL (stored_files).
   attachments:
     max-bytes: 8388608
+    # Incoming media is copied from Meta's CDN into stored_files once the message is saved (Meta's links expire).
+    # Needs PUBLIC_BASE_URL. Downloads only over https from these host suffixes, up to mirror-max-bytes (25 MB).
+    # A failed copy is retried every mirror-sweep-delay (mirror-batch-size at a time, each attachment at most
+    # once per mirror-retry-after) until the attachment is older than mirror-max-age.
+    mirror-max-bytes: 26214400
+    mirror-allowed-host-suffixes: fbcdn.net,cdninstagram.com,fbsbx.com,facebook.com
+    mirror-max-age: 3d
+    mirror-retry-after: 15m
+    mirror-sweep-delay: 5m
+    mirror-batch-size: 20
+    mirror-timeout: 20s
+    mirror-pool-size: 2
+    mirror-queue-capacity: 100
 
   # Product image uploads: largest file and most images per product.
   product-images:

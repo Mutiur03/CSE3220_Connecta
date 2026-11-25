@@ -104,4 +104,27 @@ class AttachmentTypeTests {
             assertEquals("audio/mpeg", AttachmentType.detect("audio/mp3", ID3).orElseThrow().contentType());
         }
     }
+
+    @Nested
+    class Resolve {
+
+        @Test
+        void theDeclaredTypeWinsWhenItIsOfTheKind() {
+            assertEquals(Optional.of(AttachmentType.PNG),
+                    AttachmentType.resolve("image/png", AttachmentKind.IMAGE, PNG));
+        }
+
+        @Test
+        void anOctetStreamFallsBackToTheTypeOfTheKindTheBytesMatch() {
+            assertEquals(Optional.of(AttachmentType.JPEG),
+                    AttachmentType.resolve("application/octet-stream", AttachmentKind.IMAGE, JPEG));
+            assertEquals(Optional.of(AttachmentType.JPEG), AttachmentType.resolve(null, AttachmentKind.IMAGE, JPEG));
+        }
+
+        @Test
+        void bytesOfAnotherKindAreRefused() {
+            assertTrue(AttachmentType.resolve("image/png", AttachmentKind.AUDIO, PNG).isEmpty());
+            assertTrue(AttachmentType.resolve("text/html", AttachmentKind.IMAGE, bytes('<', 'h', 't')).isEmpty());
+        }
+    }
 }

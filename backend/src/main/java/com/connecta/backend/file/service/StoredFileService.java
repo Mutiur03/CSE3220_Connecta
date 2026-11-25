@@ -41,6 +41,11 @@ public class StoredFileService {
         return base + FILES_PATH + id;
     }
 
+    /** True when PUBLIC_BASE_URL is set, so {@link #publicUrl} can build links. */
+    public boolean hasPublicBaseUrl() {
+        return !publicUrls.baseUrl().isEmpty();
+    }
+
     /**
      * The file for the public read. Not scoped by organization on purpose: the random id is the access check.
      *

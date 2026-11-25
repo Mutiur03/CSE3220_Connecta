@@ -1,5 +1,6 @@
 package com.connecta.backend.realtime.service;
 
+import com.connecta.backend.inbox.service.AttachmentMirroredEvent;
 import com.connecta.backend.inbox.service.HistoryImportedEvent;
 import com.connecta.backend.inbox.service.MessageLookupService;
 import com.connecta.backend.inbox.service.MessageReceivedEvent;
@@ -41,6 +42,17 @@ public class InboxRealtimeListener {
             registry.broadcast(event.organizationId(), json.writeValueAsString(RealtimeEnvelope.inboxRefresh()));
         } catch (RuntimeException e) {
             log.warn("Realtime refresh push failed", e);
+        }
+    }
+
+    /** Our copy of an attachment is stored: open threads of that conversation reload and show the copy. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onAttachmentMirrored(AttachmentMirroredEvent event) {
+        try {
+            registry.broadcast(event.organizationId(),
+                    json.writeValueAsString(RealtimeEnvelope.conversationChanged(event.conversationId())));
+        } catch (RuntimeException e) {
+            log.warn("Realtime push failed for conversation {}", event.conversationId(), e);
         }
     }
 }

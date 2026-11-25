@@ -19,6 +19,10 @@ springdoc:
     enabled: true
 
 app:
+  # Incoming media is never downloaded in tests: no real host is allowed, and the sweep waits an hour.
+  attachments:
+    mirror-allowed-host-suffixes: media.test.invalid
+    mirror-sweep-delay: 1h
   cors:
     allowed-origins: http://localhost:3000
   jwt:
