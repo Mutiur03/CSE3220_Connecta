@@ -8,6 +8,7 @@ import {
 import { pageCount, pageRange } from "@/lib/org-pagination";
 import ConversationList from "./conversation-list";
 import InboxFilterBar from "./inbox-filter-bar";
+import InboxKeyboard from "./inbox-keyboard";
 import InboxStatusTabs from "./inbox-status-tabs";
 import OrgPagination from "./org-pagination";
 
@@ -79,15 +80,18 @@ export default function InboxListPane({
       className="flex min-h-0 flex-1 flex-col"
     >
       <header className="flex flex-col gap-3 border-b border-line p-4">
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
           <Heading id="inbox-heading" className="text-title font-semibold">
             Inbox
           </Heading>
-          {range && (
-            <p className="figure text-caption text-secondary">
-              {range.from}–{range.to} of {conversations.totalElements}
-            </p>
-          )}
+          <div className="flex items-center gap-2">
+            {range && (
+              <p className="figure text-caption text-secondary">
+                {range.from}–{range.to} of {conversations.totalElements}
+              </p>
+            )}
+            <InboxKeyboard />
+          </div>
         </div>
         <InboxStatusTabs listPath={listPath} filters={filters} />
         {(conversations.totalElements > 0 || filtered) && (
