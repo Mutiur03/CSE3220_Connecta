@@ -67,7 +67,6 @@ class MessagingEventParserTests {
         @CsvSource({
             "image, IMAGE, [Photo]",
             "video, VIDEO, [Video]",
-            "ig_reel, VIDEO, [Video]",
             "audio, AUDIO, [Voice message]",
             "file, FILE, [Attachment]"})
         void eachKnownTypeKeepsItsUrlAndLabelsTheText(String type, AttachmentKind kind, String label) {
@@ -115,7 +114,12 @@ class MessagingEventParserTests {
         }
 
         @ParameterizedTest
-        @CsvSource({"share, Shared post, [Shared post]", "story_mention, Story mention, [Story mention]"})
+        @CsvSource({
+            "share, Shared post, [Shared post]",
+            "ig_post, Shared post, [Shared post]",
+            "ig_reel, Shared post, [Shared post]",
+            "reel, Shared post, [Shared post]",
+            "story_mention, Story mention, [Story mention]"})
         void aSharedPostOrStoryMentionBecomesATitledLink(String type, String title, String label) {
             NormalizedMessage message = withAttachments("{\"type\":\"" + type
                     + "\",\"payload\":{\"url\":\"https://www.instagram.com/p/abc/\"}}");
@@ -132,6 +136,26 @@ class MessagingEventParserTests {
         void aShareWithoutAWebUrlKeepsOnlyTheGenericLabel() {
             NormalizedMessage message = withAttachments(
                     "{\"type\":\"share\",\"payload\":{\"url\":\"javascript:alert(1)\"}}");
+
+            assertEquals("[Attachment]", message.text());
+            assertTrue(message.attachments().isEmpty());
+        }
+
+        @Test
+        void aReelKeepsItsPageUrlAndNeverItsCaption() {
+            NormalizedMessage message = withAttachments("{\"type\":\"ig_reel\",\"payload\":{"
+                    + "\"reel_video_id\":\"123\",\"title\":\"A long caption\","
+                    + "\"url\":\"https://www.instagram.com/reel/abc/\"}}");
+
+            assertEquals("[Shared post]", message.text());
+            assertEquals(AttachmentKind.LINK, message.attachments().get(0).kind());
+            assertEquals("https://www.instagram.com/reel/abc/", message.attachments().get(0).url());
+            assertEquals("Shared post", message.attachments().get(0).fileName());
+        }
+
+        @Test
+        void aReelWithoutAUrlKeepsOnlyTheGenericLabel() {
+            NormalizedMessage message = withAttachments("{\"type\":\"ig_reel\",\"payload\":{\"title\":\"x\"}}");
 
             assertEquals("[Attachment]", message.text());
             assertTrue(message.attachments().isEmpty());
@@ -176,6 +200,20 @@ class MessagingEventParserTests {
 
             assertEquals(Direction.OUTBOUND, messages.get(0).direction());
             assertEquals("customer-1", messages.get(0).peerId());
+        }
+
+        @Test
+        void anEchoedReelIsStoredAsTheSameLink() {
+            NormalizedMessage message = parser.parse(WebhookObject.INSTAGRAM, entry(
+                    "{\"sender\":{\"id\":\"ig-1\"},\"recipient\":{\"id\":\"customer-1\"},"
+                    + "\"message\":{\"mid\":\"m.4\",\"is_echo\":true,\"attachments\":[{\"type\":\"ig_reel\","
+                    + "\"payload\":{\"url\":\"https://www.instagram.com/reel/abc/\"}}]}}")).get(0);
+
+            assertEquals(Direction.OUTBOUND, message.direction());
+            assertEquals("[Shared post]", message.text());
+            assertEquals(AttachmentKind.LINK, message.attachments().get(0).kind());
+            assertEquals("https://www.instagram.com/reel/abc/", message.attachments().get(0).url());
+            assertEquals("Shared post", message.attachments().get(0).fileName());
         }
     }
 

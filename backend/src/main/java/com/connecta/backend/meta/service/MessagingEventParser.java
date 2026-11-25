@@ -16,7 +16,8 @@ import tools.jackson.databind.JsonNode;
  * {@link NormalizedMessage}s. Messenger and Instagram send the same messaging shape, so one parser serves both;
  * the product is carried on each message. Events without a message id, or with neither text nor an attachment,
  * carry nothing to show and are skipped. Each attachment of a known type with an http(s) {@code payload.url} is
- * kept: media by its kind, an Instagram {@code share} or {@code story_mention} as a LINK titled for what it is.
+ * kept: media by its kind, an Instagram shared post or reel ({@code share}, {@code ig_post}, {@code ig_reel},
+ * {@code reel}) or {@code story_mention} as a LINK titled for what it is.
  * Any other attachment only contributes the label used as text when the message has none.
  */
 @Component
@@ -30,14 +31,18 @@ public class MessagingEventParser {
     private static final Map<String, AttachmentKind> KINDS = Map.of(
             "image", AttachmentKind.IMAGE,
             "video", AttachmentKind.VIDEO,
-            "ig_reel", AttachmentKind.VIDEO,
-            "reel", AttachmentKind.VIDEO,
             "audio", AttachmentKind.AUDIO,
             "file", AttachmentKind.FILE);
 
-    /** Instagram's attachment types that point at a post, reel or story rather than media, by their title. */
+    /**
+     * Instagram's attachment types that point at a post, reel or story rather than media, by their title. A reel's
+     * {@code payload.url} is an instagram.com page, not a video file, so it is a link too; the caption is never used.
+     */
     private static final Map<String, String> LINK_TITLES = Map.of(
             "share", NormalizedAttachment.SHARED_POST,
+            "ig_post", NormalizedAttachment.SHARED_POST,
+            "ig_reel", NormalizedAttachment.SHARED_POST,
+            "reel", NormalizedAttachment.SHARED_POST,
             "story_mention", "Story mention");
 
     public List<NormalizedMessage> parse(WebhookObject object, JsonNode entry) {
