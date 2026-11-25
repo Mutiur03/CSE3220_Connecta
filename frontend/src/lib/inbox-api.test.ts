@@ -149,6 +149,16 @@ describe("browserFileUrl", () => {
     expect(browserFileUrl("not a url")).toBe("not a url");
   });
 
+  it("leaves a shared Instagram post or story link untouched", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8080");
+    for (const link of [
+      "https://www.instagram.com/p/C8xYz/",
+      "https://www.instagram.com/stories/nadia/3400000000000000000/",
+    ]) {
+      expect(browserFileUrl(link)).toBe(link);
+    }
+  });
+
   it("is applied to the attachments of a message page", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8080");
     respond({

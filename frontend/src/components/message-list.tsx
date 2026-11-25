@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Attachment, Message } from "@/lib/inbox-api";
 import { formatDateTime, formatTime } from "@/lib/format";
 import { groupThread, readingOrder } from "@/lib/inbox-view";
-import { FileIcon } from "./icons";
+import { FileIcon, InstagramIcon } from "./icons";
 import MessageMedia from "./message-media";
 
 type Props = {
@@ -23,6 +23,8 @@ const MEDIA_LABELS = new Set([
   "[Video]",
   "[Voice message]",
   "[Attachment]",
+  "[Shared post]",
+  "[Story mention]",
 ]);
 const linkClass =
   "self-center text-sm text-secondary underline-offset-4 hover:text-primary hover:underline";
@@ -43,6 +45,48 @@ const bubbleClass = (outbound: boolean, last: boolean) =>
 function caption({ text, attachments }: Message) {
   if (attachments.length === 0) return text ?? NO_TEXT;
   return text && !MEDIA_LABELS.has(text) ? text : null;
+}
+
+/** The host of an http(s) link, or null for anything else (never made into a link). */
+function webHost(url: string) {
+  try {
+    const { protocol, host } = new URL(url);
+    return protocol === "https:" || protocol === "http:" ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A shared post or story: one link with the Instagram glyph, its title and host. `currentColor` borders,
+ * hover tint and focus ring keep it legible on both the surface and the accent bubble.
+ */
+function LinkCard({ attachment }: { attachment: Attachment }) {
+  const title = attachment.fileName ?? "Instagram post";
+  const host = webHost(attachment.url);
+  const body = (
+    <>
+      <InstagramIcon />
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate font-medium">{title}</span>
+        {host && <span className="truncate text-caption">{host}</span>}
+      </span>
+    </>
+  );
+  const cardClass =
+    "flex w-64 max-w-full items-center gap-2 rounded-[6px] border border-current/20 px-3 py-2 whitespace-normal [&_svg]:size-4 [&_svg]:shrink-0";
+  if (!host) return <div className={cardClass}>{body}</div>;
+  return (
+    <a
+      href={attachment.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${title} on Instagram (opens in a new tab)`}
+      className={`${cardClass} transition-colors duration-150 ease-out hover:bg-current/10 focus-visible:outline-current motion-reduce:transition-none pointer-coarse:min-h-11`}
+    >
+      {body}
+    </a>
+  );
 }
 
 function AttachmentView({
@@ -71,6 +115,8 @@ function AttachmentView({
           className="w-64 max-w-full"
         />
       );
+    case "LINK":
+      return <LinkCard attachment={attachment} />;
     default:
       return (
         <a
