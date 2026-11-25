@@ -60,6 +60,8 @@ export default function ConversationList({
                 filters,
                 listPage,
               )}
+              // The list keeps its place when a thread opens; Next would otherwise scroll it to the top.
+              scroll={false}
               aria-current={conversation.id === selectedId ? "page" : undefined}
               className="relative flex h-16 items-center gap-3 px-4 transition-colors duration-150 ease-out hover:bg-hover motion-reduce:transition-none aria-[current=page]:bg-selected aria-[current=page]:before:absolute aria-[current=page]:before:inset-y-0 aria-[current=page]:before:left-0 aria-[current=page]:before:w-0.5 aria-[current=page]:before:bg-accent"
             >

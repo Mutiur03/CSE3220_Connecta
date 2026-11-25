@@ -9,6 +9,7 @@ import { pageCount, pageRange } from "@/lib/org-pagination";
 import ConversationList from "./conversation-list";
 import InboxFilterBar from "./inbox-filter-bar";
 import InboxKeyboard from "./inbox-keyboard";
+import ScrollMemory from "./scroll-memory";
 import InboxStatusTabs from "./inbox-status-tabs";
 import OrgPagination from "./org-pagination";
 
@@ -99,7 +100,10 @@ export default function InboxListPane({
         )}
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <ScrollMemory
+        storageKey={`inbox-list:${orgId}:${page}:${JSON.stringify(filters)}`}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
         {conversations.content.length === 0 ? (
           <div className="flex flex-col gap-1 p-4">
             <p className="font-medium">{empty.title}</p>
@@ -115,7 +119,7 @@ export default function InboxListPane({
             listPage={page}
           />
         )}
-      </div>
+      </ScrollMemory>
 
       {count > 1 && (
         <footer className="border-t border-line p-3">
