@@ -23,6 +23,8 @@ type Props = {
   listPage?: number;
 };
 
+const UNREAD_DOT = "size-1.5 shrink-0 rounded-full bg-highlight";
+
 const NO_MESSAGES = "No messages yet";
 
 const CHANNEL_GLYPHS: Record<InboxChannel, () => React.JSX.Element> = {
@@ -76,9 +78,19 @@ export default function ConversationList({
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-baseline gap-2">
-                  <span className="min-w-0 flex-1 truncate font-medium">
+                  <span
+                    className={`min-w-0 flex-1 truncate ${
+                      conversation.unread ? "font-semibold" : "font-medium"
+                    }`}
+                  >
                     {participantLabel(conversation.participantName)}
                   </span>
+                  {conversation.unread && (
+                    <span className="flex items-center self-center">
+                      <span aria-hidden="true" className={UNREAD_DOT} />
+                      <span className="sr-only">Unread</span>
+                    </span>
+                  )}
                   {conversation.lastMessageAt && (
                     <time
                       dateTime={conversation.lastMessageAt}
@@ -89,8 +101,20 @@ export default function ConversationList({
                     </time>
                   )}
                 </span>
-                <span className="truncate text-sm text-secondary">
-                  {conversation.lastMessagePreview ?? NO_MESSAGES}
+                <span className="flex items-baseline gap-2">
+                  <span
+                    className={`min-w-0 flex-1 truncate text-sm ${
+                      conversation.unread ? "text-primary" : "text-secondary"
+                    }`}
+                  >
+                    {conversation.lastMessagePreview ?? NO_MESSAGES}
+                  </span>
+                  {filters.tab === "ALL" &&
+                    conversation.status === "CLOSED" && (
+                      <span className="shrink-0 text-caption text-secondary">
+                        Closed
+                      </span>
+                    )}
                 </span>
               </span>
             </Link>

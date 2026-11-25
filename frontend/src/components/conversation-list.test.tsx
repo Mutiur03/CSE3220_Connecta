@@ -7,6 +7,8 @@ const NOW = new Date("2026-06-01T12:00:00Z");
 const base: Conversation = {
   id: "c1",
   channel: "INSTAGRAM",
+  status: "OPEN",
+  unread: false,
   participantName: "Ana Silva",
   avatarUrl: "https://cdn.example/ana.jpg",
   lastMessagePreview: "Is the blue one in stock?",
@@ -53,6 +55,29 @@ describe("ConversationList", () => {
     );
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
     expect(markup).toMatch(/aria-current="page"[^>]*inbox\/c2\?/);
+  });
+
+  it("marks an unread row with a bold name and a labelled dot", () => {
+    expect(html(base)).not.toContain("Unread");
+    const markup = html({ ...base, unread: true });
+    expect(markup).toContain("font-semibold");
+    expect(markup).toContain("bg-highlight");
+    expect(markup).toContain(">Unread<");
+  });
+
+  it("labels closed rows on the All tab only", () => {
+    const closed = { ...base, status: "CLOSED" as const };
+    const render = (tab?: "ALL" | "CLOSED") =>
+      renderToStaticMarkup(
+        <ConversationList
+          orgId="org-1"
+          conversations={[closed]}
+          now={NOW}
+          filters={{ tab }}
+        />,
+      );
+    expect(render("ALL")).toContain(">Closed<");
+    expect(render("CLOSED")).not.toContain(">Closed<");
   });
 
   it("labels a Messenger conversation", () => {

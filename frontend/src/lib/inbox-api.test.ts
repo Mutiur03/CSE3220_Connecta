@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getConversation,
+  listConversations,
+  updateReadState,
   listMessages,
   sendMessage,
   updateConversationStatus,
@@ -58,5 +60,37 @@ describe("sendMessage", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body)).toEqual({ text: "hello" });
     expect(init.headers.Authorization).toBe("Bearer tok");
+  });
+});
+
+describe("conversation list and read state api", () => {
+  it("asks for open conversations by default and none for the All tab", async () => {
+    // A fresh body per call: a Response can be read once.
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ content: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await listConversations("tok", "o1", { q: "ana" }, 0, 20);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\?q=ana&size=20&status=OPEN$/);
+    await listConversations("tok", "o1", { tab: "ALL" }, 1, 20);
+    expect(fetchMock.mock.calls[1][0]).toMatch(/\?page=1&size=20$/);
+    await listConversations("tok", "o1", { tab: "CLOSED" }, 0, 20);
+    expect(fetchMock.mock.calls[2][0]).toMatch(/status=CLOSED$/);
+  });
+
+  it("puts the read state as JSON", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await updateReadState("tok", "o1", "c1", false);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/conversations\/c1\/read-state$/);
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body)).toEqual({ unread: false });
   });
 });

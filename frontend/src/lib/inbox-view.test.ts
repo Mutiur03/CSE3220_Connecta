@@ -172,3 +172,27 @@ describe("groupThread", () => {
     expect(dayLabel("2026-05-20T09:00:00Z", NOW)).toContain("May 20");
   });
 });
+
+import { apiStatus } from "./inbox-view";
+
+describe("inbox tabs", () => {
+  it("reads Closed and All from the URL and treats anything else as Open", () => {
+    expect(parseInboxFilters({ status: "closed" }).tab).toBe("CLOSED");
+    expect(parseInboxFilters({ status: "ALL" }).tab).toBe("ALL");
+    expect(parseInboxFilters({ status: "OPEN" }).tab).toBeUndefined();
+    expect(parseInboxFilters({ status: "snoozed" }).tab).toBeUndefined();
+  });
+
+  it("puts a non-default tab in the URL", () => {
+    expect(inboxListQuery({ tab: "CLOSED", q: "ana" })).toBe(
+      "q=ana&status=CLOSED",
+    );
+    expect(inboxListQuery({})).toBe("");
+  });
+
+  it("maps the tab to the API status", () => {
+    expect(apiStatus(undefined)).toBe("OPEN");
+    expect(apiStatus("CLOSED")).toBe("CLOSED");
+    expect(apiStatus("ALL")).toBeUndefined();
+  });
+});

@@ -10,7 +10,26 @@ export const INBOX_CHANNEL_LABELS: Record<InboxChannel, string> = {
 
 export const UNKNOWN_PARTICIPANT = "Unknown contact";
 
-export type InboxFilters = { q?: string; channel?: InboxChannel };
+/** The list tabs. Open is the default and is left out of the URL. */
+export const INBOX_TABS = ["OPEN", "CLOSED", "ALL"] as const;
+export type InboxTab = (typeof INBOX_TABS)[number];
+
+export const INBOX_TAB_LABELS: Record<InboxTab, string> = {
+  OPEN: "Open",
+  CLOSED: "Closed",
+  ALL: "All",
+};
+
+/** `tab` undefined means the Open tab. */
+export type InboxFilters = {
+  q?: string;
+  channel?: InboxChannel;
+  tab?: InboxTab;
+};
+
+/** The status the API filters on: OPEN by default, nothing for the All tab. */
+export const apiStatus = (tab: InboxTab | undefined) =>
+  tab === "ALL" ? undefined : (tab ?? "OPEN");
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -21,16 +40,18 @@ const firstValue = (raw: string | string[] | undefined) =>
 export function parseInboxFilters(params: SearchParams): InboxFilters {
   const q = firstValue(params.q).trim().slice(0, INBOX_QUERY_MAX_LENGTH);
   const channel = firstValue(params.channel);
+  const status = firstValue(params.status).toUpperCase();
   return {
     q: q || undefined,
     channel: INBOX_CHANNELS.find((known) => known === channel),
+    tab: INBOX_TABS.find((known) => known !== "OPEN" && known === status),
   };
 }
 
 export const hasInboxFilters = (filters: InboxFilters) =>
   Boolean(filters.q || filters.channel);
 
-/** Query string shared by the page URL and the API call. Unset filters and page 0 are left out. */
+/** The page URL's query string. Unset filters, the Open tab and page 0 are left out. */
 export function inboxListQuery(
   filters: InboxFilters,
   page = 0,
@@ -39,6 +60,7 @@ export function inboxListQuery(
   const query = new URLSearchParams();
   if (filters.q) query.set("q", filters.q);
   if (filters.channel) query.set("channel", filters.channel);
+  if (filters.tab) query.set("status", filters.tab);
   if (page > 0) query.set("page", String(page));
   if (size !== undefined) query.set("size", String(size));
   return query.toString();

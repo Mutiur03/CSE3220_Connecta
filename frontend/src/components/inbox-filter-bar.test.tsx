@@ -29,4 +29,11 @@ describe("InboxFilterBar", () => {
     expect(markup).toContain("Reset filters");
     expect(markup).toContain(`href="${LIST}?channel=MESSENGER"`);
   });
+
+  it("keeps the chosen tab when the filters are applied or reset", () => {
+    const markup = html({ q: "ana", tab: "CLOSED" });
+    expect(markup).toMatch(/type="hidden" name="status" value="CLOSED"/);
+    expect(markup).toContain(`href="${LIST}?status=CLOSED"`);
+    expect(html({})).not.toContain('name="status"');
+  });
 });

@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const revalidatePath = vi.hoisted(() => vi.fn());
+const redirect = vi.hoisted(() => vi.fn());
 const api = vi.hoisted(() => ({
   updateConversationStatus: vi.fn(),
   sendMessage: vi.fn(),
+  updateReadState: vi.fn(),
   MESSAGE_MAX_LENGTH: 1000,
   CONVERSATION_STATUSES: ["OPEN", "CLOSED"],
 }));
 vi.mock("next/cache", () => ({ revalidatePath }));
+vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("./session", () => ({
   getAccessToken: vi.fn().mockResolvedValue("tok"),
 }));
@@ -15,6 +18,8 @@ vi.mock("./inbox-api", () => api);
 
 import { ApiError } from "./api";
 import {
+  markConversationReadAction,
+  markConversationUnreadAction,
   sendMessageAction,
   setConversationStatusAction,
 } from "./inbox-actions";
@@ -95,5 +100,40 @@ describe("sendMessageAction", () => {
   it("uses the generic wording for other server errors", async () => {
     api.sendMessage.mockRejectedValue(new ApiError(500, "boom"));
     expect((await send("hi")).message).not.toContain("boom");
+  });
+});
+
+describe("read state actions", () => {
+  it("marks read and refreshes the inbox", async () => {
+    api.updateReadState.mockResolvedValue(undefined);
+    expect(await markConversationReadAction("o1", "c1")).toEqual({});
+    expect(api.updateReadState).toHaveBeenCalledWith("tok", "o1", "c1", false);
+    expect(revalidatePath).toHaveBeenCalledWith(
+      "/organizations/o1/inbox",
+      "layout",
+    );
+  });
+
+  it("returns the failure without refreshing", async () => {
+    api.updateReadState.mockRejectedValue(new ApiError(404, "gone"));
+    expect(await markConversationReadAction("o1", "c1")).toEqual({
+      message: "gone",
+    });
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("marks unread and goes back to the list", async () => {
+    api.updateReadState.mockResolvedValue(undefined);
+    await markConversationUnreadAction("o1", "c1");
+    expect(api.updateReadState).toHaveBeenCalledWith("tok", "o1", "c1", true);
+    expect(redirect).toHaveBeenCalledWith("/organizations/o1/inbox");
+  });
+
+  it("stays on the thread when marking unread fails", async () => {
+    api.updateReadState.mockRejectedValue(new ApiError(404, "gone"));
+    expect(await markConversationUnreadAction("o1", "c1")).toEqual({
+      message: "gone",
+    });
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
