@@ -48,6 +48,16 @@ public class ParticipantProfileService {
                 .map(ParticipantProfileService::toTarget).toList();
     }
 
+    /** Customers never looked up in any organization (newest first), at most {@code limit} in total. */
+    @Transactional(readOnly = true)
+    public List<ProfileTarget> findNeverLookedUp(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        return conversations.findAllWithUnfetchedCustomer(PageRequest.of(0, limit)).stream()
+                .map(ParticipantProfileService::toTarget).toList();
+    }
+
     /**
      * Stores a successful lookup: the name only when none is stored (never overwrites), the picture replaced by
      * the newer one, and the lookup time. Announces a change. Returns whether the name or picture changed.

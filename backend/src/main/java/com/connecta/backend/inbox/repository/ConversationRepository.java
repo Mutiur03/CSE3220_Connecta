@@ -32,6 +32,15 @@ public interface ConversationRepository
             order by c.lastMessageAt desc nulls last, c.id""")
     List<Conversation> findWithUnfetchedCustomer(@Param("organizationId") UUID organizationId, Pageable page);
 
+    /** Same as above across all organizations (startup catch-up); each row carries its own organization. */
+    @Query("""
+            select c from Conversation c
+            where exists (select 1 from Participant p
+                          where p.organization.id = c.organization.id and p.channel = c.channel
+                            and p.externalId = c.externalThreadId and p.profilePictureFetchedAt is null)
+            order by c.lastMessageAt desc nulls last, c.id""")
+    List<Conversation> findAllWithUnfetchedCustomer(Pageable page);
+
     /** The newest message of each given conversation (several rows only when two share the same sent time). */
     @Query("""
             select m from Message m

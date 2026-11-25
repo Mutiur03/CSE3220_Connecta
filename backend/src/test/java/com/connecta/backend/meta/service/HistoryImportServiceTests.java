@@ -137,7 +137,7 @@ class HistoryImportServiceTests {
         }
 
         @Test
-        void aRepeatRunStoresNothingNew() {
+        void aRepeatRunStoresNothingNewButStillAnnouncesSoPicturesGetRefreshed() {
             history(conversation("c1", "Rina", false, "m1"));
             when(inbox.importHistorical(any(), any())).thenReturn(false);
 
@@ -145,7 +145,7 @@ class HistoryImportServiceTests {
                     .orElseThrow();
 
             assertEquals(new HistoryImportResult(1, 0, 1, false), result);
-            verify(publisher, never()).publishEvent(any(HistoryImportedEvent.class));
+            verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
         }
 
         @Test

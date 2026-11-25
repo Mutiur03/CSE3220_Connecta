@@ -152,6 +152,25 @@ class InboxEntitiesIntegrationTests {
 
             assertEquals(List.of("t-never"), found.stream().map(Conversation::getExternalThreadId).toList());
         }
+
+        @Test
+        void neverLookedUpCustomersOfEveryOrganizationAreFoundWithinThePageSize() {
+            Organization org = newOrganization();
+            Organization other = newOrganization();
+            persistInTransaction(new Participant(org, Channel.MESSENGER, "x-a", "A"));
+            persistInTransaction(new Participant(other, Channel.MESSENGER, "x-b", "B"));
+            persistInTransaction(new Conversation(org, Channel.MESSENGER, "x-a"));
+            persistInTransaction(new Conversation(other, Channel.MESSENGER, "x-b"));
+
+            List<Conversation> all = transactions.execute(status -> conversationRepository
+                    .findAllWithUnfetchedCustomer(PageRequest.of(0, 1000)));
+            List<Conversation> one = transactions.execute(status -> conversationRepository
+                    .findAllWithUnfetchedCustomer(PageRequest.of(0, 1)));
+
+            assertEquals(true, all.stream().map(Conversation::getExternalThreadId).toList()
+                    .containsAll(List.of("x-a", "x-b")));
+            assertEquals(1, one.size());
+        }
     }
 
     @Nested
