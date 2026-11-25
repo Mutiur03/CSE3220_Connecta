@@ -25,6 +25,7 @@ import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,7 +68,7 @@ class OutgoingMessageControllerIntegrationTests {
 
     private MessageResponse sent(User by) {
         return new MessageResponse(UUID.randomUUID(), MessageDirection.OUTBOUND, "hello",
-                Instant.parse("2026-11-24T10:00:00Z"), by.getId(), by.getFullName());
+                Instant.parse("2026-11-24T10:00:00Z"), by.getId(), by.getFullName(), List.of());
     }
 
     @Test

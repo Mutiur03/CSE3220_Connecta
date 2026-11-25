@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.HistoryImportProperties;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
 import java.net.URI;
@@ -16,10 +17,12 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -32,14 +35,22 @@ import tools.jackson.databind.JsonNode;
  * follows {@code paging.next} lazily and turns each conversation into a {@link HistoryConversation}. Subclasses
  * supply the host, the product and the Graph product name. Messages are oldest first in the result.
  *
+ * <p>Each message's {@code attachments} edge is read as image, video or file data; an attachment of another
+ * shape, or without an http(s) URL, is skipped and the message keeps only its label. When Graph rejects the
+ * attachment fields on the first request (a 400 with code 100, not a permission or token error), that request is
+ * sent once more without them and the import goes on with labels only.
+ *
  * <p>Never logs the token or a paging URL (it can carry a token). A paging URL on another host is refused.
  */
 @Slf4j
 abstract class GraphHistoryClient implements ConversationHistoryClient {
 
-    static final String ATTACHMENT_LABEL = "[Attachment]";
-
-    private static final String FIELDS = "participants,messages.limit(%d){id,message,from,created_time}";
+    private static final String FIELDS_WITH_ATTACHMENTS = "participants,messages.limit(%d){id,message,from,"
+            + "created_time,attachments{mime_type,name,file_url,image_data{url},video_data{url}}}";
+    private static final String FIELDS_WITHOUT_ATTACHMENTS =
+            "participants,messages.limit(%d){id,message,from,created_time}";
+    private static final int INVALID_FIELD_CODE = 100;
+    private static final String URL = "url";
     private static final DateTimeFormatter GRAPH_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
     private static final int HTTPS_PORT = 443;
     private static final int PERMISSION_CODE_DENIED = 10;
@@ -109,7 +120,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private void loadPage() {
-            JsonNode page = fetch(started ? nextRequest() : firstRequest());
+            JsonNode page = started ? fetch(nextRequest()) : fetchFirstPage();
             started = true;
             for (JsonNode conversation : page.path("data")) {
                 parse(conversation, accountId, this).ifPresent(buffer::add);
@@ -141,8 +152,21 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             }
         }
 
-        private RestClient.RequestHeadersSpec<?> firstRequest() {
-            String fields = FIELDS.formatted(limits.messagesPerConversation());
+        /** The first page with attachments, or without them when Graph rejects those fields. */
+        private JsonNode fetchFirstPage() {
+            try {
+                return send(firstRequest(FIELDS_WITH_ATTACHMENTS));
+            } catch (RestClientResponseException e) {
+                if (!rejectsFields(e)) {
+                    throw mapError(e);
+                }
+            }
+            log.warn("Meta history rejected the attachment fields; importing without attachments");
+            return fetch(firstRequest(FIELDS_WITHOUT_ATTACHMENTS));
+        }
+
+        private RestClient.RequestHeadersSpec<?> firstRequest(String fieldList) {
+            String fields = fieldList.formatted(limits.messagesPerConversation());
             return graph.get().uri("/{id}/conversations?platform={platform}&fields={fields}&limit={limit}",
                     accountId, platform(), fields, limits.pageSize());
         }
@@ -152,6 +176,15 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private JsonNode fetch(RestClient.RequestHeadersSpec<?> request) {
+            try {
+                return send(request);
+            } catch (RestClientResponseException e) {
+                throw mapError(e);
+            }
+        }
+
+        /** One Graph request. A refusal by Meta is left to the caller; any other failure is a fetch failure. */
+        private JsonNode send(RestClient.RequestHeadersSpec<?> request) {
             graphRequests++;
             try {
                 JsonNode body = request.headers(GraphAuth.bearer(token)).accept(MediaType.APPLICATION_JSON)
@@ -161,7 +194,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                 }
                 return body;
             } catch (RestClientResponseException e) {
-                throw mapError(e);
+                throw e;
             } catch (RestClientException e) {
                 log.warn("Meta history request failed: {}", e.getClass().getSimpleName());
                 throw new HistoryFetchException("Meta history request failed", e);
@@ -229,6 +262,13 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         return new HistoryFetchException("Meta rejected the history request", e);
     }
 
+    /** A 400 with Graph code 100: a field Graph does not know or support on this host. */
+    private static boolean rejectsFields(RestClientResponseException e) {
+        Integer code = graphCode(e);
+        return e.getStatusCode().value() == HttpStatus.BAD_REQUEST.value() && code != null
+                && code == INVALID_FIELD_CODE;
+    }
+
     private static boolean isPermissionCode(int code) {
         return code == PERMISSION_CODE_DENIED || code == TOKEN_CODE
                 || code >= PERMISSION_CODE_FIRST && code <= PERMISSION_CODE_LAST;
@@ -291,10 +331,48 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         if (id.isBlank() || sentAt == null) {
             return Optional.empty();
         }
+        List<NormalizedAttachment> attachments = attachmentsOf(message);
         String text = message.path("message").asText("");
+        if (text.isBlank()) {
+            text = attachments.isEmpty() ? AttachmentKind.FILE.label() : attachments.get(0).kind().label();
+        }
         return Optional.of(new NormalizedMessage(object(), id, peerId,
-                outbound ? Direction.OUTBOUND : Direction.INBOUND, text.isBlank() ? ATTACHMENT_LABEL : text,
-                sentAt));
+                outbound ? Direction.OUTBOUND : Direction.INBOUND, text, sentAt, attachments));
+    }
+
+    private static List<NormalizedAttachment> attachmentsOf(JsonNode message) {
+        List<NormalizedAttachment> found = new ArrayList<>();
+        for (JsonNode attachment : message.path("attachments").path("data")) {
+            toAttachment(attachment).ifPresent(found::add);
+        }
+        return found;
+    }
+
+    /** Image data, then video data, then a file URL whose kind follows its MIME type. */
+    private static Optional<NormalizedAttachment> toAttachment(JsonNode attachment) {
+        String name = attachment.path("name").asText("");
+        String mimeType = attachment.path("mime_type").asText("");
+        String image = attachment.path("image_data").path(URL).asText("");
+        if (!image.isBlank()) {
+            return NormalizedAttachment.of(AttachmentKind.IMAGE, image, name, mimeType);
+        }
+        String video = attachment.path("video_data").path(URL).asText("");
+        if (!video.isBlank()) {
+            return NormalizedAttachment.of(AttachmentKind.VIDEO, video, name, mimeType);
+        }
+        return NormalizedAttachment.of(kindOfMimeType(mimeType), attachment.path("file_url").asText(""), name,
+                mimeType);
+    }
+
+    private static AttachmentKind kindOfMimeType(String mimeType) {
+        String type = mimeType.toLowerCase(Locale.ROOT);
+        if (type.startsWith("image/")) {
+            return AttachmentKind.IMAGE;
+        }
+        if (type.startsWith("video/")) {
+            return AttachmentKind.VIDEO;
+        }
+        return type.startsWith("audio/") ? AttachmentKind.AUDIO : AttachmentKind.FILE;
     }
 
     private static Instant parseTime(String value) {

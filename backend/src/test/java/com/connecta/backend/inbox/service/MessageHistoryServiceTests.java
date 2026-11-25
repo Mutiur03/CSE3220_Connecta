@@ -3,18 +3,22 @@ package com.connecta.backend.inbox.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.connecta.backend.common.dto.PageResponse;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.Message;
+import com.connecta.backend.inbox.domain.MessageAttachment;
 import com.connecta.backend.inbox.domain.MessageDirection;
 import com.connecta.backend.inbox.domain.Participant;
 import com.connecta.backend.inbox.dto.MessageResponse;
+import com.connecta.backend.inbox.repository.MessageAttachmentRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.service.NotAMemberException;
@@ -23,6 +27,7 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +47,9 @@ class MessageHistoryServiceTests {
 
     @Mock
     MessageRepository messages;
+
+    @Mock
+    MessageAttachmentRepository attachments;
 
     @InjectMocks
     MessageHistoryService service;
@@ -99,6 +107,32 @@ class MessageHistoryServiceTests {
         assertEquals(agent.getId(), content.get(0).senderId());
         assertEquals("Test User", content.get(0).senderName());
         assertNull(content.get(1).senderId());
+    }
+
+    @Test
+    void loadsTheAttachmentsOfThePageInOneScopedCallAndGivesEachMessageItsOwn() {
+        Message photo = withId(Message.inbound(thread, null, "mid-4", "[Photo]", sentAt));
+        Message plain = withId(Message.inbound(thread, null, "mid-5", "hi", sentAt));
+        MessageAttachment image = withId(new MessageAttachment(photo, AttachmentKind.IMAGE,
+                "https://cdn.example/p.jpg", null, "image/jpeg"));
+        when(messages.findByConversationIdAndOrganizationId(any(), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(photo, plain)));
+        when(attachments.findByMessage(organizationId, List.of(photo.getId(), plain.getId())))
+                .thenReturn(Map.of(photo.getId(), List.of(image)));
+
+        List<MessageResponse> content = service.list("sub", organizationId, conversationId, 0, 20).content();
+
+        assertEquals(1, content.get(0).attachments().size());
+        assertEquals(image.getId(), content.get(0).attachments().get(0).id());
+        assertEquals(AttachmentKind.IMAGE, content.get(0).attachments().get(0).kind());
+        assertEquals("https://cdn.example/p.jpg", content.get(0).attachments().get(0).url());
+        assertEquals("image/jpeg", content.get(0).attachments().get(0).contentType());
+        assertTrue(content.get(1).attachments().isEmpty());
+    }
+
+    private static <T> T withId(T entity) {
+        TestUsers.set(entity, "id", UUID.randomUUID());
+        return entity;
     }
 
     @Test

@@ -26,6 +26,7 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -123,7 +124,7 @@ class InboxWebSocketIntegrationTests {
         WebSocketSession sessionB = connect(ticketFor(orgB), ORIGIN, b);
         UUID messageId = UUID.randomUUID();
         when(messages.find(orgA, messageId)).thenReturn(Optional.of(new MessageResponse(messageId,
-                MessageDirection.INBOUND, "hi", Instant.parse("2026-11-24T10:00:00Z"), null, null)));
+                MessageDirection.INBOUND, "hi", Instant.parse("2026-11-24T10:00:00Z"), null, null, List.of())));
 
         events.publishEvent(new MessageReceivedEvent(orgA, UUID.randomUUID(), messageId, Channel.INSTAGRAM,
                 MessageDirection.INBOUND, false));

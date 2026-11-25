@@ -37,7 +37,8 @@ class InstagramHistoryClientTests {
                            {"id":"igsid-9","username":"rina_k"}]},
                          "messages":{"data":[
                            {"id":"m2","message":"Sure","from":{"id":"ig-1","username":"shop"},"created_time":"2026-11-20T10:01:00+0000"},
-                           {"id":"m1","message":"Price?","from":{"id":"igsid-9","username":"rina_k"},"created_time":"2026-11-20T10:00:00+0000"}]}}]}
+                           {"id":"m1","message":"Price?","from":{"id":"igsid-9","username":"rina_k"},"created_time":"2026-11-20T10:00:00+0000",
+                            "attachments":{"data":[{"image_data":{"url":"https://lookaside.example/ig.jpg"}}]}}]}}]}
                         """, MediaType.APPLICATION_JSON));
 
         List<HistoryConversation> all = new ArrayList<>();
@@ -49,6 +50,7 @@ class InstagramHistoryClientTests {
         assertEquals(WebhookObject.INSTAGRAM, conversation.messages().get(0).channel());
         assertEquals(Direction.INBOUND, conversation.messages().get(0).direction());
         assertEquals(Direction.OUTBOUND, conversation.messages().get(1).direction());
+        assertEquals("https://lookaside.example/ig.jpg", conversation.messages().get(0).attachments().get(0).url());
         assertEquals(Channel.INSTAGRAM, client.channel());
         server.verify();
     }
