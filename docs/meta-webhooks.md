@@ -120,3 +120,14 @@ The webhook is the fast path. It is not guaranteed: Meta stops retrying after a 
 - State: a successful sync sets `last_synced_at` on `meta_connected_pages` / `meta_connected_accounts`. A sync never touches `history_imported_at` or the import error columns: a small read says nothing about the full history.
 - Log: one INFO line per run (accounts, stored, failed), never tokens or message text.
 - Settings (`application.yml`): `app.meta.sync.enabled` (true; false turns it off), `interval`, `max-conversations`, `messages-per-conversation`.
+
+## Disappearing (view-once) photos (#334)
+
+Instagram sends a view-once photo as two events with the identical millisecond `timestamp` (echo first, ids differ): the sender's echo (`is_echo: true`, attachment `type: "ephemeral"`, no url) and the receiver's event (a normal `image` with a signed CDN url). The Instagram messages API returns no attachments for it (`is_unsupported`).
+
+- Label: the parser (`MessagingEventParser`, table `EPHEMERAL_LABELS`) turns `ephemeral` into a message with no attachment and the body `[Disappearing photo]`; the thread shows "Disappearing photo. It isn't kept or shown here."
+- Switch `app.meta.view-once.hide` (env `META_HIDE_VIEW_ONCE`, default `false`). **Off: a received view-once photo is kept permanently**, copied into our storage and shown to every agent like any photo, because nothing tells its event apart on its own. **On:** it is stored as the message `[Disappearing photo]` with no attachment: the file is never downloaded, copied or stored and no url is kept (the row and time stay).
+- Recognising it: every `ephemeral` echo is recorded in `meta_view_once_marks` (timestamp in ms), even when the sender's account is not connected (the processor records before routing). A received image whose timestamp is marked is treated as view-once (hide on). If the echo arrives after the photo, the organization's stored received photo with that `sent_at` is converted in place (body replaced, attachment rows and stored files deleted); this runs for the organizations the echo is routed to, so an echo for an unconnected sender cannot convert a photo stored earlier.
+- Cleanup: `ViewOnceMarkSweepJob` deletes marks older than `app.meta.view-once.mark-ttl` (1h) every `cleanup-interval` (10m).
+- Heuristic: the timestamp is the only value shared by the two events. Two unrelated messages in the same millisecond could be confused, so the window is short and a mark is a bare number (no tenant data, no content); the wrong outcome is a hidden photo, never an exposed one.
+- History import and the recent-message sync never change a `[Disappearing photo]` message (`MessageReconciler`).

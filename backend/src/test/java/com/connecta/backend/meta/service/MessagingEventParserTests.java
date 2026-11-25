@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -207,6 +208,33 @@ class MessagingEventParserTests {
                     + "\"attachments\":{\"type\":\"image\"}}}")).get(0);
 
             assertTrue(message.attachments().isEmpty());
+        }
+    }
+
+    @Nested
+    class DisappearingPhotos {
+
+        @Test
+        void anEphemeralEchoIsALabelWithNoAttachment() {
+            NormalizedMessage message = parser.parse(WebhookObject.INSTAGRAM, entry(
+                    "{\"sender\":{\"id\":\"ig-1\"},\"recipient\":{\"id\":\"customer-1\"},\"timestamp\":1700000000123,"
+                    + "\"message\":{\"mid\":\"m.5\",\"is_echo\":true,\"attachments\":[{\"type\":\"ephemeral\","
+                    + "\"payload\":{}}]}}")).get(0);
+
+            assertEquals("[Disappearing photo]", message.text());
+            assertEquals(List.of(), message.attachments());
+            assertEquals(Direction.OUTBOUND, message.direction());
+            assertTrue(message.isDisappearingEcho());
+        }
+
+        @Test
+        void anOrdinaryImageIsNotDisappearing() {
+            NormalizedMessage message = parser.parse(WebhookObject.INSTAGRAM, entry(
+                    "{\"sender\":{\"id\":\"c-1\"},\"message\":{\"mid\":\"m.6\",\"attachments\":["
+                    + "{\"type\":\"image\",\"payload\":{\"url\":\"https://cdn.example/a.jpg\"}}]}}")).get(0);
+
+            assertFalse(message.disappearing());
+            assertEquals(1, message.attachments().size());
         }
     }
 

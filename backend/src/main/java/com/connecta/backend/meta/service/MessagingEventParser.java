@@ -51,6 +51,10 @@ public class MessagingEventParser {
      */
     private static final Map<String, String> IMAGE_TITLES = Map.of("ig_post", NormalizedAttachment.SHARED_POST);
 
+    /** Instagram's view-once photo: the type carries no media, so it becomes a label. */
+    private static final Map<String, String> EPHEMERAL_LABELS = Map.of("ephemeral",
+            NormalizedMessage.DISAPPEARING_PHOTO);
+
     public List<NormalizedMessage> parse(WebhookObject object, JsonNode entry) {
         List<NormalizedMessage> messages = new ArrayList<>();
         for (JsonNode event : entry.path(MESSAGING)) {
@@ -64,6 +68,7 @@ public class MessagingEventParser {
         String mid = message.path("mid").asText("");
         List<NormalizedAttachment> attachments = attachmentsOf(message);
         String text = textOf(message, attachments);
+        boolean disappearing = isEphemeral(message);
         if (mid.isBlank() || text == null) {
             return Optional.empty();
         }
@@ -75,7 +80,8 @@ public class MessagingEventParser {
         }
         Instant sentAt = Instant.ofEpochMilli(event.path("timestamp").asLong(0));
         Direction direction = echo ? Direction.OUTBOUND : Direction.INBOUND;
-        return Optional.of(new NormalizedMessage(object, mid, peerId, direction, text, sentAt, attachments));
+        return Optional.of(new NormalizedMessage(object, mid, peerId, direction, text, sentAt, attachments,
+                disappearing));
     }
 
     /** The text, or the label of the first kept attachment, or of the first sent one, or null when there is none. */
@@ -87,10 +93,19 @@ public class MessagingEventParser {
             return kept.get(0).label();
         }
         JsonNode attachments = message.path(ATTACHMENTS);
+        if (isEphemeral(message)) {
+            return EPHEMERAL_LABELS.get(attachments.get(0).path("type").asText(""));
+        }
         if (attachments.isArray() && !attachments.isEmpty()) {
             return kindOf(attachments.get(0)).orElse(AttachmentKind.FILE).label();
         }
         return null;
+    }
+
+    private static boolean isEphemeral(JsonNode message) {
+        JsonNode attachments = message.path(ATTACHMENTS);
+        return attachments.isArray() && !attachments.isEmpty()
+                && EPHEMERAL_LABELS.containsKey(attachments.get(0).path("type").asText(""));
     }
 
     private static List<NormalizedAttachment> attachmentsOf(JsonNode message) {

@@ -260,6 +260,16 @@ describe("MessageList", () => {
       expect(markup).not.toContain("not available");
     });
 
+    it("explains a disappearing photo instead of the generic attachment note", () => {
+      const markup = html({
+        messages: [msg({ text: "[Disappearing photo]", attachments: [] })],
+        appName: "Instagram",
+      });
+      expect(markup).toContain("Disappearing photo. It isn’t kept or shown here.");
+      expect(markup).not.toContain("[Disappearing photo]");
+      expect(markup).not.toContain("Can’t show this attachment here");
+    });
+
     it("does the same for the other stand-in labels, and leaves real text alone", () => {
       const labels = html({
         messages: [

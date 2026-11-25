@@ -35,6 +35,7 @@ public class WebhookEventProcessor {
     private final MetaProcessedMessageRepository processed;
     private final MessagingEventParser parser;
     private final IncomingMessageService inbox;
+    private final ViewOnceService viewOnce;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -42,13 +43,17 @@ public class WebhookEventProcessor {
     public void process(MetaWebhookEvent event) {
         JsonNode root = json.readTree(event.getPayload());
         for (JsonNode entry : root.path("entry")) {
+            List<NormalizedMessage> messages = parser.parse(event.getObject(), entry);
+            messages.forEach(viewOnce::recordIfEcho);
             List<ConnectedChannelAccount> targets = accountsFor(event.getObject(), entry.path("id").asText(""));
             if (targets.isEmpty()) {
                 continue;
             }
             targets.forEach(account -> account.markWebhookReceived(clock.instant()));
-            for (NormalizedMessage message : parser.parse(event.getObject(), entry)) {
-                targets.forEach(account -> deliver(account, message));
+            for (NormalizedMessage message : messages) {
+                NormalizedMessage toStore = viewOnce.forStorage(message);
+                targets.forEach(account -> deliver(account, toStore));
+                targets.forEach(account -> viewOnce.hideStoredPhoto(account.getOrganization().getId(), message));
             }
         }
         event.markProcessed(clock.instant());

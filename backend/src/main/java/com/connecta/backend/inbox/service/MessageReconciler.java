@@ -15,7 +15,8 @@ import org.springframework.stereotype.Service;
 /**
  * Brings a stored message in line with what Meta's history returns for it. Only adds and corrects: the body is
  * corrected through {@link Message#correctBody}, attachments Meta returns that the message lacks are added (as
- * Meta media, so the attachment mirror copies them), and nothing is ever deleted. Sender, conversation, direction,
+ * Meta media, so the attachment mirror copies them), and nothing is ever deleted. A {@code [Disappearing photo]}
+ * message is left alone: Meta returns no media for a view-once photo, and it must never be downgraded or refilled. Sender, conversation, direction,
  * time and read state are never touched. Runs inside the caller's transaction; every read is scoped by the
  * message's organization.
  *
@@ -32,6 +33,9 @@ public class MessageReconciler {
 
     /** Returns true when the message changed. */
     public boolean reconcile(Message stored, NormalizedMessage fromMeta) {
+        if (NormalizedMessage.DISAPPEARING_PHOTO.equals(stored.getBody())) {
+            return false;
+        }
         boolean bodyCorrected = !isBareFallbackLabel(fromMeta) && stored.correctBody(fromMeta.text());
         boolean attachmentsAdded = addMissingAttachments(stored, fromMeta.attachments());
         return bodyCorrected || attachmentsAdded;
