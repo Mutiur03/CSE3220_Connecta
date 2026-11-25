@@ -33,11 +33,29 @@ describe("MetaPagePicker", () => {
     expect(tagFor("p2")).not.toContain('checked=""');
   });
 
+  it("shows the last webhook line only for a connected Page", () => {
+    const markup = renderToStaticMarkup(
+      <MetaPagePicker
+        pages={pages}
+        webhookLines={{
+          p1: "Last webhook 5 minutes ago",
+          p2: "No webhook received yet",
+        }}
+        action={noop}
+      />,
+    );
+
+    expect(markup).toContain("Last webhook 5 minutes ago");
+    expect(markup).not.toContain("No webhook received yet");
+  });
+
   it("shows a warning only under the Page it is for", () => {
     const markup = renderToStaticMarkup(
       <MetaPagePicker
         pages={pages}
-        notices={{ p1: "Importing past conversations failed: permission missing." }}
+        notices={{
+          p1: "Importing past conversations failed: permission missing.",
+        }}
         action={noop}
       />,
     );

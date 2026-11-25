@@ -2,6 +2,7 @@ package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -181,6 +182,51 @@ class WebhookEventProcessorTests {
             verify(inbox, never()).receive(eq(acmePage), any());
             verify(inbox).receive(eq(otherPage), any());
             verify(inbox).receive(any(), any());
+        }
+    }
+
+    @Nested
+    class WebhookHealth {
+
+        @Test
+        void everyRoutedConnectionRecordsWhenTheWebhookArrived() {
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage, otherPage));
+
+            processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
+
+            assertEquals(TestClock.NOW, acmePage.getLastWebhookAt());
+            assertEquals(TestClock.NOW, otherPage.getLastWebhookAt());
+        }
+
+        @Test
+        void aRoutedInstagramAccountRecordsIt() {
+            MetaConnectedAccount account = new MetaConnectedAccount(acme, MetaConnectedAccount.PLATFORM_INSTAGRAM,
+                    "ig-1");
+            when(accounts.findAllByPlatformAndExternalAccountId("INSTAGRAM", "ig-1")).thenReturn(List.of(account));
+            String payload = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"ig-1\"}]}";
+
+            processor.process(event(WebhookObject.INSTAGRAM, payload));
+
+            assertEquals(TestClock.NOW, account.getLastWebhookAt());
+        }
+
+        @Test
+        void aConnectionNotNamedByTheEventIsLeftUnchanged() {
+            MetaConnectedPage unrelated = new MetaConnectedPage(acme, "page-2");
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of(acmePage));
+
+            processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
+
+            assertNull(unrelated.getLastWebhookAt());
+        }
+
+        @Test
+        void anUnroutedIdChangesNothing() {
+            when(pages.findAllByPageId("page-1")).thenReturn(List.of());
+
+            processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
+
+            assertNull(acmePage.getLastWebhookAt());
         }
     }
 }

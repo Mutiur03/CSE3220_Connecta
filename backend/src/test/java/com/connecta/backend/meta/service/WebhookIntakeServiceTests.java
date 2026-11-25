@@ -15,6 +15,7 @@ import com.connecta.backend.meta.domain.MetaWebhookEvent;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.repository.MetaWebhookEventRepository;
 import com.connecta.backend.support.TestClock;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import javax.crypto.Mac;
@@ -36,6 +37,7 @@ class WebhookIntakeServiceTests {
     private MetaWebhookEventRepository events;
     private WebhookEventProcessor processor;
     private WebhookIntakeService service;
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
 
     @BeforeEach
     void setUp() {
@@ -46,7 +48,7 @@ class WebhookIntakeServiceTests {
                 new MetaProperties("app", PAGE_SECRET, null, "config", "https://api.example.com", "unused"),
                 new InstagramProperties("ig-app", INSTAGRAM_SECRET));
         service = new WebhookIntakeService(verifier, new MetaWebhookProperties(VERIFY_TOKEN), events, processor,
-                new ObjectMapper(), TestClock.FIXED);
+                new ObjectMapper(), TestClock.FIXED, meters);
     }
 
     private static String sign(String secret, String body) {
@@ -57,6 +59,10 @@ class WebhookIntakeServiceTests {
         } catch (java.security.GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private double delivered(String result) {
+        return meters.counter(WebhookIntakeService.DELIVERIES_METER, "result", result).count();
     }
 
     @Nested
@@ -113,6 +119,29 @@ class WebhookIntakeServiceTests {
         }
 
         @Test
+        void aVerifiedDeliveryIsCountedAsAccepted() {
+            service.receive(PAGE_BODY, sign(PAGE_SECRET, PAGE_BODY));
+
+            assertEquals(1.0, delivered("accepted"));
+            assertEquals(0.0, delivered("rejected"));
+        }
+
+        @Test
+        void aBadSignatureIsCountedAsRejected() {
+            assertThrows(InvalidWebhookSignatureException.class, () -> service.receive(PAGE_BODY, null));
+
+            assertEquals(1.0, delivered("rejected"));
+            assertEquals(0.0, delivered("accepted"));
+        }
+
+        @Test
+        void aBodyThatIsNotJsonIsCountedAsRejected() {
+            assertThrows(MalformedWebhookException.class, () -> service.receive("not json", null));
+
+            assertEquals(1.0, delivered("rejected"));
+        }
+
+        @Test
         void otherProductsAreAcknowledgedWithoutBeingStored() {
             service.receive("{\"object\":\"whatsapp_business_account\"}", null);
 
@@ -146,7 +175,8 @@ class WebhookIntakeServiceTests {
             WebhookIntakeService unconfigured = new WebhookIntakeService(
                     new WebhookSignatureVerifier(
                             new MetaProperties("", "", null, "", "", "unused"), new InstagramProperties("", "")),
-                    new MetaWebhookProperties(""), events, processor, new ObjectMapper(), TestClock.FIXED);
+                    new MetaWebhookProperties(""), events, processor, new ObjectMapper(), TestClock.FIXED,
+                    meters);
 
             assertThrows(WebhookVerificationFailedException.class,
                     () -> unconfigured.confirmSubscription("subscribe", "", "12345"));

@@ -46,6 +46,7 @@ public class WebhookEventProcessor {
             if (targets.isEmpty()) {
                 continue;
             }
+            targets.forEach(account -> account.markWebhookReceived(clock.instant()));
             for (NormalizedMessage message : parser.parse(event.getObject(), entry)) {
                 targets.forEach(account -> deliver(account, message));
             }

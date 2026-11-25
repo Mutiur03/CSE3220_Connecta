@@ -194,7 +194,8 @@ erDiagram
         string page_id "unique per organization"
         string page_name
         text page_access_token_encrypted
-        uuid granted_by_user_id FK "nullable" }
+        uuid granted_by_user_id FK "nullable"
+        timestamp last_webhook_at "nullable" }
     ORGANIZATIONS ||--o{ META_CONNECTED_ACCOUNTS : connects
     USERS ||--o{ META_CONNECTED_ACCOUNTS : grants
     META_CONNECTED_ACCOUNTS { uuid id PK
@@ -203,7 +204,8 @@ erDiagram
         string external_account_id "unique per organization and platform"
         string username "nullable"
         uuid granted_by_user_id FK "nullable"
-        text access_token_encrypted }
+        text access_token_encrypted
+        timestamp last_webhook_at "nullable" }
     ORGANIZATIONS ||--o{ META_WEBHOOK_EVENTS : receives
     META_WEBHOOK_EVENTS { uuid id PK
         string object "PAGE or INSTAGRAM"
@@ -335,15 +337,15 @@ erDiagram
 | POST | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Start connecting Meta. Returns `{"authorizationUrl"}`, the Facebook login dialog with a signed, 10-minute state. `503` if the Meta app is not configured. |
 | GET | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Whether the organization is connected: `{"connected", "connectedAt", "expiresAt"}`. No token is returned. |
 | GET | `/api/meta/oauth/callback` | public (the signed state is the check) | 302 | Meta's redirect target. Exchanges the code for a long-lived token and stores it encrypted, then redirects the browser to the Integrations page (`?facebook=connected`). A failure redirects back with `metaError` (`denied`, `invalid_state`, `forbidden`, `meta_failed`, `not_configured`). |
-| GET | `/api/organizations/{id}/meta/pages` | `ADMIN` of it | 200 | The organization's connected Facebook Pages, by name (`page`, `size` max 100): `pageId`, `name`, `connectedAt`, `historyImportError` (`PERMISSION` or `FETCH` while the last import of past conversations failed, else `null`), `historyImportFailedAt`. No tokens. |
+| GET | `/api/organizations/{id}/meta/pages` | `ADMIN` of it | 200 | The organization's connected Facebook Pages, by name (`page`, `size` max 100): `pageId`, `name`, `connectedAt`, `lastWebhookAt` (ISO-8601 UTC, null until a webhook arrives for the Page), `historyImportError` (`PERMISSION` or `FETCH` while the last import of past conversations failed, else `null`), `historyImportFailedAt`. No tokens. |
 | GET | `/api/organizations/{id}/meta/pages/available` | `ADMIN` of it | 200 | The Pages the Meta grant includes, by name, each with `connected` (true when this organization already connected it). Empty before Facebook is connected. No tokens. `502` if Meta refuses the lookup. |
 | POST | `/api/organizations/{id}/meta/pages` | `ADMIN` of it | 200 | Connect Pages from the Meta grant: body `{"pageIds": [...]}` (1 to 100). Each Page is subscribed to `messages` and `message_echoes`, then stored with its token encrypted. Reconnecting replaces the token. `422` if a Page is not in the grant, `502` if Meta refused. |
 | POST | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | Start connecting an Instagram professional account. Returns `{"authorizationUrl"}` (Instagram Business Login, signed 10-minute state). `503` if Instagram is not configured. |
-| GET | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | The organization's connected Instagram accounts, paginated (`page`, `size` max 100): `id`, `externalAccountId`, `username`, `connectedAt`, `historyImportError`, `historyImportFailedAt` (as for Pages). No token is returned. |
+| GET | `/api/organizations/{id}/meta/instagram` | `ADMIN` of it | 200 | The organization's connected Instagram accounts, paginated (`page`, `size` max 100): `id`, `externalAccountId`, `username`, `lastWebhookAt` (ISO-8601 UTC, null until a webhook arrives for the account), `connectedAt`, `historyImportError`, `historyImportFailedAt` (as for Pages). No token is returned. |
 | GET | `/api/meta/instagram/callback` | public (the signed state is the check) | 302 | Instagram's redirect target. Exchanges the code, extends the token and stores the account with its token encrypted, then subscribes the account to `messages` webhooks (`POST /{ig-id}/subscribed_apps`, Bearer token). A failed subscription does not fail the connect; it is logged at WARN with the account id and retried at the next start. `400` bad or expired state, `403` if the admin lost the role, `502` if Instagram refused. |
 | GET | `/api/meta/webhooks` | public (the verify token is the check) | 200 | Meta's subscription check. Returns `hub.challenge` as plain text when `hub.mode` is `subscribe` and `hub.verify_token` matches `META_WEBHOOK_VERIFY_TOKEN`; `403` otherwise. |
 | GET | `/api/files/{fileId}` | public on purpose (the random UUID is the check) | 200 | A stored file, so Meta can fetch an attachment without a token. `Content-Type` is the stored type, `X-Content-Type-Options: nosniff`, `Content-Disposition: inline` with the encoded file name, `Cache-Control: max-age=31536000, private, immutable`. `404` unknown id. |
-| POST | `/api/meta/webhooks` | public (the `X-Hub-Signature-256` is the check) | 200 | Receive a Messenger (`page`) or Instagram event. The signature is verified over the raw body with that product's app secret, then the event is stored unprocessed. `401` bad or missing signature, `400` body not JSON, `503` app secret not set. Other Meta products are acknowledged and not stored. Manual step: in the Meta app dashboard the Messenger and Instagram webhook callback URL must be `<APP_BASE_URL>/api/meta/webhooks` (another path such as `/api/webhooks/meta` answers `401`). At startup every connected Instagram account not yet subscribed to `messages` is subscribed (see `docs/meta-webhooks.md`). |
+| POST | `/api/meta/webhooks` | public (the `X-Hub-Signature-256` is the check) | 200 | Receive a Messenger (`page`) or Instagram event. The signature is verified over the raw body with that product's app secret, then the event is stored unprocessed. `401` bad or missing signature, `400` body not JSON, `503` app secret not set. A refused delivery logs one WARN line (reason class and object only) and counts in `meta.webhook.deliveries{result=rejected}`, an accepted one in `{result=accepted}`. Other Meta products are acknowledged and not stored. Manual step: in the Meta app dashboard the Messenger and Instagram webhook callback URL must be `<APP_BASE_URL>/api/meta/webhooks` (another path such as `/api/webhooks/meta` answers `401`). At startup every connected Instagram account not yet subscribed to `messages` is subscribed (see `docs/meta-webhooks.md`). |
 | GET | `/api/admin/organizations` | `OWNER` only | 200 | Every organization with its member count (`page`, `size` max 100). |
 
 Errors use RFC 9457 problem-detail JSON. Swagger UI is served only when `SWAGGER_ENABLED=true` (local `.env`).

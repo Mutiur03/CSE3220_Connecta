@@ -1,3 +1,4 @@
+import { formatRelative } from "./format";
 import type { HistoryImportError } from "./meta-api";
 import type { OrgRole } from "./org-permissions";
 
@@ -63,6 +64,13 @@ export function historyImportNotice(
   error: HistoryImportError | null | undefined,
 ): string | null {
   return error ? HISTORY_IMPORT_TEXT[error] : null;
+}
+
+/** When a webhook last reached a connection, in words; a connection nothing has reached says so. */
+export function webhookLine(lastWebhookAt: string | null, now: Date): string {
+  return lastWebhookAt
+    ? `Last webhook ${formatRelative(lastWebhookAt, now)}`
+    : "No webhook received yet";
 }
 
 /** The query parameters the Meta callbacks send the browser back with. */

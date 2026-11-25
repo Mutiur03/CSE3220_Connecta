@@ -6,6 +6,7 @@ import {
   facebookStatus,
   historyImportNotice,
   parsePageIds,
+  webhookLine,
 } from "./meta-view";
 
 describe("canConnectMeta", () => {
@@ -103,5 +104,19 @@ describe("historyImportNotice", () => {
   it("shows nothing when the import did not fail", () => {
     expect(historyImportNotice(null)).toBeNull();
     expect(historyImportNotice(undefined)).toBeNull();
+  });
+});
+
+describe("webhookLine", () => {
+  const now = new Date("2026-11-26T12:00:00Z");
+
+  it("says when the last webhook arrived, in relative time", () => {
+    expect(webhookLine("2026-11-26T11:55:00Z", now)).toBe(
+      "Last webhook 5 minutes ago",
+    );
+  });
+
+  it("says none arrived when the time is null", () => {
+    expect(webhookLine(null, now)).toBe("No webhook received yet");
   });
 });

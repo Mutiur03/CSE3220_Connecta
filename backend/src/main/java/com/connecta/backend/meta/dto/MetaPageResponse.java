@@ -7,12 +7,13 @@ import java.time.Instant;
 /**
  * A connected Facebook Page. The Page token is never returned. {@code historyImportError} is set while the last
  * import of past conversations failed ({@code PERMISSION} or {@code FETCH}), else null.
+ * {@code lastWebhookAt} is when a webhook last arrived for the Page, null until one does.
  */
 public record MetaPageResponse(String pageId, String name, Instant connectedAt,
-        HistoryImportFailure historyImportError, Instant historyImportFailedAt) {
+        HistoryImportFailure historyImportError, Instant historyImportFailedAt, Instant lastWebhookAt) {
 
     public static MetaPageResponse from(MetaConnectedPage page) {
         return new MetaPageResponse(page.getPageId(), page.getPageName(), page.getUpdatedAt(),
-                page.getHistoryImportError(), page.getHistoryImportFailedAt());
+                page.getHistoryImportError(), page.getHistoryImportFailedAt(), page.getLastWebhookAt());
     }
 }

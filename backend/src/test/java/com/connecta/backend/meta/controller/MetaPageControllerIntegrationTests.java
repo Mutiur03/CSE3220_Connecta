@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -252,6 +253,24 @@ class MetaPageControllerIntegrationTests {
                     .andExpect(jsonPath("$.content[0].pageAccessTokenEncrypted").doesNotExist())
                     .andExpect(jsonPath("$.totalElements").value(1))
                     .andExpect(jsonPath("$.content[0].historyImportError").doesNotExist());
+        }
+
+        @Test
+        void lastWebhookAtIsNullUntilAWebhookArrivesThenShowsWhen() throws Exception {
+            Seeded s = seedAcmeWithGrant();
+            MetaConnectedPage page = new MetaConnectedPage(s.acme(), "p1");
+            page.replace("Page One", cipher.encrypt("page-token-1"), s.admin(), TestClock.NOW);
+            pages.saveAndFlush(page);
+
+            mvc.perform(get(path(s.acme())).header(AUTH, bearer(s.admin())))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].lastWebhookAt").value(nullValue()));
+
+            page.markWebhookReceived(TestClock.NOW);
+            pages.saveAndFlush(page);
+
+            mvc.perform(get(path(s.acme())).header(AUTH, bearer(s.admin())))
+                    .andExpect(jsonPath("$.content[0].lastWebhookAt").value(TestClock.NOW.toString()));
         }
 
         @Test
