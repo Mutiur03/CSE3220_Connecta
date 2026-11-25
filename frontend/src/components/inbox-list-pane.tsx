@@ -9,7 +9,7 @@ import { pageCount, pageRange } from "@/lib/org-pagination";
 import ConversationList from "./conversation-list";
 import InboxFilterBar from "./inbox-filter-bar";
 import InboxKeyboard from "./inbox-keyboard";
-import ScrollMemory from "./scroll-memory";
+import ScrollMemory, { ScrollPlacement } from "./scroll-memory";
 import InboxStatusTabs from "./inbox-status-tabs";
 import OrgPagination from "./org-pagination";
 
@@ -132,6 +132,7 @@ export default function InboxListPane({
           />
         </footer>
       )}
+      <ScrollPlacement />
     </section>
   );
 }

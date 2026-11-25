@@ -2,7 +2,8 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
-import ScrollMemory from "./scroll-memory";
+import { renderToStaticMarkup } from "react-dom/server";
+import ScrollMemory, { ScrollPlacement } from "./scroll-memory";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -109,5 +110,21 @@ describe("ScrollMemory", () => {
       box.dispatchEvent(new Event("scroll", { bubbles: true }));
     });
     expect(sessionStorage.getItem("list:c")).toBe("64");
+  });
+
+  it("sends the placement script in the server HTML and keeps the key out of it", () => {
+    const hostile = 'x"</script><script>alert(1)</script>';
+    const markup = renderToStaticMarkup(
+      <>
+        <ScrollMemory storageKey={hostile}>
+          <p>rows</p>
+        </ScrollMemory>
+        <ScrollPlacement />
+      </>,
+    );
+    expect(markup).toContain("<script>(function(){");
+    expect(markup.match(/<script>/g)).toHaveLength(1);
+    expect(markup).not.toContain("<script>alert(1)");
+    expect(markup).toContain("data-scroll-key=");
   });
 });
