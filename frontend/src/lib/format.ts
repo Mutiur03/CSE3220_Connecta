@@ -26,6 +26,11 @@ export function formatDateTime(iso: string): string {
   });
 }
 
+/** Clock time only, for a message whose day is already shown above it. */
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en", { timeStyle: "short" });
+}
+
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;

@@ -117,3 +117,58 @@ describe("avatarInitials and avatarTone", () => {
     expect(["bg-hover", "bg-selected"]).toContain(avatarTone(null));
   });
 });
+
+import { dayLabel, groupThread } from "./inbox-view";
+
+describe("groupThread", () => {
+  const NOW = new Date("2026-06-01T12:00:00Z");
+  const m = (
+    id: string,
+    sentAt: string,
+    direction: "INBOUND" | "OUTBOUND" = "INBOUND",
+    senderId: string | null = null,
+  ) => ({ id, sentAt, direction, senderId, senderName: null });
+
+  it("joins same-sender messages within five minutes and splits on a longer gap", () => {
+    const [day] = groupThread(
+      [
+        m("1", "2026-06-01T10:00:00Z"),
+        m("2", "2026-06-01T10:04:00Z"),
+        m("3", "2026-06-01T10:20:00Z"),
+      ],
+      NOW,
+    );
+    expect(day.groups.map((g) => g.messages.map((x) => x.id))).toEqual([
+      ["1", "2"],
+      ["3"],
+    ]);
+  });
+
+  it("splits when the side or the agent changes", () => {
+    const [day] = groupThread(
+      [
+        m("1", "2026-06-01T10:00:00Z"),
+        m("2", "2026-06-01T10:01:00Z", "OUTBOUND", "a"),
+        m("3", "2026-06-01T10:02:00Z", "OUTBOUND", "b"),
+      ],
+      NOW,
+    );
+    expect(day.groups).toHaveLength(3);
+    expect(day.groups[1].outbound).toBe(true);
+  });
+
+  it("starts a new day with its own label", () => {
+    const days = groupThread(
+      [m("1", "2026-05-20T10:00:00Z"), m("2", "2026-06-01T10:00:00Z")],
+      NOW,
+    );
+    expect(days).toHaveLength(2);
+    expect(days[1].label).toBe("Today");
+  });
+
+  it("labels today, yesterday, then the date", () => {
+    expect(dayLabel("2026-06-01T09:00:00Z", NOW)).toBe("Today");
+    expect(dayLabel("2026-05-31T09:00:00Z", NOW)).toBe("Yesterday");
+    expect(dayLabel("2026-05-20T09:00:00Z", NOW)).toContain("May 20");
+  });
+});

@@ -112,3 +112,83 @@ export function threadHref(
 
 export const nextStatus = (status: "OPEN" | "CLOSED") =>
   status === "OPEN" ? "CLOSED" : "OPEN";
+
+/** Messages from one side closer together than this read as one group. */
+export const GROUP_GAP_MS = 5 * 60_000;
+
+type Groupable = {
+  id: string;
+  direction: "INBOUND" | "OUTBOUND";
+  sentAt: string;
+  senderId: string | null;
+  senderName: string | null;
+};
+
+export type MessageGroup<T> = {
+  key: string;
+  outbound: boolean;
+  senderName: string | null;
+  messages: T[];
+};
+
+export type ThreadDay<T> = {
+  key: string;
+  label: string;
+  groups: MessageGroup<T>[];
+};
+
+const dayKey = (date: Date) =>
+  `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+
+/** "Today", "Yesterday", else the full date, so a day break reads without a clock. */
+export function dayLabel(iso: string, now: Date): string {
+  const day = dayKey(new Date(iso));
+  if (day === dayKey(now)) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (day === dayKey(yesterday)) return "Yesterday";
+  return new Date(iso).toLocaleDateString("en", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+const sameGroup = (previous: Groupable, next: Groupable) =>
+  previous.direction === next.direction &&
+  previous.senderId === next.senderId &&
+  new Date(next.sentAt).getTime() - new Date(previous.sentAt).getTime() <=
+    GROUP_GAP_MS;
+
+/**
+ * A thread in reading order, split into days and, inside a day, into groups of consecutive messages from the
+ * same sender a few minutes apart. Each group shows its time once.
+ */
+export function groupThread<T extends Groupable>(
+  oldestFirst: readonly T[],
+  now: Date,
+): ThreadDay<T>[] {
+  const days: ThreadDay<T>[] = [];
+  for (const message of oldestFirst) {
+    const key = dayKey(new Date(message.sentAt));
+    let day = days.at(-1);
+    if (day?.key !== key) {
+      day = { key, label: dayLabel(message.sentAt, now), groups: [] };
+      days.push(day);
+    }
+    const group = day.groups.at(-1);
+    const last = group?.messages.at(-1);
+    if (group && last && sameGroup(last, message)) {
+      group.messages.push(message);
+    } else {
+      day.groups.push({
+        key: message.id,
+        outbound: message.direction === "OUTBOUND",
+        senderName: message.senderName,
+        messages: [message],
+      });
+    }
+  }
+  return days;
+}
