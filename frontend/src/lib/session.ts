@@ -60,6 +60,18 @@ export async function getCurrentUser(next?: string): Promise<User> {
 }
 
 /**
+ * For a backend call that answers 401 although the access cookie was present (the token expired
+ * between getCurrentUser and the call): redirect exactly as getCurrentUser does. Any other error is
+ * rethrown.
+ */
+export async function redirectOnUnauthorized(error: unknown): Promise<never> {
+  if (!(error instanceof ApiError && error.status === 401)) throw error;
+  const next = await requestedPath();
+  const hasRefresh = (await cookies()).has(REFRESH_COOKIE);
+  redirect(hasRefresh ? refreshPath(next) : "/login");
+}
+
+/**
  * Where to return after a refresh when the caller gave no path (the sidebar panel renders on every
  * page). The proxy copies the requested path into this header; "/" only when it is absent.
  */
