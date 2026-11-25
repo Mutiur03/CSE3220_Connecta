@@ -8,6 +8,8 @@ import com.connecta.backend.inbox.service.ParticipantProfileService;
 import com.connecta.backend.inbox.service.ProfileTarget;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -16,7 +18,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /**
  * Observer: after a message is committed, looks the customer up on Meta when the profile is due (no name, never
  * looked up, or the stored picture is older than the TTL) and saves name and picture. After a history import it
- * does the same for a bounded number of customers never looked up. It runs on a small bounded executor so the
+ * does the same for a bounded number of customers never looked up, and so does the startup catch-up (any organization). It runs on a small bounded executor so the
  * webhook answer never waits for Meta, holds no database connection during the HTTP call, and never throws: a
  * failed lookup keeps the stored values and is retried by the next inbound message.
  */
@@ -49,6 +51,17 @@ public class CustomerProfileListener {
                     .forEach(this::refreshQuietly);
         } catch (RuntimeException e) {
             log.warn("Customer profile refresh after import failed: {}", e.getClass().getSimpleName());
+        }
+    }
+
+    /** Startup catch-up: customers connected before pictures existed, bounded by the same limit in total. */
+    @Async(ProfileLookupConfig.EXECUTOR)
+    @EventListener(ApplicationReadyEvent.class)
+    public void onApplicationReady() {
+        try {
+            profiles.findNeverLookedUp(lookup.importRefreshLimit()).forEach(this::refreshQuietly);
+        } catch (RuntimeException e) {
+            log.warn("Customer profile catch-up failed: {}", e.getClass().getSimpleName());
         }
     }
 

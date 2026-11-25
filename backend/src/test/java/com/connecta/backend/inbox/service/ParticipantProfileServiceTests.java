@@ -149,6 +149,18 @@ class ParticipantProfileServiceTests {
     class FindNeverLookedUp {
 
         @Test
+        void acrossOrganizationsAsksForAtMostTheLimitAndZeroSkipsTheQuery() {
+            when(conversations.findAllWithUnfetchedCustomer(any())).thenReturn(List.of(conversation));
+
+            assertThat(service.findNeverLookedUp(4)).containsExactly(target());
+            assertThat(service.findNeverLookedUp(0)).isEmpty();
+
+            ArgumentCaptor<Pageable> page = ArgumentCaptor.forClass(Pageable.class);
+            verify(conversations).findAllWithUnfetchedCustomer(page.capture());
+            assertThat(page.getValue().getPageSize()).isEqualTo(4);
+        }
+
+        @Test
         void asksForAtMostTheLimitInsideTheOrganization() {
             when(conversations.findWithUnfetchedCustomer(any(), any())).thenReturn(List.of(conversation));
 

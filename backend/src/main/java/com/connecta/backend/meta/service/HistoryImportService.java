@@ -22,7 +22,8 @@ import org.springframework.stereotype.Service;
  * is held across a Meta call and a failure part-way keeps what was stored; running again continues. Conversations
  * are read newest first, each stored oldest message first so the conversation last activity ends up right.
  * Stops at the configured limits and then reports {@code truncated}. After a successful run the account is marked
- * imported and one {@link HistoryImportedEvent} is published (no per-message pushes).
+ * imported and one {@link HistoryImportedEvent} is published (no per-message pushes), also when nothing new was stored, so
+ * customers still without a picture get looked up on a reconnect.
  *
  * <p>Only one import per account runs at a time: the guard is in memory, so it holds for a single server
  * instance. A second instance would only repeat work, since storing is idempotent.
@@ -66,8 +67,10 @@ public class HistoryImportService {
 
     private HistoryImportResult run(HistorySource source) {
         Tally tally = new Tally();
+        boolean completed = false;
         try {
             readAll(source, tally);
+            completed = true;
         } catch (HistoryPermissionException e) {
             recordFailure(source, HistoryImportFailure.PERMISSION);
             throw e;
@@ -75,7 +78,7 @@ public class HistoryImportService {
             recordFailure(source, HistoryImportFailure.FETCH);
             throw e;
         } finally {
-            if (tally.imported > 0) {
+            if (completed || tally.imported > 0) {
                 publisher.publishEvent(new HistoryImportedEvent(source.organizationId()));
             }
         }

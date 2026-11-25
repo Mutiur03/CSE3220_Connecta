@@ -143,4 +143,45 @@ class CustomerProfileListenerTests {
             assertThatCode(() -> listener().onHistoryImported(imported)).doesNotThrowAnyException();
         }
     }
+
+    @Nested
+    class OnApplicationReady {
+
+        @Test
+        void refreshesAtMostTheConfiguredLimitAcrossOrganizations() {
+            ProfileTarget other = new ProfileTarget(UUID.randomUUID(), UUID.randomUUID(), Channel.MESSENGER,
+                    "psid-2", null, null);
+            when(profiles.findNeverLookedUp(2)).thenReturn(List.of(customer, other));
+            when(clients.forChannel(Channel.MESSENGER)).thenReturn(client);
+            when(client.fetchProfile(any())).thenReturn(Optional.of(new CustomerProfile("Rina", PIC)));
+
+            listener().onApplicationReady();
+
+            verify(profiles).findNeverLookedUp(2);
+            verify(profiles).storeProfile(customer, "Rina", PIC);
+            verify(profiles).storeProfile(other, "Rina", PIC);
+        }
+
+        @Test
+        void oneFailingCustomerDoesNotStopTheRest() {
+            ProfileTarget other = new ProfileTarget(orgId, UUID.randomUUID(), Channel.INSTAGRAM, "ig-1", null, null);
+            CustomerProfileClient instagram = mock(CustomerProfileClient.class);
+            when(profiles.findNeverLookedUp(2)).thenReturn(List.of(customer, other));
+            when(clients.forChannel(Channel.MESSENGER)).thenReturn(client);
+            when(clients.forChannel(Channel.INSTAGRAM)).thenReturn(instagram);
+            when(client.fetchProfile(customer)).thenThrow(new ChannelNotConnectedException());
+            when(instagram.fetchProfile(other)).thenReturn(Optional.of(new CustomerProfile(null, PIC)));
+
+            listener().onApplicationReady();
+
+            verify(profiles).storeProfile(other, null, PIC);
+        }
+
+        @Test
+        void aDatabaseFailureNeverFailsStartup() {
+            when(profiles.findNeverLookedUp(2)).thenThrow(new IllegalStateException("db down"));
+
+            assertThatCode(() -> listener().onApplicationReady()).doesNotThrowAnyException();
+        }
+    }
 }
