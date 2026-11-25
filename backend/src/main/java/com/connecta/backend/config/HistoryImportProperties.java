@@ -25,7 +25,7 @@ public record HistoryImportProperties(Boolean enabled, int maxConversations, int
     static final int DEFAULT_MAX_CONVERSATIONS = 50;
     static final int DEFAULT_MESSAGES_PER_CONVERSATION = 50;
     static final int DEFAULT_MAX_MESSAGES = 1000;
-    static final int DEFAULT_PAGE_SIZE = 25;
+    static final int DEFAULT_PAGE_SIZE = 5;
     static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(15);
     static final int DEFAULT_WORKER_THREADS = 2;
     static final int DEFAULT_QUEUE_CAPACITY = 100;

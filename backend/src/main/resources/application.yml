@@ -149,7 +149,7 @@ app:
       max-conversations: 50
       messages-per-conversation: 50
       max-messages: 1000
-      page-size: 25
+      page-size: 5
       request-timeout: 15s
       worker-threads: 2
       queue-capacity: 100

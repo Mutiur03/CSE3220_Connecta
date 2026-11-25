@@ -79,7 +79,7 @@ class MessengerHistoryClientTests {
                         assertTrue(query.contains(
                                 "fields=participants,messages.limit(50){id,message,from,created_time,"
                                 + "attachments{mime_type,name,file_url,image_data{url},video_data{url}}}"), query);
-                        assertTrue(query.contains("limit=25"), query);
+                        assertTrue(query.contains("limit=5"), query);
                         assertFalse(request.getURI().getRawQuery().contains("access_token"));
                     })
                     .andRespond(withSuccess("{\"data\":[]}", MediaType.APPLICATION_JSON));
