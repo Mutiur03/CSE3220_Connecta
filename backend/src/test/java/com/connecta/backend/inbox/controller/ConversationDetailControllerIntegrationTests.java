@@ -16,8 +16,10 @@ import com.connecta.backend.common.dto.PageResponse;
 import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.ConversationStatus;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.MessageDirection;
 import com.connecta.backend.inbox.dto.ConversationDetailResponse;
+import com.connecta.backend.inbox.dto.AttachmentResponse;
 import com.connecta.backend.inbox.dto.MessageResponse;
 import com.connecta.backend.inbox.dto.ParticipantResponse;
 import com.connecta.backend.inbox.service.ConversationDetailService;
@@ -139,7 +141,7 @@ class ConversationDetailControllerIntegrationTests {
         @Test
         void returnsOnePageWithTheDefaultPaging() throws Exception {
             MessageResponse message = new MessageResponse(UUID.randomUUID(), MessageDirection.INBOUND, "hello",
-                    now, UUID.randomUUID(), "Rina");
+                    now, UUID.randomUUID(), "Rina", List.of());
             when(history.list(agent.getId().toString(), orgId, conversationId, 0, 20))
                     .thenReturn(new PageResponse<>(List.of(message), 0, 20, 1));
 
@@ -148,9 +150,30 @@ class ConversationDetailControllerIntegrationTests {
                     .andExpect(jsonPath("$.content[0].direction").value("INBOUND"))
                     .andExpect(jsonPath("$.content[0].text").value("hello"))
                     .andExpect(jsonPath("$.content[0].senderName").value("Rina"))
+                    .andExpect(jsonPath("$.content[0].attachments").isArray())
+                    .andExpect(jsonPath("$.content[0].attachments").isEmpty())
                     .andExpect(jsonPath("$.page").value(0))
                     .andExpect(jsonPath("$.size").value(20))
                     .andExpect(jsonPath("$.totalElements").value(1));
+        }
+
+        @Test
+        void returnsEachAttachmentWithItsKindUrlNameAndType() throws Exception {
+            UUID attachmentId = UUID.randomUUID();
+            MessageResponse message = new MessageResponse(UUID.randomUUID(), MessageDirection.INBOUND, "[Attachment]",
+                    now, null, null, List.of(new AttachmentResponse(attachmentId, AttachmentKind.FILE,
+                            "https://cdn.example/i.pdf", "invoice.pdf", "application/pdf")));
+            when(history.list(any(), any(), any(), eq(0), eq(20))).thenReturn(new PageResponse<>(List.of(message), 0,
+                    20, 1));
+
+            mvc.perform(get(base + "/messages").header(HttpHeaders.AUTHORIZATION, bearer(agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].text").value("[Attachment]"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].id").value(attachmentId.toString()))
+                    .andExpect(jsonPath("$.content[0].attachments[0].kind").value("FILE"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].url").value("https://cdn.example/i.pdf"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].fileName").value("invoice.pdf"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].contentType").value("application/pdf"));
         }
 
         @Test

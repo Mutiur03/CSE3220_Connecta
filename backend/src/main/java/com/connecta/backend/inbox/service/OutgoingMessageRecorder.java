@@ -9,6 +9,7 @@ import com.connecta.backend.org.service.ActiveCaller;
 import com.connecta.backend.user.domain.User;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +55,8 @@ public class OutgoingMessageRecorder {
         // A member who replies has read the thread.
         conversation.markRead();
         publish(saved);
-        return MessageResponse.from(saved);
+        // A reply sent from the composer is text only.
+        return MessageResponse.from(saved, List.of());
     }
 
     /** Attributes the already stored message in a fresh transaction. Empty when no such row exists. */
@@ -70,7 +72,8 @@ public class OutgoingMessageRecorder {
             log.info("The webhook echo stored a sent message first; attributed it to the sender");
             publish(stored);
         }
-        return MessageResponse.from(stored);
+        // The stored row is the echo of a text reply, so it has no attachments.
+        return MessageResponse.from(stored, List.of());
     }
 
     private void publish(Message message) {

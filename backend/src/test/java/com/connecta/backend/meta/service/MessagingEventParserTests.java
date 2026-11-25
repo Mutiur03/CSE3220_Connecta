@@ -1,14 +1,18 @@
 package com.connecta.backend.meta.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -48,6 +52,93 @@ class MessagingEventParserTests {
 
             assertEquals("[Photo]", messages.get(0).text());
             assertEquals(WebhookObject.INSTAGRAM, messages.get(0).channel());
+        }
+    }
+
+    @Nested
+    class Attachments {
+
+        private NormalizedMessage withAttachments(String attachmentsJson) {
+            return parser.parse(WebhookObject.PAGE, entry("{\"sender\":{\"id\":\"customer-1\"},"
+                    + "\"message\":{\"mid\":\"m.9\",\"attachments\":[" + attachmentsJson + "]}}")).get(0);
+        }
+
+        @ParameterizedTest
+        @CsvSource({
+            "image, IMAGE, [Photo]",
+            "video, VIDEO, [Video]",
+            "ig_reel, VIDEO, [Video]",
+            "audio, AUDIO, [Voice message]",
+            "file, FILE, [Attachment]"})
+        void eachKnownTypeKeepsItsUrlAndLabelsTheText(String type, AttachmentKind kind, String label) {
+            NormalizedMessage message = withAttachments(
+                    "{\"type\":\"" + type + "\",\"payload\":{\"url\":\"https://cdn.example/a\"}}");
+
+            assertEquals(label, message.text());
+            assertEquals(1, message.attachments().size());
+            assertEquals(kind, message.attachments().get(0).kind());
+            assertEquals("https://cdn.example/a", message.attachments().get(0).url());
+            assertNull(message.attachments().get(0).contentType());
+        }
+
+        @Test
+        void everyAttachmentIsKeptInOrderWithItsNameWhenPresent() {
+            NormalizedMessage message = withAttachments(
+                    "{\"type\":\"image\",\"payload\":{\"url\":\"https://cdn.example/1.jpg\"}},"
+                    + "{\"type\":\"file\",\"payload\":{\"url\":\"https://cdn.example/2\",\"name\":\"a.pdf\"}}");
+
+            assertEquals("[Photo]", message.text());
+            assertEquals(2, message.attachments().size());
+            assertNull(message.attachments().get(0).fileName());
+            assertEquals("a.pdf", message.attachments().get(1).fileName());
+        }
+
+        @Test
+        void textIsKeptAlongsideAnAttachment() {
+            NormalizedMessage message = parser.parse(WebhookObject.INSTAGRAM, entry(
+                    "{\"sender\":{\"id\":\"ig-customer\"},\"message\":{\"mid\":\"m.2\",\"text\":\"Look\","
+                    + "\"attachments\":[{\"type\":\"image\",\"payload\":{\"url\":\"https://cdn.example/p\"}}]}}"))
+                    .get(0);
+
+            assertEquals("Look", message.text());
+            assertEquals(WebhookObject.INSTAGRAM, message.channel());
+            assertEquals(AttachmentKind.IMAGE, message.attachments().get(0).kind());
+        }
+
+        @Test
+        void anUnknownTypeKeepsOnlyTheGenericLabel() {
+            NormalizedMessage message = withAttachments(
+                    "{\"type\":\"location\",\"payload\":{\"url\":\"https://maps.example/x\"}}");
+
+            assertEquals("[Attachment]", message.text());
+            assertTrue(message.attachments().isEmpty());
+        }
+
+        @Test
+        void anAttachmentWithoutAUrlKeepsOnlyItsLabel() {
+            NormalizedMessage message = withAttachments("{\"type\":\"image\"}");
+
+            assertEquals("[Photo]", message.text());
+            assertTrue(message.attachments().isEmpty());
+        }
+
+        @ParameterizedTest
+        @CsvSource({"javascript:alert(1)", "ftp://cdn.example/a", "/relative/path", "https://"})
+        void aUrlThatIsNotAnAbsoluteWebUrlIsIgnored(String url) {
+            NormalizedMessage message = withAttachments(
+                    "{\"type\":\"video\",\"payload\":{\"url\":\"" + url + "\"}}");
+
+            assertEquals("[Video]", message.text());
+            assertTrue(message.attachments().isEmpty());
+        }
+
+        @Test
+        void aMalformedAttachmentListIsIgnored() {
+            NormalizedMessage message = parser.parse(WebhookObject.PAGE, entry(
+                    "{\"sender\":{\"id\":\"c\"},\"message\":{\"mid\":\"m.5\",\"text\":\"hi\","
+                    + "\"attachments\":{\"type\":\"image\"}}}")).get(0);
+
+            assertTrue(message.attachments().isEmpty());
         }
     }
 

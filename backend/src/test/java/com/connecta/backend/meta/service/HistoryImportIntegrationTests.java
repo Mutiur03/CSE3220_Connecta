@@ -98,7 +98,8 @@ class HistoryImportIntegrationTests {
     ApplicationEvents published;
 
     private static NormalizedMessage message(String id, String peer, Direction direction, String sentAt) {
-        return new NormalizedMessage(WebhookObject.PAGE, id, peer, direction, "text " + id, Instant.parse(sentAt));
+        return new NormalizedMessage(WebhookObject.PAGE, id, peer, direction, "text " + id, Instant.parse(sentAt),
+                List.of());
     }
 
     private HistoryConversation rina(String suffix) {

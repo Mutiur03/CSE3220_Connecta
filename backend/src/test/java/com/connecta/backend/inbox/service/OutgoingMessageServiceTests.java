@@ -21,6 +21,7 @@ import com.connecta.backend.meta.service.ChannelSendFailedException;
 import com.connecta.backend.meta.service.MessagingWindowClosedException;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.service.NotAMemberException;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,7 +57,7 @@ class OutgoingMessageServiceTests {
     private final String subject = UUID.randomUUID().toString();
     private final Conversation thread = new Conversation(organization, Channel.MESSENGER, "psid-1");
     private final MessageResponse stored = new MessageResponse(UUID.randomUUID(), MessageDirection.OUTBOUND,
-            "hello", null, UUID.randomUUID(), "Agent");
+            "hello", null, UUID.randomUUID(), "Agent", List.of());
 
     @BeforeEach
     void setUp() {

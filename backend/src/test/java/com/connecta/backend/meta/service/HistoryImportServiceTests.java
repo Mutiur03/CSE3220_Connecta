@@ -82,7 +82,7 @@ class HistoryImportServiceTests {
 
     private static NormalizedMessage message(String id, String peer) {
         return new NormalizedMessage(WebhookObject.PAGE, id, peer, Direction.INBOUND, "hi " + id,
-                Instant.parse("2026-11-20T10:00:00Z"));
+                Instant.parse("2026-11-20T10:00:00Z"), List.of());
     }
 
     private static HistoryConversation conversation(String peer, String name, boolean more, String... ids) {

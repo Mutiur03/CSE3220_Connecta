@@ -97,9 +97,9 @@ class WebhookEventProcessorTests {
             processor.process(event(WebhookObject.PAGE, PAGE_PAYLOAD));
 
             verify(inbox).receive(acmePage, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT));
+                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT, List.of()));
             verify(inbox).receive(otherPage, new NormalizedMessage(WebhookObject.PAGE, "m.1", "customer-1",
-                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT));
+                            NormalizedMessage.Direction.INBOUND, "Hi", SENT_AT, List.of()));
         }
 
         @Test

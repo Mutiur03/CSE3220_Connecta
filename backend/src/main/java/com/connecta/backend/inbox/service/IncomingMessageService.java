@@ -4,10 +4,12 @@ import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationParticipant;
 import com.connecta.backend.inbox.domain.Message;
+import com.connecta.backend.inbox.domain.MessageAttachment;
 import com.connecta.backend.inbox.domain.MessageDirection;
 import com.connecta.backend.inbox.domain.Participant;
 import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
 import com.connecta.backend.inbox.repository.ConversationRepository;
+import com.connecta.backend.inbox.repository.MessageAttachmentRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.meta.domain.ConnectedChannelAccount;
@@ -23,8 +25,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The persist step of webhook intake: stores one normalized Meta message in one organization's inbox. The
- * customer and the conversation (organization, channel, thread) are found or created (a new conversation records the connected account the webhook arrived on; later messages never change it), the message is saved
- * unless the organization already has that provider message id, and a {@link MessageReceivedEvent} is published.
+ * customer and the conversation (organization, channel, thread) are found or created (a new conversation records
+ * the connected account the webhook arrived on; later messages never change it), the message and its attachments
+ * are saved in the same transaction unless the organization already has that provider message id, and a
+ * {@link MessageReceivedEvent} is published.
  * A live customer message marks the conversation unread; history imports leave the read state alone.
  * Every lookup is scoped by organization, so another tenant's rows are never read or reused.
  */
@@ -37,6 +41,7 @@ public class IncomingMessageService {
     private final ConversationRepository conversations;
     private final ConversationParticipantRepository links;
     private final MessageRepository messages;
+    private final MessageAttachmentRepository attachments;
     private final ApplicationEventPublisher publisher;
 
     @Transactional
@@ -66,6 +71,7 @@ public class IncomingMessageService {
         Conversation conversation = existing
                 .orElseGet(() -> startConversation(organization, account, channel, customer, incoming.peerId()));
         Message saved = messages.save(toMessage(conversation, customer, incoming));
+        saveAttachments(saved, incoming);
         conversation.recordMessageAt(incoming.sentAt());
         if (announce) {
             if (saved.getDirection() == MessageDirection.INBOUND) {
@@ -97,6 +103,13 @@ public class IncomingMessageService {
         Conversation conversation = conversations.save(created);
         links.save(new ConversationParticipant(conversation, customer));
         return conversation;
+    }
+
+    private void saveAttachments(Message message, NormalizedMessage incoming) {
+        if (!incoming.attachments().isEmpty()) {
+            attachments.saveAll(incoming.attachments().stream().map(file -> new MessageAttachment(message,
+                    file.kind(), file.url(), file.fileName(), file.contentType())).toList());
+        }
     }
 
     private static Message toMessage(Conversation conversation, Participant customer, NormalizedMessage incoming) {

@@ -1,6 +1,7 @@
 package com.connecta.backend.inbox.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -8,11 +9,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.connecta.backend.config.JwtProperties;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationStatus;
+import com.connecta.backend.inbox.domain.Message;
+import com.connecta.backend.inbox.domain.MessageAttachment;
 import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
 import com.connecta.backend.inbox.repository.ConversationRepository;
+import com.connecta.backend.inbox.repository.MessageAttachmentRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.org.domain.Organization;
@@ -27,6 +32,7 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.repository.RoleRepository;
 import com.connecta.backend.user.repository.UserRepository;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -103,6 +109,9 @@ class ConversationTenantIsolationIntegrationTests {
 
     @Autowired
     MessageRepository messages;
+
+    @Autowired
+    MessageAttachmentRepository attachments;
 
     private Organization orgA;
     private Organization orgB;
@@ -223,6 +232,45 @@ class ConversationTenantIsolationIntegrationTests {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.detail").value("Conversation not found"))
                     .andExpect(jsonPath("$.content").doesNotExist());
+        }
+    }
+
+    @Nested
+    class Attachments {
+
+        private Message messageOfA;
+
+        @BeforeEach
+        void anAttachmentOnAsMessage() {
+            messageOfA = messages.findAll().stream()
+                    .filter(message -> message.getConversation().getId().equals(conversationOfA.getId()))
+                    .findFirst().orElseThrow();
+            attachments.saveAndFlush(new MessageAttachment(messageOfA, AttachmentKind.IMAGE,
+                    "https://cdn.example/a.jpg", "a.jpg", "image/jpeg"));
+        }
+
+        @Test
+        void aReadsItsMessageWithTheAttachment() throws Exception {
+            mvc.perform(get(conversation(orgA) + "/messages").header(HttpHeaders.AUTHORIZATION, asA()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].attachments[0].kind").value("IMAGE"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].url").value("https://cdn.example/a.jpg"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].fileName").value("a.jpg"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].contentType").value("image/jpeg"));
+        }
+
+        @Test
+        void bNeverReachesAsAttachment() throws Exception {
+            mvc.perform(get(conversation(orgB) + "/messages").header(HttpHeaders.AUTHORIZATION, asB()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.content").doesNotExist());
+        }
+
+        @Test
+        void loadingAsMessageIdsUnderBsOrganizationFindsNothing() {
+            assertTrue(attachments.findByMessage(orgB.getId(), List.of(messageOfA.getId())).isEmpty());
+            assertEquals(1, attachments.findByMessage(orgA.getId(), List.of(messageOfA.getId()))
+                    .get(messageOfA.getId()).size());
         }
     }
 

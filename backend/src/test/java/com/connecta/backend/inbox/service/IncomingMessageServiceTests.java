@@ -6,30 +6,36 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationParticipant;
 import com.connecta.backend.inbox.domain.Message;
+import com.connecta.backend.inbox.domain.MessageAttachment;
 import com.connecta.backend.inbox.domain.MessageDirection;
 import com.connecta.backend.inbox.domain.Participant;
 import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
 import com.connecta.backend.inbox.repository.ConversationRepository;
+import com.connecta.backend.inbox.repository.MessageAttachmentRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.domain.WebhookObject;
+import com.connecta.backend.meta.service.NormalizedAttachment;
 import com.connecta.backend.meta.service.NormalizedMessage;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +52,7 @@ class IncomingMessageServiceTests {
     private ConversationRepository conversations;
     private ConversationParticipantRepository links;
     private MessageRepository messages;
+    private MessageAttachmentRepository attachments;
     private ApplicationEventPublisher publisher;
     private IncomingMessageService service;
 
@@ -61,8 +68,10 @@ class IncomingMessageServiceTests {
         conversations = mock(ConversationRepository.class);
         links = mock(ConversationParticipantRepository.class);
         messages = mock(MessageRepository.class);
+        attachments = mock(MessageAttachmentRepository.class);
         publisher = mock(ApplicationEventPublisher.class);
-        service = new IncomingMessageService(participants, conversations, links, messages, publisher);
+        service = new IncomingMessageService(participants, conversations, links, messages, attachments,
+                publisher);
         acme = organization();
         other = organization();
         acmePage = new MetaConnectedPage(acme, "page-1");
@@ -89,7 +98,7 @@ class IncomingMessageServiceTests {
     }
 
     private static NormalizedMessage message(WebhookObject object, Direction direction, String mid) {
-        return new NormalizedMessage(object, mid, "customer-1", direction, "Hi", SENT_AT);
+        return new NormalizedMessage(object, mid, "customer-1", direction, "Hi", SENT_AT, List.of());
     }
 
     private MessageReceivedEvent publishedEvent() {
@@ -225,6 +234,75 @@ class IncomingMessageServiceTests {
             assertNull(saved.getValue().getSentByUser());
             assertNull(saved.getValue().getSenderParticipant());
             assertEquals(MessageDirection.OUTBOUND, publishedEvent().direction());
+        }
+    }
+
+    @Nested
+    class Attachments {
+
+        private final NormalizedAttachment photo = new NormalizedAttachment(AttachmentKind.IMAGE,
+                "https://cdn.example/p.jpg", null, null);
+        private final NormalizedAttachment file = new NormalizedAttachment(AttachmentKind.FILE,
+                "https://cdn.example/f.pdf", "invoice.pdf", "application/pdf");
+
+        private NormalizedMessage withFiles(String mid, NormalizedAttachment... files) {
+            return new NormalizedMessage(WebhookObject.PAGE, mid, "customer-1", Direction.INBOUND, "[Photo]",
+                    SENT_AT, List.of(files));
+        }
+
+        @SuppressWarnings("unchecked")
+        private List<MessageAttachment> savedAttachments() {
+            ArgumentCaptor<List<MessageAttachment>> saved = ArgumentCaptor.forClass(List.class);
+            verify(attachments).saveAll(saved.capture());
+            return saved.getValue();
+        }
+
+        @Test
+        void eachAttachmentIsSavedInOrderOnTheMessageAndItsOrganization() {
+            service.receive(acmePage, withFiles("m.10", photo, file));
+
+            ArgumentCaptor<Message> message = ArgumentCaptor.forClass(Message.class);
+            verify(messages).save(message.capture());
+            List<MessageAttachment> saved = savedAttachments();
+            assertEquals(2, saved.size());
+            assertSame(message.getValue(), saved.get(0).getMessage());
+            assertEquals(acme, saved.get(0).getOrganization());
+            assertEquals(AttachmentKind.IMAGE, saved.get(0).getKind());
+            assertEquals("https://cdn.example/p.jpg", saved.get(0).getUrl());
+            assertEquals(AttachmentKind.FILE, saved.get(1).getKind());
+            assertEquals("invoice.pdf", saved.get(1).getFileName());
+            assertEquals("application/pdf", saved.get(1).getContentType());
+            assertEquals("[Photo]", message.getValue().getBody());
+        }
+
+        @Test
+        void aHistoricalMessageStoresItsAttachmentsToo() {
+            service.importHistorical(acmePage, withFiles("h.10", photo));
+
+            assertEquals(1, savedAttachments().size());
+        }
+
+        @Test
+        void aMessageWithoutAttachmentsSavesNone() {
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.11"));
+
+            verify(attachments, never()).saveAll(anyList());
+        }
+
+        @Test
+        void aDuplicateMessageSavesNoAttachment() {
+            when(messages.existsByOrganizationIdAndExternalMessageId(acme.getId(), "m.12")).thenReturn(true);
+
+            service.receive(acmePage, withFiles("m.12", photo));
+
+            verify(attachments, never()).saveAll(anyList());
+        }
+
+        @Test
+        void anotherOrganizationsCopyBelongsToThatOrganization() {
+            service.receive(otherPage, withFiles("m.13", photo));
+
+            assertEquals(other, savedAttachments().get(0).getOrganization());
         }
     }
 

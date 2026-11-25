@@ -14,6 +14,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.connecta.backend.config.HistoryImportProperties;
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
@@ -76,7 +77,8 @@ class MessengerHistoryClientTests {
                         String query = URLDecoder.decode(request.getURI().getRawQuery(), StandardCharsets.UTF_8);
                         assertTrue(query.contains("platform=messenger"), query);
                         assertTrue(query.contains(
-                                "fields=participants,messages.limit(50){id,message,from,created_time}"), query);
+                                "fields=participants,messages.limit(50){id,message,from,created_time,"
+                                + "attachments{mime_type,name,file_url,image_data{url},video_data{url}}}"), query);
                         assertTrue(query.contains("limit=25"), query);
                         assertFalse(request.getURI().getRawQuery().contains("access_token"));
                     })
@@ -131,6 +133,65 @@ class MessengerHistoryClientTests {
         @Test
         void aShortPageOfMessagesIsNotMarkedAsHavingMore() {
             assertFalse(drain(client.conversations("page-1", "t")).get(0).moreMessages());
+        }
+    }
+
+    @Nested
+    class Attachments {
+
+        private NormalizedMessage onlyMessage(String attachmentsJson, String text) {
+            server.expect(requestTo(org.hamcrest.Matchers.startsWith(BASE)))
+                    .andRespond(withSuccess("""
+                            {"data":[{"id":"t_1","participants":{"data":[{"id":"page-1"},{"id":"cust-1"}]},
+                             "messages":{"data":[{"id":"m1","message":"%s","from":{"id":"cust-1"},
+                               "created_time":"2026-11-20T10:00:00+0000","attachments":{"data":[%s]}}]}}]}
+                            """.formatted(text, attachmentsJson), MediaType.APPLICATION_JSON));
+            return drain(client.conversations("page-1", "t")).get(0).messages().get(0);
+        }
+
+        @Test
+        void imageDataBecomesAnImageAndLabelsAnEmptyText() {
+            NormalizedMessage message = onlyMessage(
+                    "{\"mime_type\":\"image/jpeg\",\"name\":\"p.jpg\",\"image_data\":{\"url\":\"https://cdn.example/p.jpg\"}}",
+                    "");
+
+            assertEquals("[Photo]", message.text());
+            NormalizedAttachment image = message.attachments().get(0);
+            assertEquals(AttachmentKind.IMAGE, image.kind());
+            assertEquals("https://cdn.example/p.jpg", image.url());
+            assertEquals("p.jpg", image.fileName());
+            assertEquals("image/jpeg", image.contentType());
+        }
+
+        @Test
+        void videoDataBecomesAVideoAndTextIsKept() {
+            NormalizedMessage message = onlyMessage(
+                    "{\"video_data\":{\"url\":\"https://cdn.example/v.mp4\"}}", "Watch");
+
+            assertEquals("Watch", message.text());
+            assertEquals(AttachmentKind.VIDEO, message.attachments().get(0).kind());
+        }
+
+        @Test
+        void aFileUrlTakesItsKindFromTheMimeType() {
+            NormalizedMessage message = onlyMessage(
+                    "{\"mime_type\":\"audio/mpeg\",\"file_url\":\"https://cdn.example/a.mp3\"},"
+                    + "{\"mime_type\":\"application/pdf\",\"name\":\"i.pdf\",\"file_url\":\"https://cdn.example/i.pdf\"}",
+                    "");
+
+            assertEquals("[Voice message]", message.text());
+            assertEquals(AttachmentKind.AUDIO, message.attachments().get(0).kind());
+            assertEquals(AttachmentKind.FILE, message.attachments().get(1).kind());
+            assertEquals("i.pdf", message.attachments().get(1).fileName());
+        }
+
+        @Test
+        void anAttachmentWithoutAWebUrlIsSkippedAndTheLabelStays() {
+            NormalizedMessage message = onlyMessage(
+                    "{\"id\":\"a1\"},{\"file_url\":\"javascript:alert(1)\"}", "");
+
+            assertEquals("[Attachment]", message.text());
+            assertTrue(message.attachments().isEmpty());
         }
     }
 

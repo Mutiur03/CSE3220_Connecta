@@ -15,6 +15,7 @@ import com.connecta.backend.inbox.dto.MessageResponse;
 import com.connecta.backend.inbox.service.MessageLookupService;
 import com.connecta.backend.inbox.service.MessageReceivedEvent;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Nested;
@@ -34,7 +35,7 @@ class InboxRealtimeListenerTests {
     private final MessageReceivedEvent event = new MessageReceivedEvent(orgId, conversationId, messageId,
             Channel.MESSENGER, MessageDirection.INBOUND, true);
     private final MessageResponse message = new MessageResponse(messageId, MessageDirection.INBOUND, "hello",
-            Instant.parse("2026-11-24T10:00:00Z"), UUID.randomUUID(), "Rina");
+            Instant.parse("2026-11-24T10:00:00Z"), UUID.randomUUID(), "Rina", List.of());
 
     @Mock
     MessageLookupService messages;

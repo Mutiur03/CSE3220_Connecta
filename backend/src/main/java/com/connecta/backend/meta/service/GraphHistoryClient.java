@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.HistoryImportProperties;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
 import java.net.URI;
@@ -16,6 +17,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
@@ -32,14 +34,17 @@ import tools.jackson.databind.JsonNode;
  * follows {@code paging.next} lazily and turns each conversation into a {@link HistoryConversation}. Subclasses
  * supply the host, the product and the Graph product name. Messages are oldest first in the result.
  *
+ * <p>Each message's {@code attachments} edge is read as image, video or file data; an attachment of another
+ * shape, or without an http(s) URL, is skipped and the message keeps only its label.
+ *
  * <p>Never logs the token or a paging URL (it can carry a token). A paging URL on another host is refused.
  */
 @Slf4j
 abstract class GraphHistoryClient implements ConversationHistoryClient {
 
-    static final String ATTACHMENT_LABEL = "[Attachment]";
-
-    private static final String FIELDS = "participants,messages.limit(%d){id,message,from,created_time}";
+    private static final String FIELDS = "participants,messages.limit(%d){id,message,from,created_time,"
+            + "attachments{mime_type,name,file_url,image_data{url},video_data{url}}}";
+    private static final String URL = "url";
     private static final DateTimeFormatter GRAPH_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
     private static final int HTTPS_PORT = 443;
     private static final int PERMISSION_CODE_DENIED = 10;
@@ -291,10 +296,48 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         if (id.isBlank() || sentAt == null) {
             return Optional.empty();
         }
+        List<NormalizedAttachment> attachments = attachmentsOf(message);
         String text = message.path("message").asText("");
+        if (text.isBlank()) {
+            text = attachments.isEmpty() ? AttachmentKind.FILE.label() : attachments.get(0).kind().label();
+        }
         return Optional.of(new NormalizedMessage(object(), id, peerId,
-                outbound ? Direction.OUTBOUND : Direction.INBOUND, text.isBlank() ? ATTACHMENT_LABEL : text,
-                sentAt));
+                outbound ? Direction.OUTBOUND : Direction.INBOUND, text, sentAt, attachments));
+    }
+
+    private static List<NormalizedAttachment> attachmentsOf(JsonNode message) {
+        List<NormalizedAttachment> found = new ArrayList<>();
+        for (JsonNode attachment : message.path("attachments").path("data")) {
+            toAttachment(attachment).ifPresent(found::add);
+        }
+        return found;
+    }
+
+    /** Image data, then video data, then a file URL whose kind follows its MIME type. */
+    private static Optional<NormalizedAttachment> toAttachment(JsonNode attachment) {
+        String name = attachment.path("name").asText("");
+        String mimeType = attachment.path("mime_type").asText("");
+        String image = attachment.path("image_data").path(URL).asText("");
+        if (!image.isBlank()) {
+            return NormalizedAttachment.of(AttachmentKind.IMAGE, image, name, mimeType);
+        }
+        String video = attachment.path("video_data").path(URL).asText("");
+        if (!video.isBlank()) {
+            return NormalizedAttachment.of(AttachmentKind.VIDEO, video, name, mimeType);
+        }
+        return NormalizedAttachment.of(kindOfMimeType(mimeType), attachment.path("file_url").asText(""), name,
+                mimeType);
+    }
+
+    private static AttachmentKind kindOfMimeType(String mimeType) {
+        String type = mimeType.toLowerCase(Locale.ROOT);
+        if (type.startsWith("image/")) {
+            return AttachmentKind.IMAGE;
+        }
+        if (type.startsWith("video/")) {
+            return AttachmentKind.VIDEO;
+        }
+        return type.startsWith("audio/") ? AttachmentKind.AUDIO : AttachmentKind.FILE;
     }
 
     private static Instant parseTime(String value) {
