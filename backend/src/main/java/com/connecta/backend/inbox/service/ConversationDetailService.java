@@ -39,6 +39,14 @@ public class ConversationDetailService {
         return detail(conversations.saveAndFlush(conversation));
     }
 
+    /** Marks the conversation read or unread for the whole team. Any member may. */
+    @Transactional
+    public void updateReadState(String subject, UUID organizationId, UUID conversationId, boolean unread) {
+        Conversation conversation = find(subject, organizationId, conversationId);
+        conversation.changeReadState(unread);
+        conversations.saveAndFlush(conversation);
+    }
+
     /**
      * The conversation, when the caller is a member of the organization and the conversation belongs to it.
      * Other features (for example sending a reply) load a conversation through this method.

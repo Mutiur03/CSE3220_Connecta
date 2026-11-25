@@ -1,8 +1,10 @@
 package com.connecta.backend.inbox.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -165,6 +167,47 @@ class ConversationDetailServiceTests {
 
             assertThrows(ConversationNotFoundException.class, () -> service.updateStatus(subject, organizationId,
                     UUID.randomUUID(), ConversationStatus.CLOSED));
+        }
+    }
+
+    @Nested
+    class UpdateReadState {
+
+        @Test
+        void marksTheConversationRead() {
+            callerHolds(Roles.AGENT);
+            threadExists();
+            thread.markUnread();
+
+            service.updateReadState(subject, organizationId, thread.getId(), false);
+
+            assertFalse(thread.isUnread());
+            verify(conversations).saveAndFlush(thread);
+        }
+
+        @Test
+        void anAdminMarksItUnreadAgain() {
+            callerHolds(Roles.ADMIN);
+            threadExists();
+
+            service.updateReadState(subject, organizationId, thread.getId(), true);
+
+            assertTrue(thread.isUnread());
+        }
+
+        @Test
+        void aNonMemberIsNotFoundAndNothingIsSaved() {
+            assertThrows(NotAMemberException.class,
+                    () -> service.updateReadState(subject, organizationId, thread.getId(), false));
+            verify(conversations, never()).saveAndFlush(thread);
+        }
+
+        @Test
+        void anotherTenantsConversationIsNotFound() {
+            callerHolds(Roles.AGENT);
+
+            assertThrows(ConversationNotFoundException.class,
+                    () -> service.updateReadState(subject, organizationId, UUID.randomUUID(), false));
         }
     }
 

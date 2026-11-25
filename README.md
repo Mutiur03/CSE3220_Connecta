@@ -213,6 +213,8 @@ erDiagram
         string external_thread_id "unique per organization and channel"
         uuid meta_page_id FK "nullable, the Page of a Messenger conversation"
         uuid instagram_account_id FK "nullable, the account of an Instagram conversation"
+        string status "OPEN or CLOSED"
+        boolean unread "a customer wrote since a member read it"
         timestamp last_message_at "nullable" }
     ORGANIZATIONS ||--o{ PARTICIPANTS : owns
     PARTICIPANTS { uuid id PK
@@ -280,7 +282,7 @@ erDiagram
 | DELETE | `/api/organizations/{id}/products/{productId}/images/{imageId}` | `ADMIN` of it | 204 | Delete an image and its stored object. |
 | POST | `/api/organizations/{id}/products/{productId}/stock-movements` | any member | 201 | Record a stock movement: `RECEIVE` or `ISSUE` a `quantity` (>= 1), or `ADJUST` to an absolute level (`quantity` >= 0). Optional `reason` (max 255). The product row is locked while the stock changes. An `ISSUE` beyond stock is `422`; a quantity below its type's minimum is `400`. `Location` points to the movement. |
 | GET | `/api/organizations/{id}/products/{productId}/stock-movements` | any member | 200 | One product's movements, newest first (`page`, `size` max 100). |
-| GET | `/api/organizations/{id}/conversations` | any member | 200 | The inbox list, most recent message first (`page`, `size` max 100). Both channels in one list. Optional filters, combined with AND: `channel` (`INSTAGRAM`, `MESSENGER`, else `400`), `q` (customer name contains, ignoring case), `status` (`OPEN`, `CLOSED`, else `400`). Each row: `id`, `channel`, `status`, `participantName`, `avatarUrl` (the customer's Meta profile picture, an https link that may expire, or `null`), `lastMessagePreview` (max 140 chars), `lastMessageAt`. Non-member or another organization `404`. |
+| GET | `/api/organizations/{id}/conversations` | any member | 200 | The inbox list, most recent message first (`page`, `size` max 100). Both channels in one list. Optional filters, combined with AND: `channel` (`INSTAGRAM`, `MESSENGER`, else `400`), `q` (customer name contains, ignoring case), `status` (`OPEN`, `CLOSED`, else `400`). Each row: `id`, `channel`, `status`, `unread` (a customer wrote since a member last read it), `participantName`, `avatarUrl` (the customer's Meta profile picture, an https link that may expire, or `null`), `lastMessagePreview` (max 140 chars), `lastMessageAt`. Non-member or another organization `404`. |
 | GET | `/api/organizations/{id}/stock-movements` | any member | 200 | The organization's movements, newest first. Optional `productId` narrows to one product (must be this organization's, else `404`). |
 | GET | `/api/organizations/{id}/stock-movements/{movementId}` | any member | 200 | One movement. Another organization's id gets `404`. |
 | GET | `/api/organizations/{id}/inventory/summary` | any member | 200 | `productCount`, `totalUnits`, `stockValue` (stock times unit price, 2 decimals), `lowStockCount` and `outOfStockCount`. |
@@ -289,9 +291,10 @@ erDiagram
 | GET | `/api/organizations/{id}/product-categories/{categoryId}` | any member of it | 200 | One category. Another organization's id gets `404`. |
 | PUT | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 200 | Replace a category's name and description. `409` on a name clash. |
 | DELETE | `/api/organizations/{id}/product-categories/{categoryId}` | `ADMIN` of it | 204 | Delete a category. Its products stay, uncategorized. |
-| GET | `/api/organizations/{id}/conversations/{conversationId}` | `ADMIN` or `AGENT` of it | 200 | One conversation with participants and status. Another organization id gets `404`. |
+| GET | `/api/organizations/{id}/conversations/{conversationId}` | `ADMIN` or `AGENT` of it | 200 | One conversation with participants, status and `unread`. Another organization id gets `404`. |
 | GET | `/api/organizations/{id}/conversations/{conversationId}/messages` | `ADMIN` or `AGENT` of it | 200 | Message history, newest first (`page`, `size` max 100). |
 | PATCH | `/api/organizations/{id}/conversations/{conversationId}` | `ADMIN` or `AGENT` of it | 200 | Set the status (`OPEN` or `CLOSED`). `400` on a missing or unknown status. |
+| PUT | `/api/organizations/{id}/conversations/{conversationId}/read-state` | `ADMIN` or `AGENT` of it | 204 | Mark read `{unread: false}` or unread `{unread: true}` for the whole team. A live customer message marks a conversation unread; a reply from the team marks it read; imported history does neither. `400` missing flag, `404` non-member or another organization. |
 | POST | `/api/organizations/{id}/realtime/tickets` | `ADMIN` or `AGENT` of it | 201 | A single-use ticket for the live inbox WebSocket: `{"ticket", "expiresInSeconds"}` (30 s). Non-member or another organization `404`; too many tickets `429` with a `Retry-After` header (seconds). See Realtime below. |
 | POST | `/api/organizations/{id}/conversations/{conversationId}/messages` | `ADMIN` or `AGENT` of it | 201 | Send a reply `{text}` (1-1000 chars) through the conversation's channel (Messenger or Instagram) and store it as an outbound message; `Location` header and the message (`id`, `direction`, `text`, `sentAt`, `senderId`, `senderName`) in the body. `400` blank or too long, `404` non-member or another organization, `422` channel not connected, conversation not linked to one of several accounts, or Meta's reply window closed, `502` Meta failed (nothing stored). |
 | POST | `/api/organizations/{id}/meta/authorization` | `ADMIN` of it | 200 | Start connecting Meta. Returns `{"authorizationUrl"}`, the Facebook login dialog with a signed, 10-minute state. `503` if the Meta app is not configured. |

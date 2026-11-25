@@ -178,6 +178,28 @@ class IncomingMessageServiceTests {
         }
 
         @Test
+        void aCustomerMessageMarksTheConversationUnread() {
+            Conversation thread = withId(new Conversation(acme, Channel.MESSENGER, "customer-1"));
+            when(conversations.findByOrganizationIdAndChannelAndExternalThreadId(any(), any(), any()))
+                    .thenReturn(Optional.of(thread));
+
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.INBOUND, "m.7"));
+
+            assertTrue(thread.isUnread());
+        }
+
+        @Test
+        void anOutboundEchoLeavesTheReadStateAlone() {
+            Conversation thread = withId(new Conversation(acme, Channel.MESSENGER, "customer-1"));
+            when(conversations.findByOrganizationIdAndChannelAndExternalThreadId(any(), any(), any()))
+                    .thenReturn(Optional.of(thread));
+
+            service.receive(acmePage, message(WebhookObject.PAGE, Direction.OUTBOUND, "m.8"));
+
+            assertFalse(thread.isUnread());
+        }
+
+        @Test
         void anOlderMessageDoesNotRewindTheLastMessageTime() {
             Conversation thread = withId(new Conversation(acme, Channel.MESSENGER, "customer-1"));
             thread.recordMessageAt(SENT_AT.plusSeconds(60));
@@ -311,6 +333,7 @@ class IncomingMessageServiceTests {
             verify(conversations).save(conversation.capture());
             assertSame(acmePage, conversation.getValue().getMetaPage());
             assertEquals(SENT_AT, conversation.getValue().getLastMessageAt());
+            assertFalse(conversation.getValue().isUnread());
             verify(publisher, never()).publishEvent(any(Object.class));
         }
 

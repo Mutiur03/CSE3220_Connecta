@@ -173,6 +173,7 @@ class ConversationListControllerIntegrationTests {
                     .andExpect(jsonPath("$.content[0].id").value(newer.getId().toString()))
                     .andExpect(jsonPath("$.content[0].channel").value("MESSENGER"))
                     .andExpect(jsonPath("$.content[0].status").value("OPEN"))
+                    .andExpect(jsonPath("$.content[0].unread").value(false))
                     .andExpect(jsonPath("$.content[0].participantName").value("Bob"))
                     .andExpect(jsonPath("$.content[0].lastMessagePreview").value("Price?"))
                     .andExpect(jsonPath("$.content[0].lastMessageAt").exists())
@@ -221,6 +222,20 @@ class ConversationListControllerIntegrationTests {
                     .andExpect(jsonPath("$.totalElements").value(1))
                     .andExpect(jsonPath("$.content[0].participantName").value("Bob"))
                     .andExpect(jsonPath("$.content[0].status").value("CLOSED"));
+        }
+
+        @Test
+        void anUnreadConversationSaysSo() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            Conversation waiting = conversation(acme, Channel.INSTAGRAM, "Ann", "Hello?", TestClock.NOW);
+            waiting.markUnread();
+            conversations.saveAndFlush(waiting);
+
+            mvc.perform(get(path(acme)).header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].unread").value(true));
         }
 
         @Test

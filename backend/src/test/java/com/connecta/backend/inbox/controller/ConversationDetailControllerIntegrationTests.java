@@ -1,11 +1,14 @@
 package com.connecta.backend.inbox.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -75,7 +78,7 @@ class ConversationDetailControllerIntegrationTests {
     }
 
     private ConversationDetailResponse detail(ConversationStatus status) {
-        return new ConversationDetailResponse(conversationId, orgId, Channel.MESSENGER, status,
+        return new ConversationDetailResponse(conversationId, orgId, Channel.MESSENGER, status, false,
                 List.of(new ParticipantResponse(UUID.randomUUID(), "psid", "Rina", "https://cdn.example/r.jpg")), now, now, now);
     }
 
@@ -254,6 +257,58 @@ class ConversationDetailControllerIntegrationTests {
                     .thenThrow(new ConversationNotFoundException());
 
             mvc.perform(update(agent, "{\"status\":\"CLOSED\"}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Conversation not found"));
+        }
+    }
+
+    @Nested
+    class ReadState {
+
+        private MockHttpServletRequestBuilder mark(User user, String body) {
+            return put(base + "/read-state").header(HttpHeaders.AUTHORIZATION, bearer(user))
+                    .contentType(MediaType.APPLICATION_JSON).content(body);
+        }
+
+        @Test
+        void anAgentMarksTheConversationRead() throws Exception {
+            mvc.perform(mark(agent, "{\"unread\":false}")).andExpect(status().isNoContent());
+            verify(conversations).updateReadState(agent.getId().toString(), orgId, conversationId, false);
+        }
+
+        @Test
+        void anAdminMarksItUnread() throws Exception {
+            mvc.perform(mark(admin, "{\"unread\":true}")).andExpect(status().isNoContent());
+            verify(conversations).updateReadState(admin.getId().toString(), orgId, conversationId, true);
+        }
+
+        @Test
+        void requiresAuthentication() throws Exception {
+            mvc.perform(put(base + "/read-state").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"unread\":false}")).andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void aMissingFlagIsBadRequest() throws Exception {
+            mvc.perform(mark(agent, "{}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.unread").exists());
+        }
+
+        @Test
+        void aNonMemberIsNotFound() throws Exception {
+            doThrow(new NotAMemberException()).when(conversations).updateReadState(any(), any(), any(),
+                    anyBoolean());
+
+            mvc.perform(mark(agent, "{\"unread\":false}")).andExpect(status().isNotFound());
+        }
+
+        @Test
+        void anotherTenantsConversationIsNotFound() throws Exception {
+            doThrow(new ConversationNotFoundException()).when(conversations).updateReadState(any(), any(), any(),
+                    anyBoolean());
+
+            mvc.perform(mark(agent, "{\"unread\":false}"))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.detail").value("Conversation not found"));
         }

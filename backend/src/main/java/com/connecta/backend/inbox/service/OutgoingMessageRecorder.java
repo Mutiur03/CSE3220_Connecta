@@ -51,6 +51,8 @@ public class OutgoingMessageRecorder {
         Instant now = clock.instant();
         Message saved = messages.saveAndFlush(Message.outbound(conversation, agent, externalId, text, now));
         conversation.recordMessageAt(now);
+        // A member who replies has read the thread.
+        conversation.markRead();
         publish(saved);
         return MessageResponse.from(saved);
     }
