@@ -154,6 +154,13 @@ app:
       worker-threads: 2
       queue-capacity: 100
       max-graph-pages: 200
+    # Safety net behind the webhook: at startup and every interval the newest messages of each connected account
+    # are read and any missing one is stored (idempotent, nothing deleted). Smaller than a full import.
+    sync:
+      enabled: true
+      interval: 10m
+      max-conversations: 10
+      messages-per-conversation: 10
     webhook:
       # Verify token Meta sends back when it subscribes the webhook. Blank refuses every subscription.
       verify-token: "${META_WEBHOOK_VERIFY_TOKEN:}"

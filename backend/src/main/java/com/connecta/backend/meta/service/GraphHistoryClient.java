@@ -103,7 +103,13 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
 
     @Override
     public Iterator<HistoryConversation> conversations(String accountExternalId, String accessToken) {
-        return new Pages(accountExternalId, accessToken);
+        return conversations(accountExternalId, accessToken, HistoryBounds.of(limits));
+    }
+
+    @Override
+    public Iterator<HistoryConversation> conversations(String accountExternalId, String accessToken,
+            HistoryBounds bounds) {
+        return new Pages(accountExternalId, accessToken, bounds);
     }
 
     private final class Pages implements Iterator<HistoryConversation> {
@@ -116,10 +122,12 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         private int fetchedMessages;
         private int graphRequests;
         private final Set<URI> followed = new HashSet<>();
+        private final HistoryBounds bounds;
 
-        Pages(String accountId, String token) {
+        Pages(String accountId, String token, HistoryBounds bounds) {
             this.accountId = accountId;
             this.token = token;
+            this.bounds = bounds;
         }
 
         @Override
@@ -185,7 +193,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private RestClient.RequestHeadersSpec<?> firstRequest(String fieldList) {
-            String fields = fieldList.formatted(limits.messagesPerConversation());
+            String fields = fieldList.formatted(bounds.messagesPerConversation());
             return graph.get().uri("/{id}/conversations?platform={platform}&fields={fields}&limit={limit}",
                     accountId, platform(), fields, limits.pageSize());
         }
@@ -254,13 +262,13 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                 }
                 page = next == null ? page : fetch(graph.get().uri(next));
             } while (next != null);
-            int keep = limits.messagesPerConversation();
+            int keep = bounds.messagesPerConversation();
             truncation.more = next != null || messages.size() > keep;
             return messages.size() > keep ? messages.subList(0, keep) : messages;
         }
 
         private boolean withinLimits(int conversationMessages) {
-            return conversationMessages < limits.messagesPerConversation() && fetchedMessages < limits.maxMessages();
+            return conversationMessages < bounds.messagesPerConversation() && fetchedMessages < bounds.maxMessages();
         }
     }
 

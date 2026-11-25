@@ -14,4 +14,7 @@ public interface ConversationHistoryClient {
      * or {@link HistoryPermissionException}.
      */
     Iterator<HistoryConversation> conversations(String accountExternalId, String accessToken);
+
+    /** The same read with its own bounds, so the recent-message sync can ask for less than a full import. */
+    Iterator<HistoryConversation> conversations(String accountExternalId, String accessToken, HistoryBounds bounds);
 }

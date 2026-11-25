@@ -44,6 +44,14 @@ class HistoryAccountStore {
     }
 
     @Transactional
+    void markSynced(Channel channel, UUID accountId, Instant at) {
+        switch (channel) {
+            case MESSENGER -> pages.findById(accountId).ifPresent(page -> page.markSynced(at));
+            case INSTAGRAM -> accounts.findById(accountId).ifPresent(account -> account.markSynced(at));
+        }
+    }
+
+    @Transactional
     void markFailed(Channel channel, UUID accountId, HistoryImportFailure failure, Instant at) {
         switch (channel) {
             case MESSENGER -> pages.findById(accountId)
@@ -59,6 +67,16 @@ class HistoryAccountStore {
                 pages.findAllByHistoryImportedAtIsNull().stream()
                         .map(page -> new PendingHistoryImport(Channel.MESSENGER, page.getId())),
                 accounts.findAllByHistoryImportedAtIsNull().stream()
+                        .map(account -> new PendingHistoryImport(Channel.INSTAGRAM, account.getId())))
+                .toList();
+    }
+
+    /** Every connected Page and Instagram account, for the recent-message sync. */
+    @Transactional(readOnly = true)
+    List<PendingHistoryImport> connected() {
+        return Stream.concat(
+                pages.findAll().stream().map(page -> new PendingHistoryImport(Channel.MESSENGER, page.getId())),
+                accounts.findAll().stream()
                         .map(account -> new PendingHistoryImport(Channel.INSTAGRAM, account.getId())))
                 .toList();
     }

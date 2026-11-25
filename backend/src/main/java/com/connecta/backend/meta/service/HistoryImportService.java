@@ -54,6 +54,23 @@ public class HistoryImportService {
      * @throws HistoryPermissionException when Meta refuses to share conversations
      */
     public Optional<HistoryImportResult> importHistory(Channel channel, UUID accountId) {
+        return read(channel, accountId, HistoryBounds.of(limits), true);
+    }
+
+    /**
+     * Template Method over the import: the same read and idempotent store with smaller bounds, as the safety
+     * net behind the webhook. It never marks the account imported or failed (a small read says nothing about
+     * the full history); on success it records the sync time, and it announces new messages only when it
+     * stored some.
+     *
+     * @throws HistoryImportInProgressException when this account is already being imported or synced
+     */
+    public Optional<HistoryImportResult> syncRecent(Channel channel, UUID accountId, HistoryBounds bounds) {
+        return read(channel, accountId, bounds, false);
+    }
+
+    private Optional<HistoryImportResult> read(Channel channel, UUID accountId, HistoryBounds bounds,
+            boolean full) {
         Optional<HistorySource> source = store.find(channel, accountId);
         if (source.isEmpty()) {
             return Optional.empty();
@@ -62,17 +79,30 @@ public class HistoryImportService {
             throw new HistoryImportInProgressException();
         }
         try {
-            return Optional.of(run(source.get()));
+            return Optional.of(full ? run(source.get(), bounds) : runSync(source.get(), bounds));
         } finally {
             running.remove(accountId);
         }
     }
 
-    private HistoryImportResult run(HistorySource source) {
+    private HistoryImportResult runSync(HistorySource source, HistoryBounds bounds) {
+        Tally tally = new Tally();
+        try {
+            readAll(source, tally, bounds);
+        } finally {
+            if (tally.changed() > 0) {
+                publisher.publishEvent(new HistoryImportedEvent(source.organizationId()));
+            }
+        }
+        store.markSynced(source.channel(), source.accountId(), clock.instant());
+        return tally.result();
+    }
+
+    private HistoryImportResult run(HistorySource source, HistoryBounds bounds) {
         Tally tally = new Tally();
         boolean completed = false;
         try {
-            readAll(source, tally);
+            readAll(source, tally, bounds);
             completed = true;
         } catch (HistoryPermissionException e) {
             recordFailure(source, HistoryImportFailure.PERMISSION);
@@ -86,31 +116,31 @@ public class HistoryImportService {
             }
         }
         store.markImported(source.channel(), source.accountId(), clock.instant());
-        return new HistoryImportResult(tally.conversations, tally.inserted, tally.updated, tally.unchanged,
-                tally.truncated);
+        return tally.result();
     }
 
     private void recordFailure(HistorySource source, HistoryImportFailure failure) {
         store.markFailed(source.channel(), source.accountId(), failure, clock.instant());
     }
 
-    private void readAll(HistorySource source, Tally tally) {
+    private void readAll(HistorySource source, Tally tally, HistoryBounds bounds) {
         String token = cipher.decrypt(source.encryptedToken());
         Iterator<HistoryConversation> history = clients.forChannel(source.channel())
-                .conversations(source.externalId(), token);
+                .conversations(source.externalId(), token, bounds);
         while (!tally.truncated && history.hasNext()) {
-            if (tally.conversations >= limits.maxConversations()) {
+            if (tally.conversations >= bounds.maxConversations()) {
                 tally.truncated = true;
                 break;
             }
-            importConversation(source, history.next(), tally);
+            importConversation(source, history.next(), tally, bounds);
         }
     }
 
-    private void importConversation(HistorySource source, HistoryConversation conversation, Tally tally) {
+    private void importConversation(HistorySource source, HistoryConversation conversation, Tally tally,
+            HistoryBounds bounds) {
         tally.conversations++;
         for (NormalizedMessage message : conversation.messages()) {
-            if (tally.changed() + tally.unchanged >= limits.maxMessages()) {
+            if (tally.changed() + tally.unchanged >= bounds.maxMessages()) {
                 tally.truncated = true;
                 return;
             }
@@ -135,6 +165,10 @@ public class HistoryImportService {
                 case UPDATED -> updated++;
                 case UNCHANGED -> unchanged++;
             }
+        }
+
+        HistoryImportResult result() {
+            return new HistoryImportResult(conversations, inserted, updated, unchanged, truncated);
         }
 
         int changed() {

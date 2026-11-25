@@ -58,6 +58,10 @@ public class MetaConnectedPage implements ConnectedChannelAccount {
     @Column(name = "history_import_error", length = 16)
     private HistoryImportFailure historyImportError;
 
+    /** When the scheduled recent-message sync last finished without error; null until one did. */
+    @Column(name = "last_synced_at")
+    private Instant lastSyncedAt;
+
     @Column(name = "history_import_failed_at")
     private Instant historyImportFailedAt;
 
@@ -85,6 +89,10 @@ public class MetaConnectedPage implements ConnectedChannelAccount {
         if (createdAt == null) {
             this.createdAt = now;
         }
+    }
+
+    public void markSynced(Instant at) {
+        this.lastSyncedAt = at;
     }
 
     public void markHistoryImported(Instant at) {
