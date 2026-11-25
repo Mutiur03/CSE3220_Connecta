@@ -51,6 +51,7 @@ abstract class GraphMessagingClient implements ChannelClient, AttachmentChannelC
             case VIDEO -> "video";
             case AUDIO -> "audio";
             case FILE -> "file";
+            case LINK -> throw new UnsupportedAttachmentException();
         };
     }
 

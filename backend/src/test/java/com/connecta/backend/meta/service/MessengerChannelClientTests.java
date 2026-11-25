@@ -186,9 +186,9 @@ class MessengerChannelClientTests {
         private static final String FILE_URL = "https://api.example.com/api/files/1";
 
         @Test
-        void supportsEveryKind() {
+        void supportsEveryMediaKindButNotALink() {
             for (AttachmentKind kind : AttachmentKind.values()) {
-                assertTrue(client.supports(kind), kind.name());
+                assertEquals(kind != AttachmentKind.LINK, client.supports(kind), kind.name());
             }
         }
 

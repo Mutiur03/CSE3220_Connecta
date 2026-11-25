@@ -160,11 +160,12 @@ class InstagramChannelClientTests {
         private static final String FILE_URL = "https://api.example.com/api/files/1";
 
         @Test
-        void supportsImageVideoAndAudioButNotAGenericFile() {
+        void supportsImageVideoAndAudioButNotAGenericFileOrALink() {
             assertTrue(client.supports(AttachmentKind.IMAGE));
             assertTrue(client.supports(AttachmentKind.VIDEO));
             assertTrue(client.supports(AttachmentKind.AUDIO));
             assertFalse(client.supports(AttachmentKind.FILE));
+            assertFalse(client.supports(AttachmentKind.LINK));
         }
 
         @Test

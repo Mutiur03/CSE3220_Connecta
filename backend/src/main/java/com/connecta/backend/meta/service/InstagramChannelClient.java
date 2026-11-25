@@ -45,7 +45,7 @@ class InstagramChannelClient extends GraphMessagingClient {
 
     @Override
     public boolean supports(AttachmentKind kind) {
-        return kind != AttachmentKind.FILE;
+        return kind != AttachmentKind.FILE && kind != AttachmentKind.LINK;
     }
 
     @Override

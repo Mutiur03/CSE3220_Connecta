@@ -42,7 +42,7 @@ class MessengerChannelClient extends GraphMessagingClient {
 
     @Override
     public boolean supports(AttachmentKind kind) {
-        return true;
+        return kind != AttachmentKind.LINK;
     }
 
     @Override

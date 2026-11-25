@@ -177,6 +177,23 @@ class ConversationDetailControllerIntegrationTests {
         }
 
         @Test
+        void returnsASharedPostAsALinkWithItsTitleAndNoContentType() throws Exception {
+            MessageResponse message = new MessageResponse(UUID.randomUUID(), MessageDirection.INBOUND,
+                    "[Shared post]", now, null, null, List.of(new AttachmentResponse(UUID.randomUUID(),
+                            AttachmentKind.LINK, "https://www.instagram.com/p/abc/", "Shared post", null)));
+            when(history.list(any(), any(), any(), eq(0), eq(20))).thenReturn(new PageResponse<>(List.of(message), 0,
+                    20, 1));
+
+            mvc.perform(get(base + "/messages").header(HttpHeaders.AUTHORIZATION, bearer(agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].text").value("[Shared post]"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].kind").value("LINK"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].url").value("https://www.instagram.com/p/abc/"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].fileName").value("Shared post"))
+                    .andExpect(jsonPath("$.content[0].attachments[0].contentType").doesNotExist());
+        }
+
+        @Test
         void passesPageAndSizeThrough() throws Exception {
             when(history.list(any(), any(), any(), eq(3), eq(100)))
                     .thenReturn(new PageResponse<>(List.of(), 3, 100, 0));

@@ -16,7 +16,8 @@ import tools.jackson.databind.JsonNode;
  * {@link NormalizedMessage}s. Messenger and Instagram send the same messaging shape, so one parser serves both;
  * the product is carried on each message. Events without a message id, or with neither text nor an attachment,
  * carry nothing to show and are skipped. Each attachment of a known type with an http(s) {@code payload.url} is
- * kept; any other attachment only contributes the label used as text when the message has none.
+ * kept: media by its kind, an Instagram {@code share} or {@code story_mention} as a LINK titled for what it is.
+ * Any other attachment only contributes the label used as text when the message has none.
  */
 @Component
 public class MessagingEventParser {
@@ -34,6 +35,11 @@ public class MessagingEventParser {
             "audio", AttachmentKind.AUDIO,
             "file", AttachmentKind.FILE);
 
+    /** Instagram's attachment types that point at a post, reel or story rather than media, by their title. */
+    private static final Map<String, String> LINK_TITLES = Map.of(
+            "share", NormalizedAttachment.SHARED_POST,
+            "story_mention", "Story mention");
+
     public List<NormalizedMessage> parse(WebhookObject object, JsonNode entry) {
         List<NormalizedMessage> messages = new ArrayList<>();
         for (JsonNode event : entry.path(MESSAGING)) {
@@ -45,7 +51,8 @@ public class MessagingEventParser {
     private static Optional<NormalizedMessage> parseOne(WebhookObject object, JsonNode event) {
         JsonNode message = event.path("message");
         String mid = message.path("mid").asText("");
-        String text = textOf(message);
+        List<NormalizedAttachment> attachments = attachmentsOf(message);
+        String text = textOf(message, attachments);
         if (mid.isBlank() || text == null) {
             return Optional.empty();
         }
@@ -57,14 +64,16 @@ public class MessagingEventParser {
         }
         Instant sentAt = Instant.ofEpochMilli(event.path("timestamp").asLong(0));
         Direction direction = echo ? Direction.OUTBOUND : Direction.INBOUND;
-        return Optional.of(new NormalizedMessage(object, mid, peerId, direction, text, sentAt,
-                attachmentsOf(message)));
+        return Optional.of(new NormalizedMessage(object, mid, peerId, direction, text, sentAt, attachments));
     }
 
-    /** The text, or a label for the first attachment, or null when there is neither. */
-    private static String textOf(JsonNode message) {
+    /** The text, or the label of the first kept attachment, or of the first sent one, or null when there is none. */
+    private static String textOf(JsonNode message, List<NormalizedAttachment> kept) {
         if (message.hasNonNull("text") && !message.path("text").asText().isBlank()) {
             return message.path("text").asText();
+        }
+        if (!kept.isEmpty()) {
+            return kept.get(0).label();
         }
         JsonNode attachments = message.path(ATTACHMENTS);
         if (attachments.isArray() && !attachments.isEmpty()) {
@@ -80,13 +89,20 @@ public class MessagingEventParser {
             return found;
         }
         for (JsonNode attachment : attachments) {
-            JsonNode payload = attachment.path("payload");
-            String name = payload.path(NAME).asText(attachment.path(NAME).asText(""));
-            kindOf(attachment)
-                    .flatMap(kind -> NormalizedAttachment.of(kind, payload.path("url").asText(""), name, null))
-                    .ifPresent(found::add);
+            toAttachment(attachment).ifPresent(found::add);
         }
         return found;
+    }
+
+    private static Optional<NormalizedAttachment> toAttachment(JsonNode attachment) {
+        JsonNode payload = attachment.path("payload");
+        String url = payload.path("url").asText("");
+        String linkTitle = LINK_TITLES.get(attachment.path("type").asText(""));
+        if (linkTitle != null) {
+            return NormalizedAttachment.link(url, linkTitle);
+        }
+        String name = payload.path(NAME).asText(attachment.path(NAME).asText(""));
+        return kindOf(attachment).flatMap(kind -> NormalizedAttachment.of(kind, url, name, null));
     }
 
     private static Optional<AttachmentKind> kindOf(JsonNode attachment) {

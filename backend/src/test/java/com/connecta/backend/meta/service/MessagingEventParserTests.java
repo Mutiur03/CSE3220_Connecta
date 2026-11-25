@@ -114,6 +114,29 @@ class MessagingEventParserTests {
             assertTrue(message.attachments().isEmpty());
         }
 
+        @ParameterizedTest
+        @CsvSource({"share, Shared post, [Shared post]", "story_mention, Story mention, [Story mention]"})
+        void aSharedPostOrStoryMentionBecomesATitledLink(String type, String title, String label) {
+            NormalizedMessage message = withAttachments("{\"type\":\"" + type
+                    + "\",\"payload\":{\"url\":\"https://www.instagram.com/p/abc/\"}}");
+
+            assertEquals(label, message.text());
+            assertEquals(1, message.attachments().size());
+            assertEquals(AttachmentKind.LINK, message.attachments().get(0).kind());
+            assertEquals("https://www.instagram.com/p/abc/", message.attachments().get(0).url());
+            assertEquals(title, message.attachments().get(0).fileName());
+            assertNull(message.attachments().get(0).contentType());
+        }
+
+        @Test
+        void aShareWithoutAWebUrlKeepsOnlyTheGenericLabel() {
+            NormalizedMessage message = withAttachments(
+                    "{\"type\":\"share\",\"payload\":{\"url\":\"javascript:alert(1)\"}}");
+
+            assertEquals("[Attachment]", message.text());
+            assertTrue(message.attachments().isEmpty());
+        }
+
         @Test
         void anAttachmentWithoutAUrlKeepsOnlyItsLabel() {
             NormalizedMessage message = withAttachments("{\"type\":\"image\"}");
