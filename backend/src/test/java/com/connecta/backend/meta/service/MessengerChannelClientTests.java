@@ -193,13 +193,13 @@ class MessengerChannelClientTests {
         }
 
         @Test
-        void postsTheAttachmentPayloadWithTheReusableUrlAndReturnsTheMessageId() {
+        void postsTheAttachmentPayloadWithTheUrlOnlyAndReturnsTheMessageId() {
             server.expect(requestTo(URL)).andExpect(method(HttpMethod.POST))
                     .andExpect(header("Authorization", "Bearer page-token"))
                     .andExpect(jsonPath("$.recipient.id").value("psid-1"))
                     .andExpect(jsonPath("$.message.attachment.type").value("image"))
                     .andExpect(jsonPath("$.message.attachment.payload.url").value(FILE_URL))
-                    .andExpect(jsonPath("$.message.attachment.payload.is_reusable").value(true))
+                    .andExpect(jsonPath("$.message.attachment.payload.is_reusable").doesNotExist())
                     .andExpect(jsonPath("$.message.text").doesNotExist())
                     .andRespond(withSuccess("{\"message_id\":\"mid.9\"}", MediaType.APPLICATION_JSON));
 

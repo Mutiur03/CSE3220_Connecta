@@ -174,7 +174,7 @@ class InstagramChannelClientTests {
                     .andExpect(jsonPath("$.recipient.id").value("igsid-1"))
                     .andExpect(jsonPath("$.message.attachment.type").value("audio"))
                     .andExpect(jsonPath("$.message.attachment.payload.url").value(FILE_URL))
-                    .andExpect(jsonPath("$.message.attachment.payload.is_reusable").value(true))
+                    .andExpect(jsonPath("$.message.attachment.payload.is_reusable").doesNotExist())
                     .andRespond(withSuccess("{\"message_id\":\"aWdfZB\"}", MediaType.APPLICATION_JSON));
 
             assertEquals("aWdfZB", client.sendAttachment(thread, AttachmentKind.AUDIO, FILE_URL));

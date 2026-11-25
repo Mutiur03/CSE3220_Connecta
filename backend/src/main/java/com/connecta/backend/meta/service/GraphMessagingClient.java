@@ -37,7 +37,7 @@ abstract class GraphMessagingClient implements ChannelClient, AttachmentChannelC
             throw new UnsupportedAttachmentException();
         }
         Map<String, Object> attachment = Map.of("type", graphType(kind),
-                "payload", Map.of("url", url, "is_reusable", true));
+                "payload", Map.of("url", url));
         return post(messagesRequest(conversation), message(conversation, Map.of("attachment", attachment)));
     }
 
