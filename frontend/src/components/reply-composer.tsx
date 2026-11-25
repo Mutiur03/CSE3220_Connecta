@@ -18,8 +18,9 @@ import { alertText } from "@/lib/org-form-state";
 import AttachmentChip from "./attachment-chip";
 import EmojiPicker from "./emoji-picker";
 import { Alert } from "./ui/alert";
-import { PaperclipIcon, SendIcon } from "./icons";
+import { MicrophoneIcon, PaperclipIcon, SendIcon } from "./icons";
 import { Button, PendingLabel } from "./ui/button";
+import { useVoiceRecorder } from "./use-voice-recorder";
 
 type Action = (
   previous: OrgActionState,
@@ -38,6 +39,12 @@ type Props = {
 /** Show the remaining characters only when the limit is near. */
 const COUNTER_FROM = 100;
 const BOX_ID = "reply-text";
+const STOP_ID = "reply-recording-stop";
+const SECONDS_PER_MINUTE = 60;
+
+/** 75 -> "1:15". */
+const clock = (seconds: number) =>
+  `${Math.floor(seconds / SECONDS_PER_MINUTE)}:${String(seconds % SECONDS_PER_MINUTE).padStart(2, "0")}`;
 
 const failed = (state: OrgActionState) =>
   Boolean(state.message || state.errors);
@@ -54,7 +61,8 @@ const KEY =
 /**
  * The reply box pinned under a thread: one frame with an optional file chip, the text, and a footer of
  * tools, key hints and Send. It grows with its text (CSS field-sizing, capped), Enter sends and
- * Shift+Enter adds a line. A file comes from the paperclip, a drop on the frame or a pasted image. Meta
+ * Shift+Enter adds a line. A file comes from the paperclip, a drop on the frame, a pasted image or the
+ * microphone, whose recording takes the text row's place until it is stopped or cancelled. Meta
  * cannot carry a file and text in one message, so the file goes first and the text second. What went
  * out is cleared; what did not is kept.
  */
@@ -106,23 +114,61 @@ export default function ReplyComposer({
     wasPending.current = pending;
   }, [pending]);
 
-  const remaining = MESSAGE_MAX_LENGTH - text.length;
-  const over = remaining < 0;
-  const canSend =
-    !pending && !over && (text.trim().length > 0 || file !== null);
-  const alert = alertText(state);
-  const error = over
-    ? `Remove ${-remaining} characters to send.`
-    : (state.errors?.text ?? fileError);
-  const nearLimit = !over && remaining <= COUNTER_FROM;
-
   // One file at a time: a new one replaces the old. A file that breaks a rule is not kept.
   const attach = (picked: File) => {
     const problem = attachmentProblem(picked);
     setFileError(problem);
     setAnnouncement(problem ?? `Attached ${picked.name}`);
     if (!problem) setFile(picked);
+    return !problem;
   };
+
+  // A recording is attached like a picked file, so the same checks, chip and send order apply.
+  const voice = useVoiceRecorder({
+    onStarted: () => setAnnouncement("Recording started"),
+    onRecorded: (recorded, capped) => {
+      if (attach(recorded))
+        setAnnouncement(
+          capped
+            ? "Recording reached the time limit and was attached"
+            : "Recording attached",
+        );
+    },
+    onError: (message) => {
+      setFileError(message);
+      setAnnouncement(message);
+    },
+  });
+  const recording = voice.status === "recording" || voice.status === "saving";
+  const micBusy = voice.status !== "idle";
+
+  // Stop takes focus when recording begins; the box gets it back when the recording bar goes away.
+  const wasRecording = useRef(false);
+  useEffect(() => {
+    if (recording && !wasRecording.current)
+      document.getElementById(STOP_ID)?.focus();
+    if (!recording && wasRecording.current) boxRef.current?.focus();
+    wasRecording.current = recording;
+  }, [recording]);
+
+  const startRecording = () => {
+    setFileError(undefined);
+    void voice.start();
+  };
+  const cancelRecording = () => {
+    voice.cancel();
+    setAnnouncement("Recording cancelled");
+  };
+
+  const remaining = MESSAGE_MAX_LENGTH - text.length;
+  const over = remaining < 0;
+  const canSend =
+    !pending && !micBusy && !over && (text.trim().length > 0 || file !== null);
+  const alert = alertText(state);
+  const error = over
+    ? `Remove ${-remaining} characters to send.`
+    : (state.errors?.text ?? fileError);
+  const nearLimit = !over && remaining <= COUNTER_FROM;
 
   const removeFile = () => {
     if (file) setAnnouncement(`Removed ${file.name}`);
@@ -140,7 +186,11 @@ export default function ReplyComposer({
   };
 
   const onDragOver = (event: DragEvent<HTMLElement>) => {
-    if (pending || !Array.from(event.dataTransfer.types).includes("Files"))
+    if (
+      pending ||
+      micBusy ||
+      !Array.from(event.dataTransfer.types).includes("Files")
+    )
       return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
@@ -153,7 +203,7 @@ export default function ReplyComposer({
   const onDrop = (event: DragEvent<HTMLElement>) => {
     setDragging(false);
     const dropped = event.dataTransfer.files[0];
-    if (pending || !dropped) return;
+    if (pending || micBusy || !dropped) return;
     event.preventDefault();
     attach(dropped);
   };
@@ -208,8 +258,51 @@ export default function ReplyComposer({
             <AttachmentChip file={file} onRemove={removeFile} />
           </div>
         )}
+        {recording && (
+          <div
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              event.preventDefault();
+              cancelRecording();
+            }}
+            className="flex min-h-14 min-w-0 items-center gap-3 px-3 pt-2.5 pb-1"
+          >
+            <span
+              aria-hidden="true"
+              className="size-2 shrink-0 rounded-full bg-danger motion-safe:animate-pulse"
+            />
+            <span className="figure text-sm text-primary">
+              {clock(voice.seconds)}
+            </span>
+            <span className="mr-auto truncate text-sm text-secondary">
+              {voice.status === "saving"
+                ? "Preparing the recording…"
+                : "Recording"}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={cancelRecording}
+              aria-label="Cancel recording"
+            >
+              Cancel
+            </Button>
+            <Button
+              id={STOP_ID}
+              type="button"
+              size="sm"
+              onClick={voice.stop}
+              disabled={voice.status === "saving"}
+              aria-label="Stop and attach recording"
+            >
+              Stop
+            </Button>
+          </div>
+        )}
         <textarea
           ref={boxRef}
+          hidden={recording}
+          disabled={micBusy}
           id={BOX_ID}
           name="text"
           rows={2}
@@ -224,33 +317,48 @@ export default function ReplyComposer({
         />
         <div className="flex items-center gap-3 py-2 pr-2 pl-2">
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach a file"
-              title="Attach a file"
-              className={TOOL}
-            >
-              <PaperclipIcon />
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ATTACHMENT_ACCEPT}
-              tabIndex={-1}
-              aria-hidden="true"
-              className="sr-only"
-              onChange={(event) => {
-                const picked = event.target.files?.[0];
-                // Cleared so picking the same file again still fires a change.
-                event.target.value = "";
-                if (picked) attach(picked);
-              }}
-            />
-            <EmojiPicker
-              onPick={insertEmoji}
-              onDismiss={() => boxRef.current?.focus()}
-            />
+            {/* display: contents, so this fieldset only switches its tools off while the microphone is on. */}
+            <fieldset disabled={micBusy} className="contents">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Attach a file"
+                title="Attach a file"
+                className={TOOL}
+              >
+                <PaperclipIcon />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ATTACHMENT_ACCEPT}
+                tabIndex={-1}
+                aria-hidden="true"
+                className="sr-only"
+                onChange={(event) => {
+                  const picked = event.target.files?.[0];
+                  // Cleared so picking the same file again still fires a change.
+                  event.target.value = "";
+                  if (picked) attach(picked);
+                }}
+              />
+              <EmojiPicker
+                onPick={insertEmoji}
+                onDismiss={() => boxRef.current?.focus()}
+              />
+            </fieldset>
+            {voice.supported && (
+              <button
+                type="button"
+                onClick={startRecording}
+                disabled={micBusy}
+                aria-label="Record a voice message"
+                title="Record a voice message"
+                className={TOOL}
+              >
+                <MicrophoneIcon />
+              </button>
+            )}
           </div>
           <p
             id={`${BOX_ID}-hint`}

@@ -3,6 +3,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ReplyComposer from "./reply-composer";
+import {
+  installMicrophone,
+  micError,
+  removeMicrophone,
+} from "./use-voice-recorder.fakes";
 
 type Action = Parameters<typeof ReplyComposer>[0]["action"];
 (
@@ -427,6 +432,131 @@ describe("ReplyComposer", () => {
       await act(async () => finish({}));
       expect(box.matches(":disabled")).toBe(false);
       expect(document.activeElement).toBe(box);
+    });
+  });
+
+  describe("voice message", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ now: new Date(2026, 10, 25, 14, 30, 5) });
+      Object.assign(URL, {
+        createObjectURL: vi.fn(() => "blob:voice"),
+        revokeObjectURL: vi.fn(),
+      });
+    });
+    afterEach(() => {
+      removeMicrophone();
+      vi.useRealTimers();
+    });
+
+    const button = (container: HTMLElement, name: string) =>
+      container.querySelector(
+        `button[aria-label="${name}"]`,
+      ) as HTMLButtonElement | null;
+    const status = (container: HTMLElement) =>
+      container.querySelector('[role="status"]')?.textContent;
+    const record = (container: HTMLElement) =>
+      act(async () => {
+        button(container, "Record a voice message")!.click();
+        for (let i = 0; i < 5; i++) await Promise.resolve();
+      });
+    const stop = async (container: HTMLElement) => {
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      await act(async () => {
+        button(container, "Stop and attach recording")!.click();
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+      });
+    };
+
+    it("has no microphone button when the browser cannot record", () => {
+      const { container } = mount(async () => ({}));
+      expect(button(container, "Record a voice message")).toBeNull();
+    });
+
+    it("puts a named microphone button after the paperclip and emoji buttons", () => {
+      installMicrophone();
+      const { container } = mount(async () => ({}));
+      const mic = button(container, "Record a voice message");
+      expect(mic?.className).toBe(
+        button(container, "Attach a file")?.className,
+      );
+      expect(
+        button(container, "Insert emoji")!.compareDocumentPosition(mic!) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("shows a recording bar with the time, focuses Stop and disables the other controls", async () => {
+      installMicrophone();
+      const { box, button: send, container } = mount(async () => ({}));
+      type(box, "hi");
+      await record(container);
+      expect(status(container)).toBe("Recording started");
+      expect(container.textContent).toContain("0:00");
+      act(() => {
+        vi.advanceTimersByTime(65_000);
+      });
+      expect(container.textContent).toContain("1:05");
+      expect(document.activeElement).toBe(
+        button(container, "Stop and attach recording"),
+      );
+      expect(box.hidden).toBe(true);
+      expect(box.disabled).toBe(true);
+      expect(send.disabled).toBe(true);
+      expect(button(container, "Attach a file")!.matches(":disabled")).toBe(
+        true,
+      );
+      expect(button(container, "Insert emoji")!.matches(":disabled")).toBe(
+        true,
+      );
+      expect(button(container, "Record a voice message")!.disabled).toBe(true);
+    });
+
+    it("cancels on Escape, stops the microphone and gives focus back to the box", async () => {
+      const { track } = installMicrophone();
+      const { box, container } = mount(async () => ({}));
+      await record(container);
+      act(() => {
+        button(container, "Cancel recording")!.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+        );
+      });
+      expect(track.stop).toHaveBeenCalled();
+      expect(status(container)).toBe("Recording cancelled");
+      expect(button(container, "Stop and attach recording")).toBeNull();
+      expect(document.activeElement).toBe(box);
+      expect(box.disabled).toBe(false);
+    });
+
+    it("attaches the recording as a WAV chip with a player and sends it as a file", async () => {
+      installMicrophone();
+      const attach = vi.fn().mockResolvedValue({});
+      const send = vi.fn().mockResolvedValue({});
+      const { box, form, container } = mount(send, attach);
+      await record(container);
+      await stop(container);
+      expect(status(container)).toBe("Recording attached");
+      expect(document.activeElement).toBe(box);
+      expect(container.querySelector("audio")?.getAttribute("src")).toBe(
+        "blob:voice",
+      );
+      vi.useRealTimers();
+      await submit(form);
+      const sent = attach.mock.calls[0][1].get("file") as File;
+      expect(sent.name).toBe("voice-message-20261125-143008.wav");
+      expect(sent.type).toBe("audio/wav");
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it("shows a blocked microphone under the box", async () => {
+      const { getUserMedia } = installMicrophone();
+      getUserMedia.mockRejectedValueOnce(micError("NotAllowedError"));
+      const { container } = mount(async () => ({}));
+      await record(container);
+      expect(container.querySelector("#reply-text-error")?.textContent).toBe(
+        "Microphone access is blocked. Allow it in the browser to record.",
+      );
     });
   });
 });

@@ -304,3 +304,11 @@ export const PaperclipIcon = () => (
     <path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551" />
   </Icon>
 );
+
+export const MicrophoneIcon = () => (
+  <Icon>
+    <rect x="9" y="2" width="6" height="13" rx="3" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+    <path d="M12 19v3" />
+  </Icon>
+);
