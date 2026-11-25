@@ -54,6 +54,18 @@ public enum AttachmentType {
                 .findFirst();
     }
 
+    /**
+     * The type of a downloaded file that must be of {@code kind}: the declared type when the bytes match it and it
+     * is of that kind, else the first allowed type of that kind whose signature the bytes match (a CDN often sends
+     * application/octet-stream, or video/mp4 for a voice note). Empty when no allowed type fits.
+     */
+    public static Optional<AttachmentType> resolve(String declaredContentType, AttachmentKind kind, byte[] bytes) {
+        return detect(declaredContentType, bytes).filter(type -> type.kind == kind)
+                .or(() -> Arrays.stream(values())
+                        .filter(type -> type.kind == kind && type.signature.test(bytes))
+                        .findFirst());
+    }
+
     private static String normalize(String contentType) {
         if (contentType == null) {
             return "";

@@ -107,7 +107,7 @@ public class IncomingMessageService {
 
     private void saveAttachments(Message message, NormalizedMessage incoming) {
         if (!incoming.attachments().isEmpty()) {
-            attachments.saveAll(incoming.attachments().stream().map(file -> new MessageAttachment(message,
+            attachments.saveAll(incoming.attachments().stream().map(file -> MessageAttachment.fromProvider(message,
                     file.kind(), file.url(), file.fileName(), file.contentType())).toList());
         }
     }

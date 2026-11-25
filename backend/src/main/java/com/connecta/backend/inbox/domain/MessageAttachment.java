@@ -23,6 +23,8 @@ import lombok.NoArgsConstructor;
 /**
  * One image, video, voice note or file sent with a message, stored as the URL it is served from. It belongs to
  * the message's organization. A file name or content type longer than its column is cut (name) or dropped (type).
+ * Media that came from Meta keeps its Meta link in {@code sourceUrl}; once our copy is stored ({@code storedFileId})
+ * {@code url} is the copy's public URL, because Meta's links expire.
  */
 @Entity
 @Table(name = "message_attachments")
@@ -49,8 +51,17 @@ public class MessageAttachment {
     @Column(nullable = false, length = 16, updatable = false)
     private AttachmentKind kind;
 
-    @Column(nullable = false, columnDefinition = "TEXT", updatable = false)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String url;
+
+    @Column(name = "source_url", columnDefinition = "TEXT", updatable = false)
+    private String sourceUrl;
+
+    @Column(name = "stored_file_id")
+    private UUID storedFileId;
+
+    @Column(name = "mirror_attempted_at")
+    private Instant mirrorAttemptedAt;
 
     @Column(name = "file_name", length = FILE_NAME_MAX_LENGTH, updatable = false)
     private String fileName;
@@ -70,6 +81,24 @@ public class MessageAttachment {
                 : fileName.substring(0, FILE_NAME_MAX_LENGTH);
         this.contentType = contentType == null || contentType.length() > CONTENT_TYPE_MAX_LENGTH ? null
                 : contentType;
+    }
+
+    /** Media that arrived from Meta: the URL is also kept as the source the copy is downloaded from. */
+    public static MessageAttachment fromProvider(Message message, AttachmentKind kind, String url, String fileName,
+            String contentType) {
+        MessageAttachment attachment = new MessageAttachment(message, kind, url, fileName, contentType);
+        attachment.sourceUrl = attachment.url;
+        return attachment;
+    }
+
+    public boolean isMirrored() {
+        return storedFileId != null;
+    }
+
+    /** Our copy is stored: serve it from now on. The Meta link stays in {@code sourceUrl}. */
+    public void mirrored(UUID storedFileId, String publicUrl) {
+        this.storedFileId = Objects.requireNonNull(storedFileId, "storedFileId");
+        this.url = Objects.requireNonNull(publicUrl, "publicUrl");
     }
 
     @PrePersist

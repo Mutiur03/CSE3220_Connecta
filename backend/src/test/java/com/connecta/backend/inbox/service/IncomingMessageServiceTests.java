@@ -269,6 +269,8 @@ class IncomingMessageServiceTests {
             assertEquals(acme, saved.get(0).getOrganization());
             assertEquals(AttachmentKind.IMAGE, saved.get(0).getKind());
             assertEquals("https://cdn.example/p.jpg", saved.get(0).getUrl());
+            assertEquals("https://cdn.example/p.jpg", saved.get(0).getSourceUrl());
+            assertNull(saved.get(0).getStoredFileId());
             assertEquals(AttachmentKind.FILE, saved.get(1).getKind());
             assertEquals("invoice.pdf", saved.get(1).getFileName());
             assertEquals("application/pdf", saved.get(1).getContentType());

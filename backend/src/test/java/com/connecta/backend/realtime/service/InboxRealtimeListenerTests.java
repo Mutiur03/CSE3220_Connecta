@@ -110,4 +110,28 @@ class InboxRealtimeListenerTests {
                     new com.connecta.backend.inbox.service.HistoryImportedEvent(orgId))).doesNotThrowAnyException();
         }
     }
+
+    @Nested
+    class OnAttachmentMirrored {
+
+        @Test
+        void tellsOpenThreadsOfTheConversationToReloadWithTheExistingRefreshType() {
+            listener().onAttachmentMirrored(
+                    new com.connecta.backend.inbox.service.AttachmentMirroredEvent(orgId, conversationId));
+
+            ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
+            verify(registry).broadcast(eq(orgId), json.capture());
+            assertThat(json.getValue()).contains("\"type\":\"participant.updated\"")
+                    .contains("\"conversationId\":\"" + conversationId + "\"");
+        }
+
+        @Test
+        void aBroadcastFailureIsSwallowed() {
+            doThrow(new IllegalStateException("boom")).when(registry).broadcast(any(), any());
+
+            assertThatCode(() -> listener().onAttachmentMirrored(
+                    new com.connecta.backend.inbox.service.AttachmentMirroredEvent(orgId, conversationId)))
+                    .doesNotThrowAnyException();
+        }
+    }
 }
