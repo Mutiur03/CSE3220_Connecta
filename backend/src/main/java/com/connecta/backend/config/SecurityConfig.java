@@ -52,6 +52,8 @@ class SecurityConfig {
         "/api/meta/webhooks",
         // Browsers cannot send a header on a WebSocket: the single-use ticket handshake is the check.
         "/ws/inbox",
+        // Stored files (attachments Meta must fetch): public on purpose, the random UUID in the path is the check.
+        "/api/files/*",
         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html"
     };
 

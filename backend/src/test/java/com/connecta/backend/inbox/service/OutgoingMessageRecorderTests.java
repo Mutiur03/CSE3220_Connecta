@@ -4,16 +4,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Message;
+import com.connecta.backend.inbox.domain.MessageAttachment;
 import com.connecta.backend.inbox.domain.MessageDirection;
 import com.connecta.backend.inbox.dto.MessageResponse;
 import com.connecta.backend.inbox.repository.ConversationRepository;
+import com.connecta.backend.inbox.repository.MessageAttachmentRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.service.ActiveCaller;
@@ -21,6 +25,8 @@ import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +49,9 @@ class OutgoingMessageRecorderTests {
     MessageRepository messages;
 
     @Mock
+    MessageAttachmentRepository attachments;
+
+    @Mock
     ActiveCaller activeCaller;
 
     @Mock
@@ -61,7 +70,7 @@ class OutgoingMessageRecorderTests {
     void setUp() {
         TestUsers.set(organization, "id", organizationId);
         TestUsers.set(thread, "id", conversationId);
-        recorder = new OutgoingMessageRecorder(conversations, messages, activeCaller, publisher,
+        recorder = new OutgoingMessageRecorder(conversations, messages, attachments, activeCaller, publisher,
                 TestClock.FIXED);
         when(activeCaller.load(subject)).thenReturn(agent);
     }
@@ -198,6 +207,74 @@ class OutgoingMessageRecorderTests {
 
             assertTrue(recorder.attributeStored(subject, organizationId, "mid.1").isEmpty());
             verify(publisher, never()).publishEvent(any(Object.class));
+        }
+    }
+
+    @Nested
+    class RecordAttachment {
+
+        private final OutgoingAttachment photo = new OutgoingAttachment(AttachmentKind.IMAGE,
+                "https://api.example.com/api/files/1", "cat.png", "image/png");
+
+        private void savesAttachments() {
+            when(attachments.saveAll(anyList())).thenAnswer(call -> call.getArgument(0));
+        }
+
+        @Test
+        void savesTheMessageWithTheKindLabelAndItsAttachment() {
+            when(messages.findByOrganizationIdAndExternalMessageId(organizationId, "mid.1"))
+                    .thenReturn(Optional.empty());
+            when(conversations.findByIdAndOrganizationId(conversationId, organizationId))
+                    .thenReturn(Optional.of(thread));
+            when(messages.saveAndFlush(any(Message.class))).thenAnswer(call -> {
+                Message message = call.getArgument(0);
+                TestUsers.set(message, "id", UUID.randomUUID());
+                return message;
+            });
+            savesAttachments();
+
+            MessageResponse sent = recorder.recordAttachment(subject, organizationId, conversationId, "mid.1", photo);
+
+            assertEquals("[Photo]", sent.text());
+            assertEquals(1, sent.attachments().size());
+            assertEquals(photo.url(), sent.attachments().get(0).url());
+            assertEquals("cat.png", sent.attachments().get(0).fileName());
+            assertEquals("image/png", sent.attachments().get(0).contentType());
+            assertEquals(AttachmentKind.IMAGE, sent.attachments().get(0).kind());
+            verify(publisher).publishEvent(any(MessageReceivedEvent.class));
+        }
+
+        @Test
+        void anEchoWithItsOwnAttachmentKeepsItAndAddsNoSecondOne() {
+            Message echoed = echoed();
+            MessageAttachment metaCopy = new MessageAttachment(echoed, AttachmentKind.IMAGE,
+                    "https://cdn.meta.example/1.png", null, null);
+            when(messages.findByOrganizationIdAndExternalMessageId(organizationId, "mid.1"))
+                    .thenReturn(Optional.of(echoed));
+            when(attachments.findByMessage(organizationId, List.of(echoed.getId())))
+                    .thenReturn(Map.of(echoed.getId(), List.of(metaCopy)));
+
+            MessageResponse sent = recorder.recordAttachment(subject, organizationId, conversationId, "mid.1", photo);
+
+            verify(messages, never()).saveAndFlush(any());
+            verify(attachments, never()).saveAll(anyList());
+            assertEquals(agent.getId(), sent.senderId());
+            assertEquals(List.of("https://cdn.meta.example/1.png"),
+                    sent.attachments().stream().map(file -> file.url()).toList());
+        }
+
+        @Test
+        void anEchoWithoutAttachmentsGetsTheSentOne() {
+            Message echoed = echoed();
+            when(messages.findByOrganizationIdAndExternalMessageId(organizationId, "mid.1"))
+                    .thenReturn(Optional.of(echoed));
+            savesAttachments();
+
+            Optional<MessageResponse> sent = recorder.attributeStored(subject, organizationId, "mid.1", photo);
+
+            assertTrue(sent.isPresent());
+            assertEquals(List.of(photo.url()), sent.get().attachments().stream().map(file -> file.url()).toList());
+            assertEquals(agent.getId(), sent.get().senderId());
         }
     }
 }

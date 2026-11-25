@@ -15,10 +15,11 @@ spring:
     open-in-view: false
   servlet:
     multipart:
-      # Product image uploads: the limits sit at or just above app.product-images.max-size-bytes so an
-      # oversize upload is rejected as 413 before it is buffered.
-      max-file-size: 5MB
-      max-request-size: 6MB
+      # Uploads (product images, message attachments): the limits sit at or just above the larger of
+      # app.product-images.max-size-bytes and app.attachments.max-bytes, so an oversize upload is rejected as
+      # 413 before it is buffered. Raise them together with app.attachments.max-bytes.
+      max-file-size: 8MB
+      max-request-size: 9MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -156,6 +157,15 @@ app:
     webhook:
       # Verify token Meta sends back when it subscribes the webhook. Blank refuses every subscription.
       verify-token: "${META_WEBHOOK_VERIFY_TOKEN:}"
+
+  # This backend's public address, used to build the absolute link of a stored file (/api/files/{id}) that Meta
+  # fetches when an agent sends an attachment. Meta cannot reach localhost: use the deployed URL or a tunnel.
+  # Blank means attachments cannot be sent (422).
+  public-base-url: "${PUBLIC_BASE_URL:}"
+
+  # Message attachments: largest file an agent may send (8 MB). Stored in PostgreSQL (stored_files).
+  attachments:
+    max-bytes: 8388608
 
   # Product image uploads: largest file and most images per product.
   product-images:

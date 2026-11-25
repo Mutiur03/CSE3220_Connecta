@@ -1,6 +1,7 @@
 package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.MetaProperties;
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
@@ -11,7 +12,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** Adapter: sends Instagram messages with the organization's account token through the Instagram API. */
+/**
+ * Adapter: sends Instagram messages and attachments with the account token through the Instagram API. Instagram
+ * delivers images, video and audio, not generic files.
+ */
 @Component
 class InstagramChannelClient extends GraphMessagingClient {
 
@@ -40,10 +44,14 @@ class InstagramChannelClient extends GraphMessagingClient {
     }
 
     @Override
-    public String send(Conversation conversation, String text) {
+    public boolean supports(AttachmentKind kind) {
+        return kind != AttachmentKind.FILE;
+    }
+
+    @Override
+    protected RestClient.RequestBodySpec messagesRequest(Conversation conversation) {
         String token = cipher.decrypt(accountOf(conversation).getAccessTokenEncrypted());
-        return post(graph.post().uri("/me/messages").headers(GraphAuth.bearer(token)),
-                payload(conversation.getExternalThreadId(), text));
+        return graph.post().uri("/me/messages").headers(GraphAuth.bearer(token));
     }
 
     private MetaConnectedAccount accountOf(Conversation conversation) {
