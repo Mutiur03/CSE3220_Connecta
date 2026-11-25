@@ -11,6 +11,16 @@ type Props = {
 
 const CURRENT_ROW = '[aria-current="page"]';
 
+/**
+ * The same placement as the layout effect below, as a script in the server HTML. The browser runs it while it
+ * parses the page, so the list is already in place at the first paint; an effect only runs after hydration, which
+ * leaves the list at the top for as long as the scripts take to load. It sits in innerHTML, which the browser
+ * runs when it parses the page and ignores when React renders the component in the browser, where the effect
+ * does the work. The storage key is read from data-scroll-key, so nothing is built into the script text. It is
+ * rendered by ScrollPlacement after everything else in the pane, so the list has its final height when it runs.
+ */
+const PLACE_BEFORE_PAINT = `(function(){var b=document.currentScript.parentElement.parentElement.querySelector('[data-scroll-key]');if(!b)return;try{var v=sessionStorage.getItem(b.dataset.scrollKey);if(v!==null&&isFinite(+v))b.scrollTop=+v}catch(e){}var r=b.querySelector('${CURRENT_ROW}');if(r){var a=r.getBoundingClientRect(),c=b.getBoundingClientRect();if(a.top<c.top||a.bottom>c.bottom)b.scrollTop+=a.top-c.top-(c.height-a.height)/2}})()`;
+
 /** Puts the open row in the middle of the container, scrolling only the container, when it is not fully visible. */
 function revealCurrent(box: HTMLElement) {
   const row = box.querySelector<HTMLElement>(CURRENT_ROW);
@@ -52,6 +62,7 @@ export default function ScrollMemory({
   return (
     <div
       ref={box}
+      data-scroll-key={storageKey}
       className={className}
       onScroll={(event) => {
         try {
@@ -66,5 +77,20 @@ export default function ScrollMemory({
     >
       {children}
     </div>
+  );
+}
+
+/**
+ * Render this as the last element of the pane that holds a ScrollMemory, so the placement script runs once the
+ * pane has its final layout. It draws nothing.
+ */
+export function ScrollPlacement() {
+  return (
+    <div
+      hidden
+      dangerouslySetInnerHTML={{
+        __html: `<script>${PLACE_BEFORE_PAINT}</script>`,
+      }}
+    />
   );
 }
