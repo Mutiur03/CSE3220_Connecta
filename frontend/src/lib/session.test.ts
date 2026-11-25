@@ -32,6 +32,7 @@ import {
   getAccessToken,
   getCurrentUser,
   getRefreshToken,
+  redirectOnUnauthorized,
   setSessionCookies,
 } from "./session";
 
@@ -147,5 +148,31 @@ describe("getAccessToken", () => {
     store.get.mockReturnValue(undefined);
     store.has.mockReturnValue(false);
     await expect(getAccessToken()).rejects.toThrow("NEXT_REDIRECT /login");
+  });
+});
+
+describe("redirectOnUnauthorized", () => {
+  const unauthorized = new ApiError(401, "expired");
+
+  it("redirects to the refresh path on 401 when a refresh cookie exists", async () => {
+    store.has.mockReturnValue(true);
+    requestHeaders.set("x-requested-path", "/organizations/1?x=2");
+    await expect(redirectOnUnauthorized(unauthorized)).rejects.toThrow(
+      `NEXT_REDIRECT /session/refresh?next=${encodeURIComponent("/organizations/1?x=2")}`,
+    );
+    requestHeaders.delete("x-requested-path");
+  });
+
+  it("redirects to /login on 401 without a refresh cookie", async () => {
+    store.has.mockReturnValue(false);
+    await expect(redirectOnUnauthorized(unauthorized)).rejects.toThrow(
+      "NEXT_REDIRECT /login",
+    );
+  });
+
+  it("rethrows any other error", async () => {
+    const other = new ApiError(500, "boom");
+    await expect(redirectOnUnauthorized(other)).rejects.toBe(other);
+    expect(redirect).not.toHaveBeenCalled();
   });
 });
