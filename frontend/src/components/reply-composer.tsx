@@ -1,21 +1,36 @@
 "use client";
 
-import { useActionState, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+} from "react";
 import { flushSync } from "react-dom";
+import { ATTACHMENT_ACCEPT, attachmentProblem } from "@/lib/attachment-rules";
 import { insertAtCaret } from "@/lib/caret";
 import { MESSAGE_MAX_LENGTH } from "@/lib/inbox-api";
 import type { OrgActionState } from "@/lib/org-actions";
 import { alertText } from "@/lib/org-form-state";
+import AttachmentChip from "./attachment-chip";
 import EmojiPicker from "./emoji-picker";
 import { Alert } from "./ui/alert";
-import { SendIcon } from "./icons";
+import { PaperclipIcon, SendIcon } from "./icons";
 import { Button, PendingLabel } from "./ui/button";
 
+type Action = (
+  previous: OrgActionState,
+  formData: FormData,
+) => Promise<OrgActionState>;
+
 type Props = {
-  action: (
-    previous: OrgActionState,
-    formData: FormData,
-  ) => Promise<OrgActionState>;
+  /** Sends the text (`text` field). */
+  action: Action;
+  /** Sends one file (`file` field) as its own message. */
+  attachAction: Action;
   /** Who the reply goes to and where, e.g. "Nadia Rahman on Messenger"; shown as the placeholder. */
   recipient?: string;
 };
@@ -24,38 +39,124 @@ type Props = {
 const COUNTER_FROM = 100;
 const BOX_ID = "reply-text";
 
-// One frame holds the text and its footer. It takes the field's focus ring and invalid border, so the
-// whole composer reads as a single input.
+const failed = (state: OrgActionState) =>
+  Boolean(state.message || state.errors);
+
+// One frame holds the file, the text and the footer. It takes the field's focus ring and invalid border,
+// so the whole composer reads as a single input; a file dragged over it shows the same ring.
 const FRAME =
-  "flex flex-col rounded-panel border border-line-field bg-surface shadow-[0_1px_1px_rgb(0_0_0/0.03)] transition-[border-color,box-shadow] duration-150 ease-out hover:not-focus-within:border-line-strong focus-within:border-accent focus-within:shadow-none focus-within:ring-3 focus-within:ring-accent/20 has-[textarea[aria-invalid=true]]:border-danger has-[textarea[aria-invalid=true]]:focus-within:ring-danger/20 motion-reduce:transition-none";
+  "flex min-w-0 flex-col rounded-panel border border-line-field bg-surface shadow-[0_1px_1px_rgb(0_0_0/0.03)] transition-[border-color,box-shadow,background-color] duration-150 ease-out hover:not-focus-within:border-line-strong focus-within:border-accent focus-within:shadow-none focus-within:ring-3 focus-within:ring-accent/20 has-[textarea[aria-invalid=true]]:border-danger has-[textarea[aria-invalid=true]]:focus-within:ring-danger/20 data-dragging:border-accent data-dragging:bg-selected data-dragging:ring-3 data-dragging:ring-accent/20 motion-reduce:transition-none";
+const TOOL =
+  "grid size-8 shrink-0 place-items-center rounded-control text-secondary transition-colors duration-150 ease-out hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none pointer-coarse:size-11 [&_svg]:size-4.5";
 const KEY =
   "inline-grid min-w-5 place-items-center rounded-[4px] border border-line bg-app px-1 font-sans text-[11px] leading-4 font-medium text-secondary";
 
 /**
- * The reply box pinned under a thread: one frame with the text on top and a footer of key hints and Send.
- * It grows with its text (CSS field-sizing, capped), Enter sends and Shift+Enter adds a line. The text is
- * kept on failure and cleared on success.
+ * The reply box pinned under a thread: one frame with an optional file chip, the text, and a footer of
+ * tools, key hints and Send. It grows with its text (CSS field-sizing, capped), Enter sends and
+ * Shift+Enter adds a line. A file comes from the paperclip, a drop on the frame or a pasted image. Meta
+ * cannot carry a file and text in one message, so the file goes first and the text second. What went
+ * out is cleared; what did not is kept.
  */
-export default function ReplyComposer({ action, recipient }: Props) {
+export default function ReplyComposer({
+  action,
+  attachAction,
+  recipient,
+}: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string>();
+  const [announcement, setAnnouncement] = useState("");
+  const [dragging, setDragging] = useState(false);
   const [state, formAction, pending] = useActionState(
     async (previous: OrgActionState, formData: FormData) => {
+      setFileError(undefined);
+      const hasText = String(formData.get("text") ?? "").trim().length > 0;
+      if (file) {
+        const upload = new FormData();
+        upload.append("file", file);
+        const sent = await attachAction(previous, upload);
+        if (failed(sent)) return sent;
+        setFile(null);
+        if (!hasText) return sent;
+        const next = await action(previous, formData);
+        if (!failed(next)) {
+          setText("");
+          return next;
+        }
+        const reason = next.message ?? next.errors?.text ?? "";
+        return {
+          message: `The file was sent, but the text was not. ${reason}`.trim(),
+        };
+      }
       const next = await action(previous, formData);
-      if (!next.message && !next.errors) setText("");
+      if (!failed(next)) setText("");
       return next;
     },
     {},
   );
+
+  // The box is disabled while sending, which drops its focus; give it back so typing can go on.
+  const wasPending = useRef(false);
+  useEffect(() => {
+    if (wasPending.current && !pending) boxRef.current?.focus();
+    wasPending.current = pending;
+  }, [pending]);
+
   const remaining = MESSAGE_MAX_LENGTH - text.length;
   const over = remaining < 0;
-  const canSend = !pending && !over && text.trim().length > 0;
+  const canSend =
+    !pending && !over && (text.trim().length > 0 || file !== null);
   const alert = alertText(state);
   const error = over
     ? `Remove ${-remaining} characters to send.`
-    : state.errors?.text;
+    : (state.errors?.text ?? fileError);
   const nearLimit = !over && remaining <= COUNTER_FROM;
+
+  // One file at a time: a new one replaces the old. A file that breaks a rule is not kept.
+  const attach = (picked: File) => {
+    const problem = attachmentProblem(picked);
+    setFileError(problem);
+    setAnnouncement(problem ?? `Attached ${picked.name}`);
+    if (!problem) setFile(picked);
+  };
+
+  const removeFile = () => {
+    if (file) setAnnouncement(`Removed ${file.name}`);
+    setFile(null);
+    setFileError(undefined);
+    boxRef.current?.focus();
+  };
+
+  // Only a pasted file is taken over; pasted text goes into the box as usual.
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = event.clipboardData.files[0];
+    if (!pasted) return;
+    event.preventDefault();
+    attach(pasted);
+  };
+
+  const onDragOver = (event: DragEvent<HTMLElement>) => {
+    if (pending || !Array.from(event.dataTransfer.types).includes("Files"))
+      return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDragging(true);
+  };
+  const onDragLeave = (event: DragEvent<HTMLElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+      setDragging(false);
+  };
+  const onDrop = (event: DragEvent<HTMLElement>) => {
+    setDragging(false);
+    const dropped = event.dataTransfer.files[0];
+    if (pending || !dropped) return;
+    event.preventDefault();
+    attach(dropped);
+  };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (
@@ -93,7 +194,20 @@ export default function ReplyComposer({ action, recipient }: Props) {
       <label htmlFor={BOX_ID} className="sr-only">
         Reply
       </label>
-      <div className={FRAME}>
+      <fieldset
+        disabled={pending}
+        data-dragging={dragging || undefined}
+        onDragEnter={onDragOver}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        className={FRAME}
+      >
+        {file && (
+          <div className="flex min-w-0 px-2 pt-2">
+            <AttachmentChip file={file} onRemove={removeFile} />
+          </div>
+        )}
         <textarea
           ref={boxRef}
           id={BOX_ID}
@@ -102,6 +216,7 @@ export default function ReplyComposer({ action, recipient }: Props) {
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           placeholder={recipient ? `Reply to ${recipient}` : "Write a reply"}
           aria-invalid={error ? true : undefined}
           aria-describedby={`${BOX_ID}-hint${error ? ` ${BOX_ID}-error` : ""}`}
@@ -109,6 +224,29 @@ export default function ReplyComposer({ action, recipient }: Props) {
         />
         <div className="flex items-center gap-3 py-2 pr-2 pl-2">
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Attach a file"
+              title="Attach a file"
+              className={TOOL}
+            >
+              <PaperclipIcon />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ATTACHMENT_ACCEPT}
+              tabIndex={-1}
+              aria-hidden="true"
+              className="sr-only"
+              onChange={(event) => {
+                const picked = event.target.files?.[0];
+                // Cleared so picking the same file again still fires a change.
+                event.target.value = "";
+                if (picked) attach(picked);
+              }}
+            />
             <EmojiPicker
               onPick={insertEmoji}
               onDismiss={() => boxRef.current?.focus()}
@@ -139,7 +277,10 @@ export default function ReplyComposer({ action, recipient }: Props) {
             <PendingLabel pending={pending} busy="Sending…" idle="Send" />
           </Button>
         </div>
-      </div>
+      </fieldset>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
       {error && (
         <p id={`${BOX_ID}-error`} className="text-sm text-danger">
           {error}

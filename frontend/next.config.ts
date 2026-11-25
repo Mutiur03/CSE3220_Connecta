@@ -6,9 +6,10 @@ const nextConfig: NextConfig = {
   // foreign hostname, and the client falls back to a full reload on every navigation.
   allowedDevOrigins: ["*.ngrok-free.dev"],
   experimental: {
-    // Product images are up to 5 MB and travel through a server action; the default limit is 1 MB.
+    // Product images (5 MB) and message attachments (8 MB) travel through server actions; the default
+    // limit is 1 MB, and multipart framing needs a little room on top.
     serverActions: {
-      bodySizeLimit: "6mb",
+      bodySizeLimit: "9mb",
       allowedOrigins: ["*.ngrok-free.dev"],
     },
   },

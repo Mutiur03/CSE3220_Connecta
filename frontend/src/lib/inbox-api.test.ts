@@ -4,6 +4,7 @@ import {
   listConversations,
   updateReadState,
   listMessages,
+  sendAttachment,
   sendMessage,
   updateConversationStatus,
 } from "./inbox-api";
@@ -100,5 +101,22 @@ describe("listMessages attachments", () => {
     respond({ content: [{ id: "m1", text: "hi" }], page: 0, size: 30 });
     const page = await listMessages("tok", "o1", "c1", 0, 30);
     expect(page.content[0].attachments).toEqual([]);
+  });
+});
+
+describe("sendAttachment", () => {
+  it("posts the file as multipart without setting Content-Type", async () => {
+    const fetchMock = respond({ id: "m1" });
+    const file = new File(["x"], "receipt.png", { type: "image/png" });
+    const message = await sendAttachment("tok", "o1", "c1", file);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toMatch(
+      /\/api\/organizations\/o1\/conversations\/c1\/messages\/attachments$/,
+    );
+    expect(init.method).toBe("POST");
+    expect(init.headers["Content-Type"]).toBeUndefined();
+    expect(init.headers.Authorization).toBe("Bearer tok");
+    expect((init.body as FormData).get("file")).toBeInstanceOf(File);
+    expect(message.attachments).toEqual([]);
   });
 });

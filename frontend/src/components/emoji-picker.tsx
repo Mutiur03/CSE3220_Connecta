@@ -71,7 +71,7 @@ export default function EmojiPicker({ onPick, onDismiss }: Props) {
         popoverTarget={id}
         aria-label="Insert emoji"
         title="Insert emoji"
-        className="emoji-anchor grid size-8 shrink-0 place-items-center rounded-control text-secondary transition-colors duration-150 ease-out hover:bg-hover hover:text-primary motion-reduce:transition-none pointer-coarse:size-11 [&_svg]:size-4.5"
+        className="emoji-anchor grid size-8 shrink-0 place-items-center rounded-control text-secondary transition-colors duration-150 ease-out hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none pointer-coarse:size-11 [&_svg]:size-4.5"
       >
         <SmileIcon />
       </button>

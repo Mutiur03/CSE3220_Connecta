@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ApiError } from "./api";
+import { attachmentErrorMessage, attachmentProblem } from "./attachment-rules";
 import {
   CONVERSATION_STATUSES,
   MESSAGE_MAX_LENGTH,
+  sendAttachment,
   sendMessage,
   updateConversationStatus,
   updateReadState,
@@ -69,6 +71,32 @@ export async function sendMessageAction(
     await sendMessage(accessToken, orgId, conversationId, text);
   } catch (error) {
     return { message: sendErrorMessage(error), values: { text } };
+  }
+  revalidatePath(path);
+  revalidatePath(`/organizations/${orgId}/inbox`);
+  return {};
+}
+
+/** Sends one file as its own message. The file is checked again here: the browser's check can be skipped. */
+export async function sendAttachmentAction(
+  orgId: string,
+  conversationId: string,
+  _previous: OrgActionState,
+  formData: FormData,
+): Promise<OrgActionState> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { message: "Choose a file to send." };
+  const problem = attachmentProblem(file);
+  if (problem) return { message: problem };
+  const path = threadPath(orgId, conversationId);
+  const accessToken = await getAccessToken(path);
+  try {
+    await sendAttachment(accessToken, orgId, conversationId, file);
+  } catch (error) {
+    const status = error instanceof ApiError ? error.status : undefined;
+    return {
+      message: attachmentErrorMessage(status, actionErrorMessage(error)),
+    };
   }
   revalidatePath(path);
   revalidatePath(`/organizations/${orgId}/inbox`);
