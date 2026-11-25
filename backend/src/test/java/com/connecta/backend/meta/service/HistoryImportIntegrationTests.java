@@ -9,10 +9,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Participant;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
 import com.connecta.backend.inbox.service.HistoryImportedEvent;
+import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.inbox.service.MessageReceivedEvent;
 import com.connecta.backend.meta.domain.HistoryImportFailure;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
@@ -95,6 +97,9 @@ class HistoryImportIntegrationTests {
     JdbcTemplate jdbc;
 
     @Autowired
+    IncomingMessageService inbox;
+
+    @Autowired
     ApplicationEvents published;
 
     private static NormalizedMessage message(String id, String peer, Direction direction, String sentAt) {
@@ -137,8 +142,8 @@ class HistoryImportIntegrationTests {
         HistoryImportResult first = imports.importHistory(Channel.MESSENGER, page.getId()).orElseThrow();
         HistoryImportResult second = imports.importHistory(Channel.MESSENGER, page.getId()).orElseThrow();
 
-        assertEquals(new HistoryImportResult(2, 4, 0, false), first);
-        assertEquals(new HistoryImportResult(2, 0, 4, false), second);
+        assertEquals(new HistoryImportResult(2, 4, 0, 0, false), first);
+        assertEquals(new HistoryImportResult(2, 0, 0, 4, false), second);
         assertEquals(2, count("conversations", orgId));
         assertEquals(4, count("messages", orgId));
         assertEquals(Instant.parse("2026-11-20T10:05:00Z"), jdbc.queryForObject(
@@ -146,6 +151,97 @@ class HistoryImportIntegrationTests {
                 orgId).toInstant());
         assertEquals(2, jdbc.queryForObject("select count(*) from conversations where organization_id = ? "
                 + "and meta_page_id = ?", Integer.class, orgId, page.getId()));
+    }
+
+    private static NormalizedMessage photo(String id, String peer, String text, String... urls) {
+        return new NormalizedMessage(WebhookObject.PAGE, id, peer, Direction.INBOUND, text,
+                Instant.parse("2026-11-20T10:00:00Z"), java.util.Arrays.stream(urls)
+                        .map(url -> new NormalizedAttachment(AttachmentKind.IMAGE, url, null, null)).toList());
+    }
+
+    private String body(UUID organizationId, String externalId) {
+        return jdbc.queryForObject("select body from messages where organization_id = ? and external_message_id = ?",
+                String.class, organizationId, externalId);
+    }
+
+    @Test
+    void aRerunReconcilesALabelledMessageThenChangesNothing() {
+        MetaConnectedPage page = connectPage("p-" + UUID.randomUUID());
+        UUID orgId = page.getOrganization().getId();
+        String peer = "rina-" + UUID.randomUUID();
+        String metaUrl = "https://cdn.example/" + UUID.randomUUID() + ".jpg";
+        stubHistory(new HistoryConversation(peer, "Rina", List.of(
+                photo("legacy-" + peer, peer, "[Attachment]"), photo("gone-" + peer, peer, "bye")), false));
+        imports.importHistory(Channel.MESSENGER, page.getId());
+        stubHistory(new HistoryConversation(peer, "Rina", List.of(
+                photo("legacy-" + peer, peer, "[Photo]", metaUrl)), false));
+
+        HistoryImportResult reconciled = imports.importHistory(Channel.MESSENGER, page.getId()).orElseThrow();
+        HistoryImportResult again = imports.importHistory(Channel.MESSENGER, page.getId()).orElseThrow();
+
+        assertEquals(new HistoryImportResult(1, 0, 1, 0, false), reconciled);
+        assertEquals(new HistoryImportResult(1, 0, 0, 1, false), again);
+        assertEquals("[Photo]", body(orgId, "legacy-" + peer));
+        assertEquals(metaUrl, jdbc.queryForObject("select a.source_url from message_attachments a join messages m"
+                + " on m.id = a.message_id where m.organization_id = ? and m.external_message_id = ?", String.class,
+                orgId, "legacy-" + peer));
+        assertEquals(1, count("message_attachments", orgId));
+        assertEquals("bye", body(orgId, "gone-" + peer));
+        assertEquals(2, count("messages", orgId));
+        assertEquals(Boolean.FALSE, jdbc.queryForObject("select unread from conversations where organization_id = ?",
+                Boolean.class, orgId));
+        assertEquals(3, published.stream(HistoryImportedEvent.class)
+                .filter(e -> e.organizationId().equals(orgId)).count());
+    }
+
+    @Test
+    void aCopiedAttachmentIsNotAddedAgain() {
+        MetaConnectedPage page = connectPage("p-" + UUID.randomUUID());
+        UUID orgId = page.getOrganization().getId();
+        String peer = "rina-" + UUID.randomUUID();
+        String metaUrl = "https://cdn.example/" + UUID.randomUUID() + ".jpg";
+        stubHistory(new HistoryConversation(peer, "Rina", List.of(photo("m-" + peer, peer, "[Photo]", metaUrl)),
+                false));
+        imports.importHistory(Channel.MESSENGER, page.getId());
+        jdbc.update("update message_attachments set url = ? where organization_id = ?",
+                "https://api.example.com/api/files/copy", orgId);
+
+        HistoryImportResult result = imports.importHistory(Channel.MESSENGER, page.getId()).orElseThrow();
+
+        assertEquals(new HistoryImportResult(1, 0, 0, 1, false), result);
+        assertEquals(1, count("message_attachments", orgId));
+    }
+
+    @Test
+    void aDuplicateWebhookLeavesTheStoredRowAlone() {
+        MetaConnectedPage page = connectPage("p-" + UUID.randomUUID());
+        UUID orgId = page.getOrganization().getId();
+        String peer = "rina-" + UUID.randomUUID();
+        stubHistory(new HistoryConversation(peer, "Rina", List.of(photo("m-" + peer, peer, "[Attachment]")), false));
+        imports.importHistory(Channel.MESSENGER, page.getId());
+
+        inbox.receive(page, photo("m-" + peer, peer, "[Photo]", "https://cdn.example/x.jpg"));
+
+        assertEquals("[Attachment]", body(orgId, "m-" + peer));
+        assertEquals(0, count("message_attachments", orgId));
+    }
+
+    @Test
+    void reconcilingOneOrganizationNeverChangesAnothersCopy() {
+        MetaConnectedPage acme = connectPage("p-" + UUID.randomUUID());
+        MetaConnectedPage other = connectPage("p-" + UUID.randomUUID());
+        String peer = "rina-" + UUID.randomUUID();
+        stubHistory(new HistoryConversation(peer, "Rina", List.of(photo("m-" + peer, peer, "[Attachment]")), false));
+        imports.importHistory(Channel.MESSENGER, acme.getId());
+        imports.importHistory(Channel.MESSENGER, other.getId());
+        stubHistory(new HistoryConversation(peer, "Rina", List.of(
+                photo("m-" + peer, peer, "[Photo]", "https://cdn.example/" + UUID.randomUUID() + ".jpg")), false));
+
+        imports.importHistory(Channel.MESSENGER, acme.getId());
+
+        assertEquals("[Photo]", body(acme.getOrganization().getId(), "m-" + peer));
+        assertEquals("[Attachment]", body(other.getOrganization().getId(), "m-" + peer));
+        assertEquals(0, count("message_attachments", other.getOrganization().getId()));
     }
 
     @Test

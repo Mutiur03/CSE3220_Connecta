@@ -17,6 +17,7 @@ import com.connecta.backend.config.HistoryImportProperties;
 import com.connecta.backend.config.MetaProperties;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.service.HistoryImportedEvent;
+import com.connecta.backend.inbox.service.HistoryMessageOutcome;
 import com.connecta.backend.inbox.service.IncomingMessageService;
 import com.connecta.backend.inbox.service.ParticipantNameService;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
@@ -103,12 +104,12 @@ class HistoryImportServiceTests {
         @Test
         void storesEveryMessageOldestFirstThroughTheInboxAndCountsThem() {
             history(conversation("c1", "Rina", false, "m1", "m2"), conversation("c2", "Karim", false, "m3"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             HistoryImportResult result = service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId)
                     .orElseThrow();
 
-            assertEquals(new HistoryImportResult(2, 3, 0, false), result);
+            assertEquals(new HistoryImportResult(2, 3, 0, 0, false), result);
             InOrder order = inOrder(inbox);
             order.verify(inbox).importHistorical(eq(page), eq(message("m1", "c1")));
             order.verify(inbox).importHistorical(eq(page), eq(message("m2", "c1")));
@@ -126,32 +127,46 @@ class HistoryImportServiceTests {
         @Test
         void aMessageTheOrganizationAlreadyHasIsSkipped() {
             history(conversation("c1", "Rina", false, "m1", "m2"));
-            when(inbox.importHistorical(any(), eq(message("m1", "c1")))).thenReturn(false);
-            when(inbox.importHistorical(any(), eq(message("m2", "c1")))).thenReturn(true);
+            when(inbox.importHistorical(any(), eq(message("m1", "c1")))).thenReturn(HistoryMessageOutcome.UNCHANGED);
+            when(inbox.importHistorical(any(), eq(message("m2", "c1")))).thenReturn(HistoryMessageOutcome.INSERTED);
 
             HistoryImportResult result = service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId)
                     .orElseThrow();
 
-            assertEquals(1, result.messagesImported());
-            assertEquals(1, result.messagesSkipped());
+            assertEquals(1, result.messagesInserted());
+            assertEquals(1, result.messagesUnchanged());
+        }
+
+        @Test
+        void countsInsertedUpdatedAndUnchangedMessagesSeparately() {
+            history(conversation("c1", "Rina", false, "m1", "m2", "m3"));
+            when(inbox.importHistorical(any(), eq(message("m1", "c1")))).thenReturn(HistoryMessageOutcome.UPDATED);
+            when(inbox.importHistorical(any(), eq(message("m2", "c1")))).thenReturn(HistoryMessageOutcome.UNCHANGED);
+            when(inbox.importHistorical(any(), eq(message("m3", "c1")))).thenReturn(HistoryMessageOutcome.INSERTED);
+
+            HistoryImportResult result = service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId)
+                    .orElseThrow();
+
+            assertEquals(new HistoryImportResult(1, 1, 1, 1, false), result);
+            verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
         }
 
         @Test
         void aRepeatRunStoresNothingNewButStillAnnouncesSoPicturesGetRefreshed() {
             history(conversation("c1", "Rina", false, "m1"));
-            when(inbox.importHistorical(any(), any())).thenReturn(false);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.UNCHANGED);
 
             HistoryImportResult result = service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId)
                     .orElseThrow();
 
-            assertEquals(new HistoryImportResult(1, 0, 1, false), result);
+            assertEquals(new HistoryImportResult(1, 0, 0, 1, false), result);
             verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
         }
 
         @Test
         void fillsTheCustomerNameThroughTheNameService() {
             history(conversation("c1", "Rina", false, "m1"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId);
 
@@ -172,7 +187,7 @@ class HistoryImportServiceTests {
         void stopsAtTheConversationCapAndReportsTruncated() {
             history(conversation("c1", null, false, "m1"), conversation("c2", null, false, "m2"),
                     conversation("c3", null, false, "m3"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             HistoryImportResult result = service(limits(2, 1000)).importHistory(Channel.MESSENGER, pageRowId)
                     .orElseThrow();
@@ -185,19 +200,19 @@ class HistoryImportServiceTests {
         @Test
         void stopsAtTheTotalMessageCapMidConversation() {
             history(conversation("c1", null, false, "m1", "m2", "m3"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             HistoryImportResult result = service(limits(50, 2)).importHistory(Channel.MESSENGER, pageRowId)
                     .orElseThrow();
 
-            assertEquals(2, result.messagesImported());
+            assertEquals(2, result.messagesInserted());
             assertTrue(result.truncated());
         }
 
         @Test
         void moreMessagesThanThePerConversationLimitIsTruncated() {
             history(conversation("c1", null, true, "m1"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             assertTrue(service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId)
                     .orElseThrow().truncated());
@@ -206,7 +221,7 @@ class HistoryImportServiceTests {
         @Test
         void aTruncatedImportIsStillMarkedImported() {
             history(conversation("c1", null, true, "m1"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId);
 
@@ -220,7 +235,7 @@ class HistoryImportServiceTests {
         @Test
         void publishesOneSummaryEventNotOnePerMessage() {
             history(conversation("c1", null, false, "m1", "m2", "m3"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId);
 
@@ -230,7 +245,7 @@ class HistoryImportServiceTests {
         @Test
         void marksTheAccountImportedAfterASuccessfulRun() {
             history(conversation("c1", null, false, "m1"));
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId);
 
@@ -243,7 +258,41 @@ class HistoryImportServiceTests {
 
         @Test
         void aMetaFailureMidWayKeepsWhatWasStoredAndLeavesTheAccountUnmarked() {
-            Iterator<HistoryConversation> failing = new Iterator<>() {
+            when(client.conversations("page-1", "page-token")).thenReturn(failingAfterOne());
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
+
+            assertThrows(HistoryFetchException.class,
+                    () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
+
+            verify(inbox).importHistorical(any(), eq(message("m1", "c1")));
+            verify(store, never()).markImported(any(), any(), any());
+            verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
+        }
+
+        @Test
+        void aFailureAfterAnUpdateStillRefreshesTheInbox() {
+            when(client.conversations("page-1", "page-token")).thenReturn(failingAfterOne());
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.UPDATED);
+
+            assertThrows(HistoryFetchException.class,
+                    () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
+
+            verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
+        }
+
+        @Test
+        void aFailureThatChangedNothingRefreshesNothing() {
+            when(client.conversations("page-1", "page-token")).thenReturn(failingAfterOne());
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.UNCHANGED);
+
+            assertThrows(HistoryFetchException.class,
+                    () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
+
+            verify(publisher, never()).publishEvent(any(Object.class));
+        }
+
+        private Iterator<HistoryConversation> failingAfterOne() {
+            return new Iterator<>() {
                 private int calls;
 
                 @Override
@@ -260,15 +309,6 @@ class HistoryImportServiceTests {
                     return conversation("c1", null, false, "m1");
                 }
             };
-            when(client.conversations("page-1", "page-token")).thenReturn(failing);
-            when(inbox.importHistorical(any(), any())).thenReturn(true);
-
-            assertThrows(HistoryFetchException.class,
-                    () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
-
-            verify(inbox).importHistorical(any(), eq(message("m1", "c1")));
-            verify(store, never()).markImported(any(), any(), any());
-            verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
         }
 
         @Test

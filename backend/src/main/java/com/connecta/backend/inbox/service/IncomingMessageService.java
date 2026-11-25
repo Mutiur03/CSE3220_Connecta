@@ -28,7 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
  * customer and the conversation (organization, channel, thread) are found or created (a new conversation records
  * the connected account the webhook arrived on; later messages never change it), the message and its attachments
  * are saved in the same transaction unless the organization already has that provider message id, and a
- * {@link MessageReceivedEvent} is published.
+ * {@link MessageReceivedEvent} is published. Only the history import reconciles a message it already has; a
+ * duplicate webhook delivery leaves the stored row alone.
  * A live customer message marks the conversation unread; history imports leave the read state alone.
  * Every lookup is scoped by organization, so another tenant's rows are never read or reused.
  */
@@ -42,28 +43,39 @@ public class IncomingMessageService {
     private final ConversationParticipantRepository links;
     private final MessageRepository messages;
     private final MessageAttachmentRepository attachments;
+    private final MessageReconciler reconciler;
     private final ApplicationEventPublisher publisher;
 
+    /** Stores a webhook message. A message the organization already has is left exactly as it is. */
     @Transactional
     public void receive(ConnectedChannelAccount account, NormalizedMessage incoming) {
-        store(account, incoming, true);
+        if (messages.existsByOrganizationIdAndExternalMessageId(account.getOrganization().getId(),
+                incoming.externalMessageId())) {
+            log.debug("Skipping a message the organization already has");
+            return;
+        }
+        insert(account, incoming, true);
     }
 
     /**
-     * Stores a message read from Meta's history: same dedupe, linking and tenant scoping as {@link #receive}, but
-     * announces nothing (the import publishes one summary event). Returns false when it was already stored.
+     * Reconciles one message read from Meta's history: a new one is stored with the same linking and tenant
+     * scoping as {@link #receive}, but announces nothing (the import publishes one summary event); one the
+     * organization already has is brought in line with Meta by {@link MessageReconciler}.
      */
     @Transactional
-    public boolean importHistorical(ConnectedChannelAccount account, NormalizedMessage incoming) {
-        return store(account, incoming, false);
+    public HistoryMessageOutcome importHistorical(ConnectedChannelAccount account, NormalizedMessage incoming) {
+        Optional<Message> stored = messages.findByOrganizationIdAndExternalMessageId(
+                account.getOrganization().getId(), incoming.externalMessageId());
+        if (stored.isPresent()) {
+            return reconciler.reconcile(stored.get(), incoming) ? HistoryMessageOutcome.UPDATED
+                    : HistoryMessageOutcome.UNCHANGED;
+        }
+        insert(account, incoming, false);
+        return HistoryMessageOutcome.INSERTED;
     }
 
-    private boolean store(ConnectedChannelAccount account, NormalizedMessage incoming, boolean announce) {
+    private void insert(ConnectedChannelAccount account, NormalizedMessage incoming, boolean announce) {
         Organization organization = account.getOrganization();
-        if (messages.existsByOrganizationIdAndExternalMessageId(organization.getId(), incoming.externalMessageId())) {
-            log.debug("Skipping a message the organization already has");
-            return false;
-        }
         Channel channel = channelOf(incoming.channel());
         Participant customer = participantFor(organization, channel, incoming.peerId());
         Optional<Conversation> existing = conversations.findByOrganizationIdAndChannelAndExternalThreadId(
@@ -80,7 +92,6 @@ public class IncomingMessageService {
             publisher.publishEvent(new MessageReceivedEvent(organization.getId(), conversation.getId(),
                     saved.getId(), channel, saved.getDirection(), existing.isEmpty()));
         }
-        return true;
     }
 
     private static Channel channelOf(WebhookObject object) {

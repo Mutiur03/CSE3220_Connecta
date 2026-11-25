@@ -61,9 +61,10 @@ class HistoryImportScheduler {
     private void runOne(PendingHistoryImport job) {
         try {
             imports.importHistory(job.channel(), job.accountId()).ifPresent(result -> log.info(
-                    "History import of {} account {}: {} conversations, {} messages stored, {} skipped, truncated={}",
-                    job.channel(), job.accountId(), result.conversations(), result.messagesImported(),
-                    result.messagesSkipped(), result.truncated()));
+                    "History import of {} account {}: {} conversations, {} messages inserted, {} updated,"
+                            + " {} unchanged, truncated={}",
+                    job.channel(), job.accountId(), result.conversations(), result.messagesInserted(),
+                    result.messagesUpdated(), result.messagesUnchanged(), result.truncated()));
         } catch (RuntimeException e) {
             log.warn("History import of {} account {} did not finish: {}", job.channel(), job.accountId(),
                     e.getClass().getSimpleName());
