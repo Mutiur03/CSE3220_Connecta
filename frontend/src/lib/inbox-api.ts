@@ -75,7 +75,8 @@ export type Message = {
   attachments: Attachment[];
 };
 
-export type AttachmentKind = "IMAGE" | "VIDEO" | "AUDIO" | "FILE";
+/** LINK is a shared Instagram post or story mention: `url` is the instagram.com page, `fileName` its title. */
+export type AttachmentKind = "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "LINK";
 
 export type Attachment = {
   id: string;

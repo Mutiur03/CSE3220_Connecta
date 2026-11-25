@@ -161,6 +161,83 @@ describe("MessageList", () => {
       expect(markup).not.toContain("[Attachment]");
     });
 
+    it("shows a shared post as one link card that opens Instagram in a new tab, without the label", () => {
+      const markup = html({
+        messages: [
+          msg({
+            text: "[Shared post]",
+            attachments: [
+              file({
+                kind: "LINK",
+                url: "https://www.instagram.com/p/C8xYz/",
+                fileName: "Shared post",
+              }),
+            ],
+          }),
+        ],
+      });
+      expect(markup).toMatch(
+        /<a href="https:\/\/www.instagram.com\/p\/C8xYz\/" target="_blank" rel="noopener noreferrer" aria-label="Shared post on Instagram \(opens in a new tab\)"/,
+      );
+      expect(markup).toContain(">www.instagram.com<");
+      expect(markup).toContain("<svg");
+      expect(markup).not.toContain("[Shared post]");
+    });
+
+    it("hides the story mention label and falls back to a generic title", () => {
+      const markup = html({
+        messages: [
+          msg({
+            text: "[Story mention]",
+            attachments: [
+              file({
+                kind: "LINK",
+                url: "https://www.instagram.com/stories/nadia/1/",
+              }),
+            ],
+          }),
+        ],
+      });
+      expect(markup).not.toContain("[Story mention]");
+      expect(markup).toContain(
+        'aria-label="Instagram post on Instagram (opens in a new tab)"',
+      );
+    });
+
+    it("keeps real text next to a link card", () => {
+      const markup = html({
+        messages: [
+          msg({
+            text: "Do you have this in blue?",
+            attachments: [
+              file({ kind: "LINK", url: "https://www.instagram.com/p/1/" }),
+            ],
+          }),
+        ],
+      });
+      expect(markup).toContain("Do you have this in blue?");
+    });
+
+    it("shows the title as plain text when the link is not http(s)", () => {
+      const markup = html({
+        messages: [
+          msg({
+            text: "[Shared post]",
+            attachments: [
+              file({
+                kind: "LINK",
+                url: "javascript:alert(1)",
+                fileName: "Shared post",
+              }),
+            ],
+          }),
+        ],
+      });
+      expect(markup).toContain("Shared post");
+      expect(markup).not.toContain("<a ");
+      expect(markup).not.toContain("javascript:");
+    });
+
     it("keeps a real caption next to the media", () => {
       const markup = html({
         messages: [
