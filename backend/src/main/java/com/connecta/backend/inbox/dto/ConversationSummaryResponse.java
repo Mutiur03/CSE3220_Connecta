@@ -7,9 +7,9 @@ import com.connecta.backend.inbox.domain.Participant;
 import java.time.Instant;
 import java.util.UUID;
 
-/** One row of the inbox list. The name and preview are null when the customer or message is unknown. */
+/** One row of the inbox list. The name, avatar URL (an https Meta picture link that may expire) and preview are null when unknown. */
 public record ConversationSummaryResponse(UUID id, Channel channel, String participantName,
-        String lastMessagePreview, Instant lastMessageAt) {
+        String avatarUrl, String lastMessagePreview, Instant lastMessageAt) {
 
     public static final int PREVIEW_MAX_LENGTH = 140;
 
@@ -17,6 +17,7 @@ public record ConversationSummaryResponse(UUID id, Channel channel, String parti
             Message lastMessage) {
         return new ConversationSummaryResponse(conversation.getId(), conversation.getChannel(),
                 participant == null ? null : participant.getDisplayName(),
+                participant == null ? null : participant.getProfilePictureUrl(),
                 lastMessage == null ? null : preview(lastMessage.getBody()), conversation.getLastMessageAt());
     }
 

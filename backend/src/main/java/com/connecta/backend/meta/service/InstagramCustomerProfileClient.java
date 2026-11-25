@@ -3,7 +3,7 @@ package com.connecta.backend.meta.service;
 import com.connecta.backend.config.MetaProperties;
 import com.connecta.backend.config.ProfileLookupProperties;
 import com.connecta.backend.inbox.domain.Channel;
-import com.connecta.backend.inbox.service.NamelessCustomer;
+import com.connecta.backend.inbox.service.ProfileTarget;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import java.util.Optional;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 /**
- * Adapter: reads an Instagram user's name with the account token (Graph {@code GET /{igsid}?fields=name,username}).
+ * Adapter: reads an Instagram user's name and picture with the account token (Graph {@code GET /{igsid}?fields=name,username,profile_pic}).
  * Instagram often has no name for a person, so the username is the fallback.
  */
 @Component
@@ -46,23 +46,24 @@ class InstagramCustomerProfileClient extends GraphCustomerProfileClient {
     }
 
     @Override
-    public Optional<String> fetchName(NamelessCustomer customer) {
+    public Optional<CustomerProfile> fetchProfile(ProfileTarget customer) {
         String token = cipher.decrypt(accountOf(customer).getAccessTokenEncrypted());
-        return get(graph.get().uri(uri -> uri.path("/{igsid}").queryParam("fields", "name,username")
+        return get(graph.get().uri(uri -> uri.path("/{igsid}").queryParam("fields", "name,username,profile_pic")
                 .build(customer.externalId())).headers(GraphAuth.bearer(token)))
-                .flatMap(profile -> firstNonBlank(profile.name(), profile.username()));
+                .flatMap(profile -> profileOf(firstNonBlank(profile.name(), profile.username()),
+                        profile.profilePic()));
     }
 
-    private static Optional<String> firstNonBlank(String... candidates) {
+    private static String firstNonBlank(String... candidates) {
         for (String candidate : candidates) {
             if (candidate != null && !candidate.isBlank()) {
-                return Optional.of(candidate);
+                return candidate;
             }
         }
-        return Optional.empty();
+        return null;
     }
 
-    private MetaConnectedAccount accountOf(NamelessCustomer customer) {
+    private MetaConnectedAccount accountOf(ProfileTarget customer) {
         if (customer.instagramAccountId() != null) {
             return accounts.findByIdAndOrganizationId(customer.instagramAccountId(), customer.organizationId())
                     .orElseThrow(ChannelNotConnectedException::new);

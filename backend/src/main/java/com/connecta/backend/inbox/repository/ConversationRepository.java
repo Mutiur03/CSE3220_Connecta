@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +21,16 @@ public interface ConversationRepository
 
     Optional<Conversation> findByOrganizationIdAndChannelAndExternalThreadId(UUID organizationId, Channel channel,
             String externalThreadId);
+
+    /** Conversations whose customer was never looked up on Meta, newest first (feeds the post-import refresh). */
+    @Query("""
+            select c from Conversation c
+            where c.organization.id = :organizationId
+              and exists (select 1 from Participant p
+                          where p.organization.id = :organizationId and p.channel = c.channel
+                            and p.externalId = c.externalThreadId and p.profilePictureFetchedAt is null)
+            order by c.lastMessageAt desc nulls last, c.id""")
+    List<Conversation> findWithUnfetchedCustomer(@Param("organizationId") UUID organizationId, Pageable page);
 
     /** The newest message of each given conversation (several rows only when two share the same sent time). */
     @Query("""

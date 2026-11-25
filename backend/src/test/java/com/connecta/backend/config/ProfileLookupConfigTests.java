@@ -40,7 +40,7 @@ class ProfileLookupConfigTests {
 
     @Test
     void propertiesBindToDefaults() {
-        ProfileLookupProperties p = new ProfileLookupProperties(null, null, null, null);
+        ProfileLookupProperties p = new ProfileLookupProperties(null, null, null, null, null, null);
 
         assertEquals(Duration.ofSeconds(3), p.timeout());
         assertEquals(2, p.poolSize());
@@ -50,7 +50,7 @@ class ProfileLookupConfigTests {
 
     @Test
     void executorWaitsForQueuedTasksOnShutdown() {
-        executor = build(new ProfileLookupProperties(null, 1, 1, Duration.ofSeconds(7)));
+        executor = build(new ProfileLookupProperties(null, 1, 1, Duration.ofSeconds(7), null, null));
 
         assertTrue((boolean) org.springframework.test.util.ReflectionTestUtils.getField(
                 executor, "waitForTasksToCompleteOnShutdown"));
@@ -60,7 +60,7 @@ class ProfileLookupConfigTests {
 
     @Test
     void fullQueueDropsLookupLogsOnceAndCountsWithoutThrowing() throws InterruptedException {
-        executor = build(new ProfileLookupProperties(null, 1, 1, null));
+        executor = build(new ProfileLookupProperties(null, 1, 1, null, null, null));
         CountDownLatch release = new CountDownLatch(1);
         executor.execute(() -> await(release)); // occupies the single worker
         executor.execute(() -> { }); // fills the single queue slot

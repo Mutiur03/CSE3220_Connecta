@@ -14,7 +14,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.connecta.backend.config.MetaProperties;
 import com.connecta.backend.inbox.domain.Channel;
-import com.connecta.backend.inbox.service.NamelessCustomer;
+import com.connecta.backend.inbox.service.ProfileTarget;
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.repository.MetaConnectedAccountRepository;
 import com.connecta.backend.org.domain.Organization;
@@ -35,7 +35,7 @@ import org.springframework.web.client.RestClient;
 class InstagramCustomerProfileClientTests {
 
     private static final String KEY = "dGVzdC1vbmx5LW1ldGEtdG9rZW4ta2V5LTAwMDAwMDE=";
-    private static final String URL = "https://graph.instagram.com/v27.0/igsid-1?fields=name,username";
+    private static final String URL = "https://graph.instagram.com/v27.0/igsid-1?fields=name,username,profile_pic";
 
     private final UUID organizationId = UUID.randomUUID();
     private final UUID accountRowId = UUID.randomUUID();
@@ -57,8 +57,8 @@ class InstagramCustomerProfileClientTests {
         client = new InstagramCustomerProfileClient(accounts, cipher, properties, builder);
     }
 
-    private NamelessCustomer customer(UUID linkedAccount) {
-        return new NamelessCustomer(organizationId, UUID.randomUUID(), Channel.INSTAGRAM, "igsid-1", null,
+    private ProfileTarget customer(UUID linkedAccount) {
+        return new ProfileTarget(organizationId, UUID.randomUUID(), Channel.INSTAGRAM, "igsid-1", null,
                 linkedAccount);
     }
 
@@ -85,7 +85,7 @@ class InstagramCustomerProfileClientTests {
         void asksForNameAndUsernameWithABearerTokenAndPrefersTheName() {
             respond("{\"name\":\"Rina Das\",\"username\":\"rina\",\"id\":\"igsid-1\"}");
 
-            assertEquals(Optional.of("Rina Das"), client.fetchName(customer(accountRowId)));
+            assertEquals(Optional.of(new CustomerProfile("Rina Das", null)), client.fetchProfile(customer(accountRowId)));
             server.verify();
         }
 
@@ -93,21 +93,21 @@ class InstagramCustomerProfileClientTests {
         void fallsBackToTheUsernameWhenThereIsNoName() {
             respond("{\"username\":\"rina\"}");
 
-            assertEquals(Optional.of("rina"), client.fetchName(customer(accountRowId)));
+            assertEquals(Optional.of(new CustomerProfile("rina", null)), client.fetchProfile(customer(accountRowId)));
         }
 
         @Test
         void aBlankNameFallsBackToTheUsername() {
             respond("{\"name\":\"  \",\"username\":\"rina\"}");
 
-            assertEquals(Optional.of("rina"), client.fetchName(customer(accountRowId)));
+            assertEquals(Optional.of(new CustomerProfile("rina", null)), client.fetchProfile(customer(accountRowId)));
         }
 
         @Test
         void neitherNameNorUsernameIsEmpty() {
             respond("{\"id\":\"igsid-1\"}");
 
-            assertEquals(Optional.empty(), client.fetchName(customer(accountRowId)));
+            assertEquals(Optional.empty(), client.fetchProfile(customer(accountRowId)));
         }
 
         @Test
@@ -115,7 +115,46 @@ class InstagramCustomerProfileClientTests {
             server.expect(requestTo(URL)).andRespond(withBadRequest().contentType(MediaType.APPLICATION_JSON)
                     .body("{\"error\":{\"code\":230}}"));
 
-            assertEquals(Optional.empty(), client.fetchName(customer(accountRowId)));
+            assertEquals(Optional.empty(), client.fetchProfile(customer(accountRowId)));
+        }
+
+        @Test
+        void readsTheHttpsProfilePicture() {
+            respond("{\"name\":\"Rina\",\"profile_pic\":\"https://cdn.example/p.jpg?sig=1\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", "https://cdn.example/p.jpg?sig=1")),
+                    client.fetchProfile(customer(accountRowId)));
+        }
+
+        @Test
+        void aMissingPictureLeavesTheNameOnly() {
+            respond("{\"name\":\"Rina\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(accountRowId)));
+        }
+
+        @Test
+        void aPictureWithoutANameIsStillAProfile() {
+            respond("{\"profile_pic\":\"https://cdn.example/p.jpg\"}");
+
+            assertEquals(Optional.of(new CustomerProfile(null, "https://cdn.example/p.jpg")),
+                    client.fetchProfile(customer(accountRowId)));
+        }
+
+        @Test
+        void aNonHttpsPictureIsRejected() {
+            respond("{\"name\":\"Rina\",\"profile_pic\":\"http://cdn.example/p.jpg\"}");
+            respond("{\"name\":\"Rina\",\"profile_pic\":\"javascript:alert(1)\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(accountRowId)));
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(accountRowId)));
+        }
+
+        @Test
+        void anOverlongPictureUrlIsRejected() {
+            respond("{\"name\":\"Rina\",\"profile_pic\":\"https://cdn.example/" + "a".repeat(3000) + "\"}");
+
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(accountRowId)));
         }
     }
 
@@ -126,7 +165,7 @@ class InstagramCustomerProfileClientTests {
         void aLinkedAccountOfAnotherOrganizationIsNotConnected() {
             when(accounts.findByIdAndOrganizationId(accountRowId, organizationId)).thenReturn(Optional.empty());
 
-            assertThrows(ChannelNotConnectedException.class, () -> client.fetchName(customer(accountRowId)));
+            assertThrows(ChannelNotConnectedException.class, () -> client.fetchProfile(customer(accountRowId)));
         }
 
         @Test
@@ -135,7 +174,7 @@ class InstagramCustomerProfileClientTests {
                     .thenReturn(new PageImpl<>(List.of(account)));
             respond("{\"name\":\"Rina\"}");
 
-            assertEquals(Optional.of("Rina"), client.fetchName(customer(null)));
+            assertEquals(Optional.of(new CustomerProfile("Rina", null)), client.fetchProfile(customer(null)));
         }
 
         @Test
@@ -143,7 +182,7 @@ class InstagramCustomerProfileClientTests {
             when(accounts.findByOrganizationIdAndPlatform(any(UUID.class), eq("INSTAGRAM"), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(account, account)));
 
-            assertThrows(ConversationNotLinkedException.class, () -> client.fetchName(customer(null)));
+            assertThrows(ConversationNotLinkedException.class, () -> client.fetchProfile(customer(null)));
         }
     }
 }

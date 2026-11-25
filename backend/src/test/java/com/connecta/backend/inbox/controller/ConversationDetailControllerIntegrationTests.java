@@ -76,7 +76,7 @@ class ConversationDetailControllerIntegrationTests {
 
     private ConversationDetailResponse detail(ConversationStatus status) {
         return new ConversationDetailResponse(conversationId, orgId, Channel.MESSENGER, status,
-                List.of(new ParticipantResponse(UUID.randomUUID(), "psid", "Rina")), now, now, now);
+                List.of(new ParticipantResponse(UUID.randomUUID(), "psid", "Rina", "https://cdn.example/r.jpg")), now, now, now);
     }
 
     @Nested
@@ -93,6 +93,7 @@ class ConversationDetailControllerIntegrationTests {
                     .andExpect(jsonPath("$.channel").value("MESSENGER"))
                     .andExpect(jsonPath("$.status").value("OPEN"))
                     .andExpect(jsonPath("$.participants[0].displayName").value("Rina"))
+                    .andExpect(jsonPath("$.participants[0].avatarUrl").value("https://cdn.example/r.jpg"))
                     .andExpect(jsonPath("$.lastMessageAt").exists());
         }
 

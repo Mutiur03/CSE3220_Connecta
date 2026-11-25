@@ -3,7 +3,7 @@ package com.connecta.backend.meta.service;
 import com.connecta.backend.config.MetaProperties;
 import com.connecta.backend.config.ProfileLookupProperties;
 import com.connecta.backend.inbox.domain.Channel;
-import com.connecta.backend.inbox.service.NamelessCustomer;
+import com.connecta.backend.inbox.service.ProfileTarget;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
 import com.connecta.backend.meta.repository.MetaConnectedPageRepository;
 import java.util.Optional;
@@ -13,7 +13,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** Adapter: reads a Messenger user's name with the Page token (Graph {@code GET /{psid}?fields=name}). */
+/** Adapter: reads a Messenger user's name and picture with the Page token (Graph {@code GET /{psid}?fields=name,profile_pic}). */
 @Component
 class MessengerCustomerProfileClient extends GraphCustomerProfileClient {
 
@@ -50,14 +50,14 @@ class MessengerCustomerProfileClient extends GraphCustomerProfileClient {
     }
 
     @Override
-    public Optional<String> fetchName(NamelessCustomer customer) {
+    public Optional<CustomerProfile> fetchProfile(ProfileTarget customer) {
         String token = cipher.decrypt(pageOf(customer).getPageAccessTokenEncrypted());
-        return get(graph.get().uri(uri -> uri.path("/{psid}").queryParam("fields", "name")
+        return get(graph.get().uri(uri -> uri.path("/{psid}").queryParam("fields", "name,profile_pic")
                 .build(customer.externalId())).headers(GraphAuth.bearer(token)))
-                .map(GraphProfile::name).filter(name -> !name.isBlank());
+                .flatMap(profile -> profileOf(profile.name(), profile.profilePic()));
     }
 
-    private MetaConnectedPage pageOf(NamelessCustomer customer) {
+    private MetaConnectedPage pageOf(ProfileTarget customer) {
         if (customer.metaPageId() != null) {
             return pages.findByIdAndOrganizationId(customer.metaPageId(), customer.organizationId())
                     .orElseThrow(ChannelNotConnectedException::new);
