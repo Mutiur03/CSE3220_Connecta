@@ -283,3 +283,18 @@ export const MonitorSmartphoneIcon = () => (
     <rect width="6" height="10" x="16" y="12" rx="2" />
   </Icon>
 );
+
+export const FileIcon = () => (
+  <Icon>
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+  </Icon>
+);
+
+export const SmileIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+    <path d="M9 9h.01M15 9h.01" />
+  </Icon>
+);

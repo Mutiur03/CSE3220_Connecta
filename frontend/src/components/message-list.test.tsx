@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { Message } from "@/lib/inbox-api";
+import type { Attachment, Message } from "@/lib/inbox-api";
 import MessageList from "./message-list";
 
 const msg = (over: Partial<Message>): Message => ({
@@ -10,6 +10,15 @@ const msg = (over: Partial<Message>): Message => ({
   sentAt: "2026-06-01T10:00:00Z",
   senderId: null,
   senderName: null,
+  attachments: [],
+  ...over,
+});
+const file = (over: Partial<Attachment>): Attachment => ({
+  id: "a",
+  kind: "IMAGE",
+  url: "https://cdn.example/media/1",
+  fileName: null,
+  contentType: null,
   ...over,
 });
 const html = (props: Omit<Parameters<typeof MessageList>[0], "now">) =>
@@ -93,5 +102,72 @@ describe("MessageList", () => {
     expect(markup).toContain("Load older messages");
     expect(markup).toContain("Show newer messages");
     expect(html({ messages: [msg({})] })).not.toContain("Load older");
+  });
+
+  describe("attachments", () => {
+    it("shows a photo lazily inside a link that opens it in a new tab, without the label text", () => {
+      const markup = html({
+        messages: [
+          msg({
+            text: "[Photo]",
+            senderName: "Nadia",
+            attachments: [file({})],
+          }),
+        ],
+      });
+      expect(markup).toMatch(
+        /<a href="https:\/\/cdn.example\/media\/1" target="_blank" rel="noopener noreferrer"[^>]*><img [^>]*alt="Photo from Nadia"[^>]*loading="lazy"/,
+      );
+      expect(markup).not.toContain("[Photo]");
+      expect(markup).not.toContain("Attachment or unsupported");
+    });
+
+    it("uses the file name as alt text when there is one", () => {
+      const markup = html({
+        messages: [msg({ attachments: [file({ fileName: "receipt.jpg" })] })],
+      });
+      expect(markup).toContain('alt="receipt.jpg"');
+    });
+
+    it("plays video and audio with native controls", () => {
+      const markup = html({
+        messages: [
+          msg({
+            text: "[Video]",
+            attachments: [
+              file({ id: "v", kind: "VIDEO" }),
+              file({ id: "s", kind: "AUDIO" }),
+            ],
+          }),
+        ],
+      });
+      expect(markup).toMatch(/<video [^>]*controls=""[^>]*preload="metadata"/);
+      expect(markup).toMatch(/<audio [^>]*controls=""/);
+      expect(markup).toContain('aria-label="Voice message from the customer"');
+    });
+
+    it("links a file by its name", () => {
+      const markup = html({
+        messages: [
+          msg({
+            text: "[Attachment]",
+            attachments: [file({ kind: "FILE", fileName: "invoice.pdf" })],
+          }),
+        ],
+      });
+      expect(markup).toMatch(
+        /<a [^>]*rel="noopener noreferrer"[^>]*>.*invoice\.pdf/,
+      );
+      expect(markup).not.toContain("[Attachment]");
+    });
+
+    it("keeps a real caption next to the media", () => {
+      const markup = html({
+        messages: [
+          msg({ text: "Is this one in stock?", attachments: [file({})] }),
+        ],
+      });
+      expect(markup).toContain("Is this one in stock?");
+    });
   });
 });
