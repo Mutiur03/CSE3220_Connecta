@@ -9,6 +9,16 @@ Meta delivers new messages to one callback URL per Meta app. Two products use it
 | GET | `/api/meta/webhooks` | public (Meta's handshake) | Subscribe check: `hub.mode=subscribe` and `hub.verify_token` equal to `app.meta.webhook.verify-token`. Returns `hub.challenge` as text, `403` otherwise. A blank verify token always refuses. |
 | POST | `/api/meta/webhooks` | public (the signature is the check) | Verifies `X-Hub-Signature-256` over the raw body, stores the event, returns `200` fast so Meta does not retry. |
 
+## Subscribing accounts
+
+Meta sends an account's events only after the app is subscribed to it, and the callback URL is set once per app.
+
+- Manual step (Meta app dashboard, once per app): the callback URL of both the Messenger and the Instagram webhook product is `<APP_BASE_URL>/api/meta/webhooks` (the backend's public URL, `APP_BASE_URL`), with `META_WEBHOOK_VERIFY_TOKEN` as verify token, and the `messages` field enabled. Any other path (for example `/api/webhooks/meta`) is not public and answers `401`, so Meta never delivers.
+- Facebook Page: connecting a Page calls `POST graph.facebook.com/{version}/{page-id}/subscribed_apps` (`messages,message_echoes,message_reactions,message_edits`); a refusal fails the connect.
+- Instagram account (#323): after the account is saved, connect and reconnect call `POST graph.instagram.com/{version}/{ig-id}/subscribed_apps?subscribed_fields=messages` with the account token as `Authorization: Bearer` (never in the URL); Meta answers `{"success":true}`. Only `messages` is asked for, because the webhook processing reads no reactions or edits. A failure does not fail or undo the connect: `InstagramWebhookSubscriber` logs `Instagram account <id> is not subscribed to webhooks: <reason>` at WARN (never the token or URL). Reconnecting, or the next start, tries again.
+- Startup catch-up: at `ApplicationReadyEvent`, in the background on the bounded `profileLookupExecutor`, every stored Instagram account is checked with `GET /{ig-id}/subscribed_apps` and subscribed only when `messages` is missing, so the run is idempotent and accounts connected before #323 are fixed without a reconnect. One failed account is logged and the next is tried; startup never fails.
+- Check by hand: `GET https://graph.instagram.com/{version}/{ig-id}/subscribed_apps` with the account token; `{"data":[]}` means no live events.
+
 ## Signature
 
 - Header `X-Hub-Signature-256: sha256=<hex>`, HMAC-SHA256 over the raw request body.

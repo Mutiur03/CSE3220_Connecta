@@ -18,6 +18,12 @@ public interface InstagramOAuthClient {
     /** The professional account the long-lived token belongs to. */
     InstagramAccount fetchAccount(String longLivedToken);
 
+    /** Subscribes the app to the account's message webhooks (POST /{id}/subscribed_apps, Bearer token). */
+    void subscribeToWebhooks(String accountId, String accessToken);
+
+    /** Whether the app already receives the account's message webhooks (GET /{id}/subscribed_apps). */
+    boolean isSubscribedToWebhooks(String accountId, String accessToken);
+
     record InstagramAccount(String userId, String username) {
     }
 }

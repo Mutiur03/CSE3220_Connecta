@@ -47,6 +47,7 @@ public class InstagramConnectService {
     private final MetaConnectedAccountRepository accounts;
     private final Clock clock;
     private final ApplicationEventPublisher publisher;
+    private final InstagramWebhookSubscriber webhooks;
 
     /** The Instagram login URL for the organization. The caller must be an ADMIN of it. */
     @Transactional(readOnly = true)
@@ -60,7 +61,8 @@ public class InstagramConnectService {
 
     /**
      * Completes the connection from Instagram's callback: verifies the state, re-checks ADMIN, exchanges the code,
-     * extends the token and stores the account with its encrypted token.
+     * extends the token, stores the account with its encrypted token and subscribes it to message webhooks. A
+     * failed subscription is logged and does not fail the connection.
      */
     public MetaConnectedAccount completeConnection(String code, String state) {
         requireConfigured();
@@ -74,7 +76,9 @@ public class InstagramConnectService {
         MetaUserToken shortLived = client.exchangeCode(code, redirectUri());
         MetaUserToken longLived = client.extendToken(shortLived.accessToken());
         InstagramAccount account = client.fetchAccount(longLived.accessToken());
-        return save(membership, caller, account, longLived);
+        MetaConnectedAccount saved = save(membership, caller, account, longLived);
+        webhooks.subscribe(account.userId(), longLived.accessToken());
+        return saved;
     }
 
     /** The organization's connected Instagram accounts, one page at a time. The caller must be an ADMIN of it. */
