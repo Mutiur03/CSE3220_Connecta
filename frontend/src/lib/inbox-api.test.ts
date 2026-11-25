@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  browserFileUrl,
   getConversation,
   listConversations,
   updateReadState,
@@ -118,5 +119,65 @@ describe("sendAttachment", () => {
     expect(init.headers.Authorization).toBe("Bearer tok");
     expect((init.body as FormData).get("file")).toBeInstanceOf(File);
     expect(message.attachments).toEqual([]);
+  });
+});
+
+describe("browserFileUrl", () => {
+  const FILE = "11111111-2222-3333-4444-555555555555";
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("loads our own files from the API address, whatever public address they were stored with", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8080/");
+    expect(
+      browserFileUrl(`https://tunnel.ngrok-free.dev/api/files/${FILE}`),
+    ).toBe(`http://localhost:8080/api/files/${FILE}`);
+  });
+
+  it("falls back to localhost:8080 when no public API address is set", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", undefined);
+    expect(browserFileUrl(`https://x.example/api/files/${FILE}`)).toBe(
+      `http://localhost:8080/api/files/${FILE}`,
+    );
+  });
+
+  it("leaves Meta links and anything that is not one of our files alone", () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8080");
+    const meta = "https://scontent.xx.fbcdn.net/v/t1/photo.jpg?sig=abc";
+    expect(browserFileUrl(meta)).toBe(meta);
+    const other = `https://x.example/api/files/${FILE}/extra`;
+    expect(browserFileUrl(other)).toBe(other);
+    expect(browserFileUrl("not a url")).toBe("not a url");
+  });
+
+  it("is applied to the attachments of a message page", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_URL", "http://localhost:8080");
+    respond({
+      content: [
+        {
+          id: "m1",
+          direction: "INBOUND",
+          text: "[Photo]",
+          sentAt: "2026-11-25T10:00:00Z",
+          senderId: null,
+          senderName: null,
+          attachments: [
+            {
+              id: "a1",
+              kind: "IMAGE",
+              url: `https://tunnel.ngrok-free.dev/api/files/${FILE}`,
+              fileName: null,
+              contentType: "image/png",
+            },
+          ],
+        },
+      ],
+      page: 0,
+      size: 20,
+      totalElements: 1,
+    });
+    const page = await listMessages("token", "org", "conv", 0, 20);
+    expect(page.content[0].attachments[0].url).toBe(
+      `http://localhost:8080/api/files/${FILE}`,
+    );
   });
 });
