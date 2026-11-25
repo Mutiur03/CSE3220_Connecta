@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Conversation } from "@/lib/inbox-api";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import { INBOX_CHANNEL_LABELS, participantLabel } from "@/lib/inbox-view";
+import Avatar from "./avatar";
 import { Badge } from "./ui/badge";
 
 type Props = {
@@ -29,12 +30,18 @@ export default function ConversationList({ orgId, conversations, now }: Props) {
             href={`/organizations/${orgId}/inbox/${conversation.id}`}
             className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-hover/60 sm:flex-row sm:items-center sm:gap-4"
           >
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="truncate font-medium">
-                {participantLabel(conversation.participantName)}
-              </span>
-              <span className="truncate text-sm text-secondary">
-                {conversation.lastMessagePreview ?? NO_MESSAGES}
+            <span className="flex min-w-0 flex-1 items-center gap-3">
+              <Avatar
+                name={conversation.participantName}
+                src={conversation.avatarUrl}
+              />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="truncate font-medium">
+                  {participantLabel(conversation.participantName)}
+                </span>
+                <span className="truncate text-sm text-secondary">
+                  {conversation.lastMessagePreview ?? NO_MESSAGES}
+                </span>
               </span>
             </span>
             <span className="flex shrink-0 items-center gap-3 text-sm text-secondary sm:justify-end">

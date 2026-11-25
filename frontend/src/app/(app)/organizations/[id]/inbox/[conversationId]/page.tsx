@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Avatar from "@/components/avatar";
 import MessageList from "@/components/message-list";
 import ReplyComposer from "@/components/reply-composer";
 import OrgActionButton from "@/components/org-action-button";
@@ -60,16 +61,23 @@ export default async function ConversationPage({
           Back to inbox
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-2">
-            <h1 className="break-words text-display font-medium">
-              {participantsLabel(conversation.participants)}
-            </h1>
-            <p aria-live="polite" className="flex items-center gap-2">
-              <Badge>{INBOX_CHANNEL_LABELS[conversation.channel]}</Badge>
-              <Badge tone={closed ? "neutral" : "accent"}>
-                {closed ? "Closed" : "Open"}
-              </Badge>
-            </p>
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar
+              name={conversation.participants[0]?.displayName ?? null}
+              src={conversation.participants[0]?.avatarUrl ?? null}
+              size="md"
+            />
+            <div className="flex min-w-0 flex-col gap-2">
+              <h1 className="break-words text-display font-medium">
+                {participantsLabel(conversation.participants)}
+              </h1>
+              <p aria-live="polite" className="flex items-center gap-2">
+                <Badge>{INBOX_CHANNEL_LABELS[conversation.channel]}</Badge>
+                <Badge tone={closed ? "neutral" : "accent"}>
+                  {closed ? "Closed" : "Open"}
+                </Badge>
+              </p>
+            </div>
           </div>
           <OrgActionButton
             key={conversation.status}

@@ -62,6 +62,28 @@ export const MESSAGES_PAGE_SIZE = 30;
 export const readingOrder = <T>(newestFirst: readonly T[]): T[] =>
   [...newestFirst].reverse();
 
+/** Up to two initials of a display name; "?" when there is no name. */
+export const avatarInitials = (name: string | null) => {
+  const letters = (name ?? "")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+  return letters || "?";
+};
+
+const AVATAR_TONES = ["bg-hover", "bg-selected"] as const;
+
+/** One of two neutral surface tokens, chosen from the name so a person keeps the same tone. */
+export const avatarTone = (name: string | null) => {
+  let hash = 0;
+  for (const char of name?.trim() ?? "") {
+    hash = (hash * 31 + char.charCodeAt(0)) % AVATAR_TONES.length;
+  }
+  return AVATAR_TONES[hash];
+};
+
 /** The customer names on a thread, comma separated, or the unknown label. */
 export const participantsLabel = (
   participants: readonly { displayName: string | null }[],

@@ -8,6 +8,7 @@ const base: Conversation = {
   id: "c1",
   channel: "INSTAGRAM",
   participantName: "Ana Silva",
+  avatarUrl: "https://cdn.example/ana.jpg",
   lastMessagePreview: "Is the blue one in stock?",
   lastMessageAt: "2026-06-01T11:55:00Z",
 };
@@ -24,6 +25,16 @@ describe("ConversationList", () => {
     expect(markup).toContain("Is the blue one in stock?");
     expect(markup).toContain("Instagram");
     expect(markup).toContain("5 minutes ago");
+  });
+
+  it("shows the customer's picture left of the name, or the initials without one", () => {
+    expect(html(base)).toContain('src="https://cdn.example/ana.jpg"');
+    const bare = html({ ...base, avatarUrl: null });
+    expect(bare).not.toContain("<img");
+    expect(bare).toContain(">AS<");
+    expect(html({ ...base, avatarUrl: null, participantName: null })).toContain(
+      ">?<",
+    );
   });
 
   it("labels a Messenger conversation", () => {
