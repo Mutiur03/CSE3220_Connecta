@@ -8,6 +8,7 @@ import com.connecta.backend.config.JwtProperties;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationParticipant;
+import com.connecta.backend.inbox.domain.ConversationStatus;
 import com.connecta.backend.inbox.domain.Message;
 import com.connecta.backend.inbox.domain.Participant;
 import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
@@ -171,6 +172,7 @@ class ConversationListControllerIntegrationTests {
                     .andExpect(jsonPath("$.size").value(20))
                     .andExpect(jsonPath("$.content[0].id").value(newer.getId().toString()))
                     .andExpect(jsonPath("$.content[0].channel").value("MESSENGER"))
+                    .andExpect(jsonPath("$.content[0].status").value("OPEN"))
                     .andExpect(jsonPath("$.content[0].participantName").value("Bob"))
                     .andExpect(jsonPath("$.content[0].lastMessagePreview").value("Price?"))
                     .andExpect(jsonPath("$.content[0].lastMessageAt").exists())
@@ -201,6 +203,24 @@ class ConversationListControllerIntegrationTests {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.totalElements").value(1))
                     .andExpect(jsonPath("$.content[0].participantName").value("Ann"));
+        }
+
+        @Test
+        void theStatusFilterKeepsOnlyThatStatus() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            conversation(acme, Channel.INSTAGRAM, "Ann", "Hi", TestClock.NOW);
+            Conversation done = conversation(acme, Channel.MESSENGER, "Bob", "Thanks", TestClock.NOW);
+            done.changeStatus(ConversationStatus.CLOSED);
+            conversations.saveAndFlush(done);
+
+            mvc.perform(get(path(acme)).param("status", "CLOSED")
+                            .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].participantName").value("Bob"))
+                    .andExpect(jsonPath("$.content[0].status").value("CLOSED"));
         }
 
         @Test
@@ -245,6 +265,17 @@ class ConversationListControllerIntegrationTests {
             join(acme, agent, Roles.AGENT);
 
             mvc.perform(get(path(acme)).param("channel", "FAX")
+                            .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void anUnknownStatusIsBadRequest() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+
+            mvc.perform(get(path(acme)).param("status", "SNOOZED")
                             .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
                     .andExpect(status().isBadRequest());
         }

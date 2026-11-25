@@ -3,6 +3,7 @@ package com.connecta.backend.inbox.repository;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationParticipant;
+import com.connecta.backend.inbox.domain.ConversationStatus;
 import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -20,6 +21,10 @@ public final class ConversationSpecifications {
 
     public static Specification<Conversation> onChannel(Channel channel) {
         return (root, query, cb) -> cb.equal(root.get("channel"), channel);
+    }
+
+    public static Specification<Conversation> withStatus(ConversationStatus status) {
+        return (root, query, cb) -> cb.equal(root.get("status"), status);
     }
 
     /** Some customer of the conversation has a display name containing the text, ignoring case. */
