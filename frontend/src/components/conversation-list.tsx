@@ -1,64 +1,102 @@
 import Link from "next/link";
 import type { Conversation } from "@/lib/inbox-api";
 import { formatDateTime, formatRelative } from "@/lib/format";
-import { INBOX_CHANNEL_LABELS, participantLabel } from "@/lib/inbox-view";
+import {
+  INBOX_CHANNEL_LABELS,
+  participantLabel,
+  threadHref,
+  type InboxChannel,
+  type InboxFilters,
+} from "@/lib/inbox-view";
 import Avatar from "./avatar";
-import { Badge } from "./ui/badge";
+import { FacebookIcon, InstagramIcon } from "./icons";
 
 type Props = {
   orgId: string;
   conversations: Conversation[];
   /** Passed in so the relative times are deterministic. */
   now: Date;
+  /** The open conversation, marked as the current row. */
+  selectedId?: string;
+  /** Carried into each row link, so opening a thread keeps the list as it is. */
+  filters?: InboxFilters;
+  listPage?: number;
 };
 
 const NO_MESSAGES = "No messages yet";
 
-/** Conversations as linked rows, newest first. Channel is a small badge; rows are dividers, not cards. */
-export default function ConversationList({ orgId, conversations, now }: Props) {
+const CHANNEL_GLYPHS: Record<InboxChannel, () => React.JSX.Element> = {
+  INSTAGRAM: InstagramIcon,
+  MESSENGER: FacebookIcon,
+};
+
+/**
+ * Conversations as 64px linked rows, newest first: avatar with a small channel glyph on its corner, name and
+ * time on one line, a one-line preview below. The open row takes the selected surface and a 2px accent bar.
+ */
+export default function ConversationList({
+  orgId,
+  conversations,
+  now,
+  selectedId,
+  filters = {},
+  listPage = 0,
+}: Props) {
   return (
-    <ul
-      aria-label="Conversations"
-      className="overflow-hidden rounded-panel border border-line bg-surface"
-    >
-      {conversations.map((conversation) => (
-        <li
-          key={conversation.id}
-          className="border-b border-line-subtle last:border-b-0"
-        >
-          <Link
-            href={`/organizations/${orgId}/inbox/${conversation.id}`}
-            className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-hover/60 sm:flex-row sm:items-center sm:gap-4"
+    <ul aria-label="Conversations">
+      {conversations.map((conversation) => {
+        const Glyph = CHANNEL_GLYPHS[conversation.channel];
+        const channel = INBOX_CHANNEL_LABELS[conversation.channel];
+        return (
+          <li
+            key={conversation.id}
+            className="border-b border-line-subtle last:border-b-0"
           >
-            <span className="flex min-w-0 flex-1 items-center gap-3">
-              <Avatar
-                name={conversation.participantName}
-                src={conversation.avatarUrl}
-              />
+            <Link
+              href={threadHref(
+                `/organizations/${orgId}/inbox/${conversation.id}`,
+                filters,
+                listPage,
+              )}
+              aria-current={conversation.id === selectedId ? "page" : undefined}
+              className="relative flex h-16 items-center gap-3 px-4 transition-colors duration-150 ease-out hover:bg-hover motion-reduce:transition-none aria-[current=page]:bg-selected aria-[current=page]:before:absolute aria-[current=page]:before:inset-y-0 aria-[current=page]:before:left-0 aria-[current=page]:before:w-0.5 aria-[current=page]:before:bg-accent"
+            >
+              <span className="relative shrink-0">
+                <Avatar
+                  name={conversation.participantName}
+                  src={conversation.avatarUrl}
+                />
+                <span
+                  title={channel}
+                  className="absolute -right-1 -bottom-1 grid size-4.5 place-items-center rounded-full bg-surface text-secondary ring-1 ring-line [&_svg]:size-3"
+                >
+                  <Glyph />
+                  <span className="sr-only">{channel}</span>
+                </span>
+              </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate font-medium">
-                  {participantLabel(conversation.participantName)}
+                <span className="flex items-baseline gap-2">
+                  <span className="min-w-0 flex-1 truncate font-medium">
+                    {participantLabel(conversation.participantName)}
+                  </span>
+                  {conversation.lastMessageAt && (
+                    <time
+                      dateTime={conversation.lastMessageAt}
+                      title={formatDateTime(conversation.lastMessageAt)}
+                      className="figure shrink-0 text-caption text-secondary"
+                    >
+                      {formatRelative(conversation.lastMessageAt, now)}
+                    </time>
+                  )}
                 </span>
                 <span className="truncate text-sm text-secondary">
                   {conversation.lastMessagePreview ?? NO_MESSAGES}
                 </span>
               </span>
-            </span>
-            <span className="flex shrink-0 items-center gap-3 text-sm text-secondary sm:justify-end">
-              <Badge>{INBOX_CHANNEL_LABELS[conversation.channel]}</Badge>
-              {conversation.lastMessageAt && (
-                <time
-                  dateTime={conversation.lastMessageAt}
-                  title={formatDateTime(conversation.lastMessageAt)}
-                  className="figure w-24 sm:text-right"
-                >
-                  {formatRelative(conversation.lastMessageAt, now)}
-                </time>
-              )}
-            </span>
-          </Link>
-        </li>
-      ))}
+            </Link>
+          </li>
+        );
+      })}
     </ul>
   );
 }

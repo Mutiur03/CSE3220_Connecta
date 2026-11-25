@@ -37,6 +37,24 @@ describe("ConversationList", () => {
     );
   });
 
+  it("marks the open conversation and keeps the list filters in each link", () => {
+    const markup = renderToStaticMarkup(
+      <ConversationList
+        orgId="org-1"
+        conversations={[base, { ...base, id: "c2" }]}
+        now={NOW}
+        selectedId="c2"
+        filters={{ q: "ana" }}
+        listPage={1}
+      />,
+    );
+    expect(markup).toContain(
+      'href="/organizations/org-1/inbox/c1?q=ana&amp;page=1"',
+    );
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(markup).toMatch(/aria-current="page"[^>]*inbox\/c2\?/);
+  });
+
   it("labels a Messenger conversation", () => {
     expect(html({ ...base, channel: "MESSENGER" })).toContain("Messenger");
   });

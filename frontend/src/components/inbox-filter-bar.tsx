@@ -13,6 +13,7 @@ import { Select } from "./ui/select";
 type Props = { listPath: string; filters: InboxFilters };
 
 // A plain GET form: the filters live in the URL, and submitting drops the page number.
+// Laid out for the 340px list pane: search on its own line, channel and Apply below.
 export default function InboxFilterBar({ listPath, filters }: Props) {
   return (
     <form
@@ -22,7 +23,7 @@ export default function InboxFilterBar({ listPath, filters }: Props) {
       action={listPath}
       className="flex flex-wrap items-center gap-2"
     >
-      <div className="flex min-w-56 flex-[2_1_16rem] items-center gap-2">
+      <div className="flex basis-full items-center gap-2">
         <label htmlFor="inbox-search" className="sr-only">
           Search
         </label>
@@ -46,7 +47,7 @@ export default function InboxFilterBar({ listPath, filters }: Props) {
           </Link>
         )}
       </div>
-      <div className="flex min-w-40 flex-[1_1_10rem]">
+      <div className="flex min-w-0 flex-1">
         <label htmlFor="inbox-channel" className="sr-only">
           Channel
         </label>

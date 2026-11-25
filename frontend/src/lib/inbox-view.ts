@@ -94,9 +94,21 @@ export const participantsLabel = (
   return names.length > 0 ? names.join(", ") : UNKNOWN_PARTICIPANT;
 };
 
-/** Thread URL for one page of history; page 0 is the clean address. */
-export const threadHref = (threadPath: string, page = 0) =>
-  page > 0 ? `${threadPath}?page=${page}` : threadPath;
+/**
+ * Thread URL. It carries the list filters and list page, so the list pane beside the thread stays where it
+ * was; `history` pages back through older messages. Unset parts are left out.
+ */
+export function threadHref(
+  threadPath: string,
+  filters: InboxFilters = {},
+  listPage = 0,
+  history = 0,
+): string {
+  const query = new URLSearchParams(inboxListQuery(filters, listPage));
+  if (history > 0) query.set("history", String(history));
+  const search = query.toString();
+  return search ? `${threadPath}?${search}` : threadPath;
+}
 
 export const nextStatus = (status: "OPEN" | "CLOSED") =>
   status === "OPEN" ? "CLOSED" : "OPEN";

@@ -34,7 +34,7 @@ export default function ReplyComposer({ action }: Props) {
   const alert = alertText(state);
 
   return (
-    <form action={formAction} noValidate className="mt-6 flex flex-col gap-3">
+    <form action={formAction} noValidate className="flex flex-col gap-3">
       <TextareaField
         id="reply-text"
         name="text"

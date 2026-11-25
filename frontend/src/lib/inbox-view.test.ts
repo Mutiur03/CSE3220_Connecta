@@ -86,9 +86,12 @@ describe("thread helpers", () => {
     );
   });
 
-  it("builds thread links, page 0 clean", () => {
+  it("builds thread links that keep the list filters, page 0 clean", () => {
     expect(threadHref("/t")).toBe("/t");
-    expect(threadHref("/t", 2)).toBe("/t?page=2");
+    expect(threadHref("/t", {}, 0, 2)).toBe("/t?history=2");
+    expect(threadHref("/t", { q: "ana", channel: "INSTAGRAM" }, 1)).toBe(
+      "/t?q=ana&channel=INSTAGRAM&page=1",
+    );
   });
 
   it("toggles status", () => {
