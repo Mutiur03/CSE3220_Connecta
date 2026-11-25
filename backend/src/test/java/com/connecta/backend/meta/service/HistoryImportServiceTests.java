@@ -95,7 +95,7 @@ class HistoryImportServiceTests {
     }
 
     private void history(HistoryConversation... conversations) {
-        when(client.conversations("page-1", "page-token")).thenReturn(List.of(conversations).iterator());
+        when(client.conversations(eq("page-1"), eq("page-token"), any())).thenReturn(List.of(conversations).iterator());
     }
 
     @Nested
@@ -121,7 +121,7 @@ class HistoryImportServiceTests {
             history();
             service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId);
 
-            verify(client).conversations("page-1", "page-token");
+            verify(client).conversations(eq("page-1"), eq("page-token"), any());
         }
 
         @Test
@@ -258,7 +258,7 @@ class HistoryImportServiceTests {
 
         @Test
         void aMetaFailureMidWayKeepsWhatWasStoredAndLeavesTheAccountUnmarked() {
-            when(client.conversations("page-1", "page-token")).thenReturn(failingAfterOne());
+            when(client.conversations(eq("page-1"), eq("page-token"), any())).thenReturn(failingAfterOne());
             when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
 
             assertThrows(HistoryFetchException.class,
@@ -271,7 +271,7 @@ class HistoryImportServiceTests {
 
         @Test
         void aFailureAfterAnUpdateStillRefreshesTheInbox() {
-            when(client.conversations("page-1", "page-token")).thenReturn(failingAfterOne());
+            when(client.conversations(eq("page-1"), eq("page-token"), any())).thenReturn(failingAfterOne());
             when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.UPDATED);
 
             assertThrows(HistoryFetchException.class,
@@ -282,7 +282,7 @@ class HistoryImportServiceTests {
 
         @Test
         void aFailureThatChangedNothingRefreshesNothing() {
-            when(client.conversations("page-1", "page-token")).thenReturn(failingAfterOne());
+            when(client.conversations(eq("page-1"), eq("page-token"), any())).thenReturn(failingAfterOne());
             when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.UNCHANGED);
 
             assertThrows(HistoryFetchException.class,
@@ -313,7 +313,7 @@ class HistoryImportServiceTests {
 
         @Test
         void aPermissionFailureIsRecordedAsPermission() {
-            when(client.conversations("page-1", "page-token")).thenThrow(new HistoryPermissionException());
+            when(client.conversations(eq("page-1"), eq("page-token"), any())).thenThrow(new HistoryPermissionException());
 
             assertThrows(HistoryPermissionException.class,
                     () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
@@ -324,7 +324,7 @@ class HistoryImportServiceTests {
 
         @Test
         void aFetchFailureIsRecordedAsFetch() {
-            when(client.conversations("page-1", "page-token")).thenThrow(new HistoryFetchException("x"));
+            when(client.conversations(eq("page-1"), eq("page-token"), any())).thenThrow(new HistoryFetchException("x"));
 
             assertThrows(HistoryFetchException.class,
                     () -> service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId));
@@ -345,7 +345,7 @@ class HistoryImportServiceTests {
         @Test
         void aSecondImportOfTheSameAccountWhileOneRunsIsRefused() {
             HistoryImportService service = service(limits(50, 1000));
-            when(client.conversations("page-1", "page-token")).thenAnswer(call -> {
+            when(client.conversations(eq("page-1"), eq("page-token"), any())).thenAnswer(call -> {
                 assertThrows(HistoryImportInProgressException.class,
                         () -> service.importHistory(Channel.MESSENGER, pageRowId));
                 return List.<HistoryConversation>of().iterator();
@@ -358,11 +358,80 @@ class HistoryImportServiceTests {
 
         @Test
         void theGuardIsReleasedAfterAFailure() {
-            when(client.conversations("page-1", "page-token")).thenThrow(new HistoryFetchException("x"));
+            when(client.conversations(eq("page-1"), eq("page-token"), any())).thenThrow(new HistoryFetchException("x"));
             HistoryImportService service = service(limits(50, 1000));
 
             assertThrows(HistoryFetchException.class, () -> service.importHistory(Channel.MESSENGER, pageRowId));
             assertThrows(HistoryFetchException.class, () -> service.importHistory(Channel.MESSENGER, pageRowId));
+        }
+    }
+    @Nested
+    class SyncingRecent {
+
+        private final HistoryBounds small = new HistoryBounds(1, 2, 2);
+
+        @Test
+        void readsWithTheGivenBoundsStopsAtThemAndRecordsTheSyncTime() {
+            history(conversation("c1", "Rina", false, "m1"), conversation("c2", "Karim", false, "m2"));
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
+
+            HistoryImportResult result = service(limits(50, 1000)).syncRecent(Channel.MESSENGER, pageRowId, small)
+                    .orElseThrow();
+
+            assertEquals(new HistoryImportResult(1, 1, 0, 0, true), result);
+            verify(client).conversations("page-1", "page-token", small);
+            verify(store).markSynced(Channel.MESSENGER, pageRowId, TestClock.FIXED.instant());
+        }
+
+        @Test
+        void neverMarksTheAccountImportedOrFailed() {
+            history(conversation("c1", "Rina", false, "m1"));
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.UNCHANGED);
+
+            service(limits(50, 1000)).syncRecent(Channel.MESSENGER, pageRowId, small);
+
+            verify(store, never()).markImported(any(), any(), any());
+            verify(store, never()).markFailed(any(), any(), any(), any());
+        }
+
+        @Test
+        void aFailureLeavesTheSyncTimeAndTheImportStateAlone() {
+            when(client.conversations(eq("page-1"), eq("page-token"), any()))
+                    .thenThrow(new HistoryFetchException("x"));
+
+            assertThrows(HistoryFetchException.class,
+                    () -> service(limits(50, 1000)).syncRecent(Channel.MESSENGER, pageRowId, small));
+
+            verify(store, never()).markSynced(any(), any(), any());
+            verify(store, never()).markFailed(any(), any(), any(), any());
+        }
+
+        @Test
+        void announcesOnlyWhenItStoredSomething() {
+            history(conversation("c1", "Rina", false, "m1"));
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.UNCHANGED);
+            service(limits(50, 1000)).syncRecent(Channel.MESSENGER, pageRowId, small);
+            verify(publisher, never()).publishEvent(any(Object.class));
+
+            history(conversation("c1", "Rina", false, "m1"));
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
+            service(limits(50, 1000)).syncRecent(Channel.MESSENGER, pageRowId, small);
+            verify(publisher).publishEvent(new HistoryImportedEvent(organizationId));
+        }
+
+        @Test
+        void isSkippedWhileAnImportOfTheSameAccountRuns() {
+            HistoryImportService service = service(limits(50, 1000));
+            history(conversation("c1", "Rina", false, "m1"));
+            when(inbox.importHistorical(any(), any())).thenAnswer(call -> {
+                assertThrows(HistoryImportInProgressException.class,
+                        () -> service.syncRecent(Channel.MESSENGER, pageRowId, small));
+                return HistoryMessageOutcome.INSERTED;
+            });
+
+            service.importHistory(Channel.MESSENGER, pageRowId);
+
+            verify(inbox).importHistorical(any(), any());
         }
     }
 }

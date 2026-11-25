@@ -109,3 +109,14 @@ Webhooks only deliver messages sent after the connection, so the history of a co
 
 - When: `WebhookEventProcessor` sets `last_webhook_at` (injected `Clock`, same transaction) on every Page or Instagram account an event is routed to, even when it carries no message. An id no organization connected changes nothing. The value is exposed as `lastWebhookAt` on the connected Page and Instagram account responses and shown as "Last webhook 5 minutes ago" or "No webhook received yet" on the integrations page.
 - Refused deliveries: `WebhookIntakeService` logs one WARN line (`Webhook delivery rejected: <exception class> (object <PAGE|INSTAGRAM|unknown>)`, never the body or signature) and counts `meta.webhook.deliveries` with tag `result` = `accepted` (signature verified) or `rejected` (bad signature or body). Alert on a rising `rejected` rate or an `accepted` rate of zero.
+
+## Recent-message sync (webhook safety net, #327)
+
+The webhook is the fast path. It is not guaranteed: Meta stops retrying after a while, our endpoint can be down or misconfigured, and an account can be unsubscribed. A message that never reaches us would stay missing, so `MetaSyncJob` reads the newest messages of every connected Page and Instagram account and stores what is missing.
+
+- When: once at startup for every connection (not only never-imported ones, so a downtime gap is closed), then every `app.meta.sync.interval` (10m; the first scheduled run waits one interval).
+- How: `HistoryImportService.syncRecent` reuses the history import (the `ConversationHistoryClientFactory` adapter per channel, `IncomingMessageService.importHistorical`, `MessageReconciler`) with smaller `HistoryBounds`: `app.meta.sync.max-conversations` (10, newest first) and `messages-per-conversation` (10). Idempotent: a missing message is stored, an existing one is left or reconciled, nothing is deleted, and a second run stores nothing.
+- Isolation: one account failing (token, Graph error, permission) is logged at WARN with its id and the error class and never stops the others. An account whose import or sync is already running is skipped (`HistoryImportInProgressException`). The batch runs on the single-thread `metaSyncExecutor`, never on the scheduler thread; a run that finds the previous one still going is dropped.
+- State: a successful sync sets `last_synced_at` on `meta_connected_pages` / `meta_connected_accounts`. A sync never touches `history_imported_at` or the import error columns: a small read says nothing about the full history.
+- Log: one INFO line per run (accounts, stored, failed), never tokens or message text.
+- Settings (`application.yml`): `app.meta.sync.enabled` (true; false turns it off), `interval`, `max-conversations`, `messages-per-conversation`.

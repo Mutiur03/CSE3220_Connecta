@@ -115,7 +115,7 @@ class HistoryImportIntegrationTests {
 
     private void stubHistory(HistoryConversation... conversations) {
         ConversationHistoryClient client = mock(ConversationHistoryClient.class);
-        when(client.conversations(any(), any())).thenAnswer(call -> List.of(conversations).iterator());
+        when(client.conversations(any(), any(), any())).thenAnswer(call -> List.of(conversations).iterator());
         when(clients.forChannel(Channel.MESSENGER)).thenReturn(client);
     }
 
@@ -296,7 +296,7 @@ class HistoryImportIntegrationTests {
         UUID orgId = page.getOrganization().getId();
         HistoryConversation stored = rina(UUID.randomUUID().toString());
         ConversationHistoryClient client = mock(ConversationHistoryClient.class);
-        when(client.conversations(any(), any())).thenAnswer(call -> new java.util.Iterator<HistoryConversation>() {
+        when(client.conversations(any(), any(), any())).thenAnswer(call -> new java.util.Iterator<HistoryConversation>() {
             private boolean served;
 
             @Override
@@ -329,7 +329,7 @@ class HistoryImportIntegrationTests {
     void aLaterSuccessfulImportClearsTheRecordedFailure() {
         MetaConnectedPage page = connectPage("p-" + UUID.randomUUID());
         ConversationHistoryClient failing = mock(ConversationHistoryClient.class);
-        when(failing.conversations(any(), any())).thenThrow(new HistoryPermissionException());
+        when(failing.conversations(any(), any(), any())).thenThrow(new HistoryPermissionException());
         when(clients.forChannel(Channel.MESSENGER)).thenReturn(failing);
         assertThrows(HistoryPermissionException.class, () -> imports.importHistory(Channel.MESSENGER, page.getId()));
         assertEquals(HistoryImportFailure.PERMISSION,

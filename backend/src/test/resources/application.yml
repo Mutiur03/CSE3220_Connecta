@@ -41,6 +41,8 @@ app:
   meta:
     history-import:
       enabled: false
+    sync:
+      enabled: false
     app-id: test-app-id
     app-secret: test-app-secret
     graph-version: v27.0
