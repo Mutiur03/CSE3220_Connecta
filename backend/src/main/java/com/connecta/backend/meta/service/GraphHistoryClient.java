@@ -22,6 +22,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -35,15 +36,20 @@ import tools.jackson.databind.JsonNode;
  * supply the host, the product and the Graph product name. Messages are oldest first in the result.
  *
  * <p>Each message's {@code attachments} edge is read as image, video or file data; an attachment of another
- * shape, or without an http(s) URL, is skipped and the message keeps only its label.
+ * shape, or without an http(s) URL, is skipped and the message keeps only its label. When Graph rejects the
+ * attachment fields on the first request (a 400 with code 100, not a permission or token error), that request is
+ * sent once more without them and the import goes on with labels only.
  *
  * <p>Never logs the token or a paging URL (it can carry a token). A paging URL on another host is refused.
  */
 @Slf4j
 abstract class GraphHistoryClient implements ConversationHistoryClient {
 
-    private static final String FIELDS = "participants,messages.limit(%d){id,message,from,created_time,"
-            + "attachments{mime_type,name,file_url,image_data{url},video_data{url}}}";
+    private static final String FIELDS_WITH_ATTACHMENTS = "participants,messages.limit(%d){id,message,from,"
+            + "created_time,attachments{mime_type,name,file_url,image_data{url},video_data{url}}}";
+    private static final String FIELDS_WITHOUT_ATTACHMENTS =
+            "participants,messages.limit(%d){id,message,from,created_time}";
+    private static final int INVALID_FIELD_CODE = 100;
     private static final String URL = "url";
     private static final DateTimeFormatter GRAPH_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
     private static final int HTTPS_PORT = 443;
@@ -114,7 +120,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private void loadPage() {
-            JsonNode page = fetch(started ? nextRequest() : firstRequest());
+            JsonNode page = started ? fetch(nextRequest()) : fetchFirstPage();
             started = true;
             for (JsonNode conversation : page.path("data")) {
                 parse(conversation, accountId, this).ifPresent(buffer::add);
@@ -146,8 +152,21 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             }
         }
 
-        private RestClient.RequestHeadersSpec<?> firstRequest() {
-            String fields = FIELDS.formatted(limits.messagesPerConversation());
+        /** The first page with attachments, or without them when Graph rejects those fields. */
+        private JsonNode fetchFirstPage() {
+            try {
+                return send(firstRequest(FIELDS_WITH_ATTACHMENTS));
+            } catch (RestClientResponseException e) {
+                if (!rejectsFields(e)) {
+                    throw mapError(e);
+                }
+            }
+            log.warn("Meta history rejected the attachment fields; importing without attachments");
+            return fetch(firstRequest(FIELDS_WITHOUT_ATTACHMENTS));
+        }
+
+        private RestClient.RequestHeadersSpec<?> firstRequest(String fieldList) {
+            String fields = fieldList.formatted(limits.messagesPerConversation());
             return graph.get().uri("/{id}/conversations?platform={platform}&fields={fields}&limit={limit}",
                     accountId, platform(), fields, limits.pageSize());
         }
@@ -157,6 +176,15 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private JsonNode fetch(RestClient.RequestHeadersSpec<?> request) {
+            try {
+                return send(request);
+            } catch (RestClientResponseException e) {
+                throw mapError(e);
+            }
+        }
+
+        /** One Graph request. A refusal by Meta is left to the caller; any other failure is a fetch failure. */
+        private JsonNode send(RestClient.RequestHeadersSpec<?> request) {
             graphRequests++;
             try {
                 JsonNode body = request.headers(GraphAuth.bearer(token)).accept(MediaType.APPLICATION_JSON)
@@ -166,7 +194,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                 }
                 return body;
             } catch (RestClientResponseException e) {
-                throw mapError(e);
+                throw e;
             } catch (RestClientException e) {
                 log.warn("Meta history request failed: {}", e.getClass().getSimpleName());
                 throw new HistoryFetchException("Meta history request failed", e);
@@ -232,6 +260,13 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             return new HistoryPermissionException();
         }
         return new HistoryFetchException("Meta rejected the history request", e);
+    }
+
+    /** A 400 with Graph code 100: a field Graph does not know or support on this host. */
+    private static boolean rejectsFields(RestClientResponseException e) {
+        Integer code = graphCode(e);
+        return e.getStatusCode().value() == HttpStatus.BAD_REQUEST.value() && code != null
+                && code == INVALID_FIELD_CODE;
     }
 
     private static boolean isPermissionCode(int code) {

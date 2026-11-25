@@ -137,6 +137,51 @@ class MessengerHistoryClientTests {
     }
 
     @Nested
+    class AttachmentFieldFallback {
+
+        private static final String REJECTED = "{\"error\":{\"code\":100,\"message\":\"nonexisting field\"}}";
+
+        private void expectFirst(boolean withAttachments, org.springframework.test.web.client.ResponseCreator answer) {
+            server.expect(requestTo(org.hamcrest.Matchers.startsWith(BASE)))
+                    .andExpect(request -> assertEquals(withAttachments, URLDecoder.decode(
+                            request.getURI().getRawQuery(), StandardCharsets.UTF_8).contains("attachments{")))
+                    .andRespond(answer);
+        }
+
+        @Test
+        void rejectedAttachmentFieldsAreDroppedOnceAndTheImportGoesOnWithLabels() {
+            expectFirst(true, withBadRequest().contentType(MediaType.APPLICATION_JSON).body(REJECTED));
+            expectFirst(false, withSuccess(ONE_CONVERSATION, MediaType.APPLICATION_JSON));
+
+            HistoryConversation conversation = drain(client.conversations("page-1", "t")).get(0);
+
+            assertEquals(3, conversation.messages().size());
+            assertEquals("[Attachment]", conversation.messages().get(1).text());
+            assertTrue(conversation.messages().get(1).attachments().isEmpty());
+            server.verify();
+        }
+
+        @Test
+        void aSecondRejectionIsAFetchExceptionWithoutAnotherRetry() {
+            expectFirst(true, withBadRequest().contentType(MediaType.APPLICATION_JSON).body(REJECTED));
+            expectFirst(false, withBadRequest().contentType(MediaType.APPLICATION_JSON).body(REJECTED));
+
+            assertThrows(HistoryFetchException.class, () -> client.conversations("page-1", "t").hasNext());
+            server.verify();
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {10, 190, 200})
+        void aPermissionOrTokenErrorIsNotRetried(int code) {
+            expectFirst(true, withBadRequest().contentType(MediaType.APPLICATION_JSON)
+                    .body("{\"error\":{\"code\":" + code + "}}"));
+
+            assertThrows(HistoryPermissionException.class, () -> client.conversations("page-1", "t").hasNext());
+            server.verify();
+        }
+    }
+
+    @Nested
     class Attachments {
 
         private NormalizedMessage onlyMessage(String attachmentsJson, String text) {
