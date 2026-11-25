@@ -143,6 +143,29 @@ class RealtimeSessionRegistryTests {
     }
 
     @Nested
+    class CloseUser {
+
+        @Test
+        void closesTheUsersSessionsInEveryOrganizationAndNoOneElses() throws IOException {
+            UUID user = UUID.randomUUID();
+            WebSocketSession inA = session("inA");
+            WebSocketSession inB = session("inB");
+            WebSocketSession other = session("other");
+            registry.register(inA, orgA, user);
+            registry.register(inB, orgB, user);
+            registry.register(other, orgA, UUID.randomUUID());
+
+            registry.closeUser(user, RealtimeSessionRegistry.ACCESS_REVOKED);
+
+            verify(inA).close(RealtimeSessionRegistry.ACCESS_REVOKED);
+            verify(inB).close(RealtimeSessionRegistry.ACCESS_REVOKED);
+            verify(other, never()).close(any(CloseStatus.class));
+            assertThat(registry.count(orgA)).isEqualTo(1);
+            assertThat(registry.count(orgB)).isZero();
+        }
+    }
+
+    @Nested
     class Lifecycle {
 
         @Test

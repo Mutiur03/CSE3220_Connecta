@@ -6,23 +6,32 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Role;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.repository.RoleRepository;
 import com.connecta.backend.user.repository.UserRepository;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import com.connecta.backend.common.dto.PageResponse;
+import com.connecta.backend.user.dto.AdminUserResponse;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,6 +44,9 @@ class UserServiceTests {
 
     @Mock
     RoleRepository roles;
+
+    @Mock
+    ApplicationEventPublisher events;
 
     @InjectMocks
     UserService service;
@@ -147,6 +159,113 @@ class UserServiceTests {
             when(users.existsByRolesName(Roles.OWNER)).thenReturn(true);
 
             assertTrue(service.ownerExists());
+        }
+    }
+
+    @Nested
+    class Disable {
+
+        @Test
+        void disablesTheUserAndPublishesTheEventOnce() {
+            User user = TestUsers.user(EMAIL, Roles.AGENT);
+            when(users.findById(user.getId())).thenReturn(Optional.of(user));
+
+            service.disable(user.getId());
+
+            assertFalse(user.isEnabled());
+            verify(events, times(1)).publishEvent(new UserDisabledEvent(user.getId()));
+        }
+
+        @Test
+        void anAlreadyDisabledUserPublishesNothing() {
+            User user = TestUsers.user(EMAIL, Roles.AGENT);
+            user.disable();
+            when(users.findById(user.getId())).thenReturn(Optional.of(user));
+
+            service.disable(user.getId());
+
+            verify(events, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        void theSystemOwnerCannotBeDisabled() {
+            User owner = TestUsers.user(EMAIL, Roles.OWNER);
+            when(users.findById(owner.getId())).thenReturn(Optional.of(owner));
+
+            assertThrows(UserProtectedException.class, () -> service.disable(owner.getId()));
+            assertTrue(owner.isEnabled());
+            verify(events, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        void failsForAnUnknownUserAndPublishesNothing() {
+            UUID id = UUID.randomUUID();
+
+            assertThrows(UserNotFoundException.class, () -> service.disable(id));
+            verify(events, never()).publishEvent(any(Object.class));
+        }
+    }
+
+    @Nested
+    class Enable {
+
+        @Test
+        void enablesADisabledUser() {
+            User user = TestUsers.user(EMAIL, Roles.AGENT);
+            user.disable();
+            when(users.findById(user.getId())).thenReturn(Optional.of(user));
+
+            service.enable(user.getId());
+
+            assertTrue(user.isEnabled());
+            verify(events, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        void failsForAnUnknownUser() {
+            assertThrows(UserNotFoundException.class, () -> service.enable(UUID.randomUUID()));
+        }
+    }
+
+    @Nested
+    class ChangeEnabled {
+
+        @Test
+        void falseDisablesAndReturnsTheUpdatedUser() {
+            User user = TestUsers.user(EMAIL, Roles.AGENT);
+            when(users.findById(user.getId())).thenReturn(Optional.of(user));
+
+            AdminUserResponse response = service.changeEnabled(user.getId(), false);
+
+            assertFalse(response.enabled());
+            assertEquals(List.of(Roles.AGENT), response.roles());
+        }
+
+        @Test
+        void trueEnables() {
+            User user = TestUsers.user(EMAIL, Roles.AGENT);
+            user.disable();
+            when(users.findById(user.getId())).thenReturn(Optional.of(user));
+
+            assertTrue(service.changeEnabled(user.getId(), true).enabled());
+        }
+    }
+
+    @Nested
+    class ListAll {
+
+        @Test
+        void mapsOnePageSortedByEmail() {
+            User user = TestUsers.user(EMAIL, Roles.AGENT);
+            when(users.findAllBy(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(user)));
+
+            PageResponse<AdminUserResponse> page = service.listAll(0, 20);
+
+            assertEquals(1, page.totalElements());
+            assertEquals(EMAIL, page.content().get(0).email());
+            ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+            verify(users).findAllBy(pageable.capture());
+            assertEquals("email: ASC,id: ASC", pageable.getValue().getSort().toString());
         }
     }
 }

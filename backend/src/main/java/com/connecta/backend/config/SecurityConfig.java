@@ -76,7 +76,7 @@ class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // The system owner's view across every organization: OWNER only.
-                        .requestMatchers("/api/admin/organizations").hasRole(Roles.OWNER)
+                        .requestMatchers("/api/admin/organizations", "/api/admin/users/**").hasRole(Roles.OWNER)
                         // Everything under /api/admin needs ADMIN (OWNER inherits it, see roleHierarchy).
                         .requestMatchers("/api/admin/**").hasRole(Roles.ADMIN)
                         // Product categories: any signed-in member reads; writes need ADMIN (OWNER inherits).

@@ -1,6 +1,7 @@
 package com.connecta.backend.user.domain;
 
 import lombok.AccessLevel;
+import org.hibernate.annotations.BatchSize;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import jakarta.persistence.Column;
@@ -44,6 +45,7 @@ public class User {
     private boolean enabled = true;
 
     @ManyToMany
+    @BatchSize(size = 50)
     @JoinTable(
             name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
@@ -64,6 +66,18 @@ public class User {
 
     public void changePasswordHash(String newPasswordHash) {
         this.passwordHash = newPasswordHash;
+    }
+
+    public void disable() {
+        this.enabled = false;
+    }
+
+    public void enable() {
+        this.enabled = true;
+    }
+
+    public boolean hasRole(String roleName) {
+        return roles.stream().anyMatch(r -> r.getName().equals(roleName));
     }
 
     /** Emails are stored trimmed and lower-case so lookups are case-insensitive. */
