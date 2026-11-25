@@ -61,6 +61,10 @@ public class Conversation {
     @JoinColumn(name = "instagram_account_id")
     private MetaConnectedAccount instagramAccount;
 
+    /** A customer wrote since a member last read the conversation. Shared by the whole team. */
+    @Column(nullable = false)
+    private boolean unread;
+
     @Column(name = "last_message_at")
     private Instant lastMessageAt;
 
@@ -93,6 +97,18 @@ public class Conversation {
 
     public void changeStatus(ConversationStatus newStatus) {
         this.status = newStatus;
+    }
+
+    public void markUnread() {
+        this.unread = true;
+    }
+
+    public void markRead() {
+        this.unread = false;
+    }
+
+    public void changeReadState(boolean unread) {
+        this.unread = unread;
     }
 
     @PrePersist

@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /** One row of the inbox list. The name, avatar URL (an https Meta picture link that may expire) and preview are null when unknown. */
-public record ConversationSummaryResponse(UUID id, Channel channel, ConversationStatus status,
+public record ConversationSummaryResponse(UUID id, Channel channel, ConversationStatus status, boolean unread,
         String participantName,
         String avatarUrl, String lastMessagePreview, Instant lastMessageAt) {
 
@@ -19,6 +19,7 @@ public record ConversationSummaryResponse(UUID id, Channel channel, Conversation
             Message lastMessage) {
         return new ConversationSummaryResponse(conversation.getId(), conversation.getChannel(),
                 conversation.getStatus(),
+                conversation.isUnread(),
                 participant == null ? null : participant.getDisplayName(),
                 participant == null ? null : participant.getProfilePictureUrl(),
                 lastMessage == null ? null : preview(lastMessage.getBody()), conversation.getLastMessageAt());
