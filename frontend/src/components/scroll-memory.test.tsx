@@ -70,7 +70,7 @@ describe("ScrollMemory", () => {
     }
   });
 
-  it("glides to the open row from a remembered position, and jumps there on a cold start", () => {
+  it("puts the open row in view at once, from a remembered position or a cold start", () => {
     const original = HTMLElement.prototype.getBoundingClientRect;
     HTMLElement.prototype.getBoundingClientRect = function () {
       const row = this.getAttribute("aria-current") === "page";
@@ -78,11 +78,6 @@ describe("ScrollMemory", () => {
       const height = row ? 64 : 200;
       return { top, bottom: top + height, height } as DOMRect;
     };
-    const calls: ScrollToOptions[] = [];
-    const originalScrollTo = HTMLElement.prototype.scrollTo;
-    HTMLElement.prototype.scrollTo = ((options: ScrollToOptions) => {
-      calls.push(options);
-    }) as typeof HTMLElement.prototype.scrollTo;
     const render = (storageKey: string) => {
       const container = document.createElement("div");
       document.body.appendChild(container);
@@ -98,16 +93,12 @@ describe("ScrollMemory", () => {
       return container.firstElementChild as HTMLDivElement;
     };
     try {
-      const cold = render("list:cold");
-      expect(calls).toHaveLength(0);
-      expect(cold.scrollTop).toBe(432);
-
+      // Row top 500, box 0..200 (height 200): centre it, so scroll by 500 - (200 - 64) / 2 = 432.
+      expect(render("list:cold").scrollTop).toBe(432);
       sessionStorage.setItem("list:warm", "10");
-      render("list:warm");
-      expect(calls).toEqual([{ top: 442, behavior: "smooth" }]);
+      expect(render("list:warm").scrollTop).toBe(442);
     } finally {
       HTMLElement.prototype.getBoundingClientRect = original;
-      HTMLElement.prototype.scrollTo = originalScrollTo;
     }
   });
 
