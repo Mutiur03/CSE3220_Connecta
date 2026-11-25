@@ -17,7 +17,7 @@ class HistoryImportPropertiesTests {
         assertEquals(50, p.maxConversations());
         assertEquals(50, p.messagesPerConversation());
         assertEquals(1000, p.maxMessages());
-        assertEquals(25, p.pageSize());
+        assertEquals(5, p.pageSize());
         assertEquals(Duration.ofSeconds(15), p.requestTimeout());
         assertEquals(2, p.workerThreads());
         assertEquals(100, p.queueCapacity());
