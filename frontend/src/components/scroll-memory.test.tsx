@@ -40,6 +40,36 @@ describe("ScrollMemory", () => {
     expect(box.scrollTop).toBe(0);
   });
 
+  it("brings the open row into view when it is outside the visible part", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const rect = (top: number, height: number) =>
+      ({ top, bottom: top + height, height }) as DOMRect;
+    const original = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this.getAttribute("aria-current") === "page") return rect(500, 64);
+      return rect(0, 200);
+    };
+    try {
+      act(() =>
+        root.render(
+          <ScrollMemory storageKey="list:d">
+            <a aria-current="page" href="/x">
+              open
+            </a>
+          </ScrollMemory>,
+        ),
+      );
+      // Row top 500, box 0..200 (height 200): centre it, so scroll by 500 - (200 - 64) / 2.
+      expect((container.firstElementChild as HTMLDivElement).scrollTop).toBe(
+        432,
+      );
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = original;
+    }
+  });
+
   it("saves the position as the list scrolls", () => {
     const { box } = mount("list:c");
     act(() => {

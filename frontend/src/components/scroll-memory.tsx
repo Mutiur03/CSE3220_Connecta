@@ -9,9 +9,23 @@ type Props = {
   children: ReactNode;
 };
 
+const CURRENT_ROW = '[aria-current="page"]';
+
+/** Scrolls the container, and only it, so the open row sits in the middle when it is outside the visible part. */
+function revealCurrent(box: HTMLElement) {
+  const row = box.querySelector<HTMLElement>(CURRENT_ROW);
+  if (!row) return;
+  const rowRect = row.getBoundingClientRect();
+  const boxRect = box.getBoundingClientRect();
+  if (rowRect.top >= boxRect.top && rowRect.bottom <= boxRect.bottom) return;
+  box.scrollTop +=
+    rowRect.top - boxRect.top - (boxRect.height - rowRect.height) / 2;
+}
+
 /**
  * A scroll container that remembers where it was. The inbox list is rebuilt when an agent moves between the inbox
- * page and a thread, which would reset it to the top; the position is kept in sessionStorage for the tab.
+ * page and a thread, which would reset it to the top; the position is kept in sessionStorage for the tab. The open
+ * row (aria-current="page") always ends up in view, also after a refresh or a link straight to a thread.
  */
 export default function ScrollMemory({
   storageKey,
@@ -29,6 +43,7 @@ export default function ScrollMemory({
     } catch {
       // Storage can be blocked; the list then starts at the top.
     }
+    revealCurrent(element);
   }, [storageKey]);
 
   return (
