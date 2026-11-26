@@ -2,8 +2,6 @@ package com.connecta.backend.org.service;
 
 import com.connecta.backend.org.domain.AvailabilityInterval;
 import com.connecta.backend.org.domain.Membership;
-import com.connecta.backend.org.domain.AvailabilityStatus;
-import com.connecta.backend.org.repository.AgentAvailabilityRepository;
 import com.connecta.backend.org.repository.AvailabilityIntervalRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -13,13 +11,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Records when a member starts and stops being AVAILABLE. Opening and closing are both idempotent. */
+/** Records when a member starts and stops being online. Opening and closing are both idempotent. */
 @Service
 @RequiredArgsConstructor
 public class AvailabilityIntervalService {
 
     private final AvailabilityIntervalRepository intervals;
-    private final AgentAvailabilityRepository availabilities;
     private final Clock clock;
 
     @Transactional
@@ -29,9 +26,10 @@ public class AvailabilityIntervalService {
         }
     }
 
+    /** Closes the member's open interval, if any, as of {@code endedAt}. */
     @Transactional
-    public void close(Membership member) {
-        findOpen(member).ifPresent(interval -> interval.close(clock.instant()));
+    public void close(Membership member, Instant endedAt) {
+        findOpen(member).ifPresent(interval -> interval.close(endedAt));
     }
 
     @Transactional
@@ -40,11 +38,13 @@ public class AvailabilityIntervalService {
         intervals.findByMembershipUserIdAndEndedAtIsNull(userId).forEach(interval -> interval.close(now));
     }
 
-    /** For a re-enabled user: opens an interval for each membership still marked AVAILABLE. */
+    /**
+     * Closes every interval left open by a stop or crash, ending each where it started. A crash therefore
+     * undercounts that stretch of time rather than overcounting it.
+     */
     @Transactional
-    public void openAllAvailableForUser(UUID userId) {
-        availabilities.findByMembershipUserIdAndStatus(userId, AvailabilityStatus.AVAILABLE)
-                .forEach(row -> open(row.getMembership()));
+    public void closeAllStale() {
+        intervals.closeAllOpenAtStart();
     }
 
     private Optional<AvailabilityInterval> findOpen(Membership member) {

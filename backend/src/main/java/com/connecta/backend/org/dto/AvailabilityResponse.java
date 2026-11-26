@@ -10,17 +10,18 @@ import java.util.UUID;
 /**
  * One member, whether they take new conversations, and how many open conversations they hold.
  * {@code updatedAt} is null until they first set it.
+ * {@code online} means connected now or inside the grace period after the last connection dropped.
  */
 public record AvailabilityResponse(UUID membershipId, UUID userId, String email, String name, String role,
-        AvailabilityStatus status, Instant updatedAt, long openConversations) {
+        AvailabilityStatus status, Instant updatedAt, long openConversations, boolean online) {
 
     /** {@code availability} may be null: a member without a row counts as AWAY. */
     public static AvailabilityResponse from(Membership membership, AgentAvailability availability,
-            long openConversations) {
+            long openConversations, boolean online) {
         User user = membership.getUser();
         return new AvailabilityResponse(membership.getId(), user.getId(), user.getEmail(), user.getFullName(),
                 membership.getRole().getName(),
                 availability == null ? AvailabilityStatus.AWAY : availability.getStatus(),
-                availability == null ? null : availability.getUpdatedAt(), openConversations);
+                availability == null ? null : availability.getUpdatedAt(), openConversations, online);
     }
 }

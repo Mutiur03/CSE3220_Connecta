@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -19,6 +20,11 @@ public interface AvailabilityIntervalRepository extends JpaRepository<Availabili
 
     /** Every open interval of one user across all of their memberships. */
     List<AvailabilityInterval> findByMembershipUserIdAndEndedAtIsNull(UUID userId);
+
+    /** Ends every open interval at its own start. */
+    @Modifying
+    @Query("update AvailabilityInterval i set i.endedAt = i.startedAt where i.endedAt is null")
+    int closeAllOpenAtStart();
 
     /** Intervals of the given members that overlap [from, to), membership loaded in the same query. */
     @EntityGraph(attributePaths = "membership")

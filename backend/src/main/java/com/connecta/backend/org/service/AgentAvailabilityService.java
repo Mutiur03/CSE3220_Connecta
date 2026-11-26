@@ -35,7 +35,7 @@ public class AgentAvailabilityService {
 
     private final AgentAvailabilityRepository availabilities;
     private final MembershipRepository memberships;
-    private final AvailabilityIntervalService intervals;
+    private final PresenceService presence;
     private final ConversationWorkloadService workload;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
@@ -46,7 +46,7 @@ public class AgentAvailabilityService {
         Membership me = tenants.requireMembership(organizationId, activeCaller.load(subject).getId());
         return AvailabilityResponse.from(me,
                 availabilities.findByMembershipIdAndOrganizationId(me.getId(), organizationId).orElse(null),
-                openCount(organizationId, me));
+                openCount(organizationId, me), isOnline(organizationId, me));
     }
 
     /** Any member: creates the row on the first change, updates it afterwards. */
@@ -55,13 +55,10 @@ public class AgentAvailabilityService {
         Membership me = tenants.requireMembership(organizationId, activeCaller.load(subject).getId());
         Optional<AgentAvailability> existing = availabilities
                 .findByMembershipIdAndOrganizationId(me.getId(), organizationId);
-        AvailabilityStatus before = existing.map(AgentAvailability::getStatus).orElse(AvailabilityStatus.AWAY);
         AgentAvailability row = existing.orElseGet(() -> new AgentAvailability(me, status));
         row.changeStatus(status);
-        if (before != status) {
-            recordInterval(me, status);
-        }
-        return AvailabilityResponse.from(me, availabilities.saveAndFlush(row), openCount(organizationId, me));
+        return AvailabilityResponse.from(me, availabilities.saveAndFlush(row), openCount(organizationId, me),
+                isOnline(organizationId, me));
     }
 
     /** ADMIN or above: every member of the organization with their status. */
@@ -76,15 +73,12 @@ public class AgentAvailabilityService {
         Map<UUID, Long> open = workload.openCounts(organizationId,
                 found.getContent().stream().map(Membership::getId).toList());
         return PageResponse.from(found,
-                m -> AvailabilityResponse.from(m, byMembership.get(m.getId()), open.get(m.getId())));
+                m -> AvailabilityResponse.from(m, byMembership.get(m.getId()), open.get(m.getId()),
+                        isOnline(organizationId, m)));
     }
 
-    private void recordInterval(Membership member, AvailabilityStatus status) {
-        if (status == AvailabilityStatus.AVAILABLE) {
-            intervals.open(member);
-        } else {
-            intervals.close(member);
-        }
+    private boolean isOnline(UUID organizationId, Membership member) {
+        return presence.isOnline(organizationId, member.getUser().getId());
     }
 
     private long openCount(UUID organizationId, Membership member) {

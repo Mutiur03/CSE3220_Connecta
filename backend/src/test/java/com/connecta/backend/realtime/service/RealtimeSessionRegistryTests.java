@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,6 +18,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -26,13 +28,14 @@ class RealtimeSessionRegistryTests {
     private final UUID orgA = UUID.randomUUID();
     private final UUID orgB = UUID.randomUUID();
     private final MutableClock clock = new MutableClock(Instant.parse("2026-11-24T10:00:00Z"));
+    private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private RealtimeSessionRegistry registry;
 
     @BeforeEach
     void setUp() {
         registry = new RealtimeSessionRegistry(new RealtimeProperties(Duration.ofSeconds(30),
                 Duration.ofSeconds(90), Duration.ofSeconds(30), 2, Duration.ofSeconds(5), 65536, 5, 20,
-                Duration.ofMinutes(1), 1024), clock);
+                Duration.ofMinutes(1), 1024), clock, events);
     }
 
     private static WebSocketSession session(String id) {
@@ -162,6 +165,42 @@ class RealtimeSessionRegistryTests {
             verify(other, never()).close(any(CloseStatus.class));
             assertThat(registry.count(orgA)).isEqualTo(1);
             assertThat(registry.count(orgB)).isZero();
+        }
+    }
+
+    @Nested
+    class Events {
+
+        @Test
+        void registeringAnnouncesTheConnection() {
+            UUID user = UUID.randomUUID();
+
+            registry.register(session("a"), orgA, user);
+
+            verify(events).publishEvent(new RealtimeConnectionOpened(user, orgA));
+        }
+
+        @Test
+        void aSessionLeavingAnnouncesOnceEvenWhenRemovedTwice() {
+            UUID user = UUID.randomUUID();
+            registry.register(session("a"), orgA, user);
+
+            registry.remove("a");
+            registry.remove("a");
+
+            verify(events, times(1)).publishEvent(new RealtimeConnectionClosed(user, orgA));
+        }
+
+        @Test
+        void closingTheUsersSessionsAnnouncesEachOne() {
+            UUID user = UUID.randomUUID();
+            registry.register(session("a"), orgA, user);
+            registry.register(session("b"), orgB, user);
+
+            registry.closeUser(user, RealtimeSessionRegistry.ACCESS_REVOKED);
+
+            verify(events).publishEvent(new RealtimeConnectionClosed(user, orgA));
+            verify(events).publishEvent(new RealtimeConnectionClosed(user, orgB));
         }
     }
 
