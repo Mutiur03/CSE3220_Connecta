@@ -13,6 +13,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,14 +36,14 @@ public class AdminUserController {
     private final UserService users;
 
     @Operation(summary = "List every user account (OWNER only)", security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponse(responseCode = "200", description = "One page of users, sorted by email")
+    @ApiResponse(responseCode = "200", description = "One page of users, the caller first, then sorted by email")
     @ApiResponse(responseCode = "400", description = "Page or size out of range")
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
     @ApiResponse(responseCode = "403", description = "The caller is not the system OWNER")
     @GetMapping
-    PageResponse<AdminUserResponse> list(@RequestParam(defaultValue = "0") @Min(0) int page,
+    PageResponse<AdminUserResponse> list(@AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "" + PageResponse.DEFAULT_SIZE) @Min(1) @Max(PageResponse.MAX_SIZE) int size) {
-        return users.listAll(page, size);
+        return users.listAll(UUID.fromString(jwt.getSubject()), page, size);
     }
 
     @Operation(summary = "Enable or disable a user account (OWNER only)",
