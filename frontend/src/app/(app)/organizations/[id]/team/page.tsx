@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AutoRefresh from "@/components/auto-refresh";
 import OrgPagination from "@/components/org-pagination";
 import AvailabilityRangeForm from "@/components/availability-range-form";
 import AvailabilityTimeTable from "@/components/availability-time-table";
@@ -85,6 +86,7 @@ export default async function TeamPage({
   return (
     <>
       {header}
+      <AutoRefresh />
       <TeamWorkloadTable orgId={id} members={members.content} />
       <OrgPagination
         label="Team pages"
