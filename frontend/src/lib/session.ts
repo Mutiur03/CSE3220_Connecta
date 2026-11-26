@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies, headers } from "next/headers";
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { ApiError, fetchMe, type Tokens, type User } from "./api";
 import {
@@ -38,6 +39,12 @@ export async function getRefreshToken() {
 }
 
 /**
+ * /api/me once per request: the sidebar, the user panel and the page each need the user, and without
+ * cache() every render asked the backend three times. The token is the cache key.
+ */
+export const fetchMeOnce = cache(fetchMe);
+
+/**
  * The signed-in user, or a redirect. The proxy only checks that a cookie exists; this is the real
  * check, because the backend validates the token. An expired access token (its cookie is gone, or
  * the backend answers 401) goes through /session/refresh, which rotates the refresh token and then
@@ -51,7 +58,7 @@ export async function getCurrentUser(next?: string): Promise<User> {
 
   if (accessToken) {
     try {
-      return await fetchMe(accessToken);
+      return await fetchMeOnce(accessToken);
     } catch (error) {
       if (!(error instanceof ApiError && error.status === 401)) throw error;
     }
