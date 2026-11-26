@@ -2,19 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { apiBaseUrl } from "@/lib/api";
-import {
-  coalesce,
-  fetchRealtimeTicket,
-  isRelevant,
-  REFRESH_DEBOUNCE_MS,
-  startRealtimeClient,
-  type SocketLike,
-} from "@/lib/realtime";
+import { coalesce, isRelevant, REFRESH_DEBOUNCE_MS } from "@/lib/realtime";
+import { subscribeRealtime } from "@/lib/realtime-hub";
 
 /**
- * Renders nothing. Holds the organization's live socket and, on a relevant message event, asks the
- * server components to re-fetch (router.refresh), so there is no client-side message state.
+ * Renders nothing. Listens on the organization's shared live socket and, on a relevant message event,
+ * asks the server components to re-fetch (router.refresh), so there is no client-side message state.
  * Without `conversationId` every event refreshes (inbox list); with it only that conversation does.
  */
 export default function RealtimeInboxRefresher({
@@ -28,10 +21,7 @@ export default function RealtimeInboxRefresher({
 
   useEffect(() => {
     const refresh = coalesce(() => router.refresh(), REFRESH_DEBOUNCE_MS);
-    const stop = startRealtimeClient({
-      apiBase: apiBaseUrl(),
-      createSocket: (url) => new WebSocket(url) as SocketLike,
-      fetchTicket: () => fetchRealtimeTicket(orgId),
+    const stop = subscribeRealtime(orgId, {
       // An expired session: a server re-render sends the page through the session refresh.
       onUnauthorized: () => router.refresh(),
       onEvent: (event) => {
