@@ -1,6 +1,7 @@
 package com.connecta.backend.org.service;
 
 import com.connecta.backend.common.dto.PageResponse;
+import com.connecta.backend.inbox.service.ConversationWorkloadService;
 import com.connecta.backend.org.domain.AgentAvailability;
 import com.connecta.backend.org.domain.AvailabilityStatus;
 import com.connecta.backend.org.domain.Membership;
@@ -8,6 +9,7 @@ import com.connecta.backend.org.dto.AvailabilityResponse;
 import com.connecta.backend.org.repository.AgentAvailabilityRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.user.domain.Roles;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -32,6 +34,7 @@ public class AgentAvailabilityService {
 
     private final AgentAvailabilityRepository availabilities;
     private final MembershipRepository memberships;
+    private final ConversationWorkloadService workload;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
 
@@ -40,7 +43,8 @@ public class AgentAvailabilityService {
     public AvailabilityResponse getOwn(String subject, UUID organizationId) {
         Membership me = tenants.requireMembership(organizationId, activeCaller.load(subject).getId());
         return AvailabilityResponse.from(me,
-                availabilities.findByMembershipIdAndOrganizationId(me.getId(), organizationId).orElse(null));
+                availabilities.findByMembershipIdAndOrganizationId(me.getId(), organizationId).orElse(null),
+                openCount(organizationId, me));
     }
 
     /** Any member: creates the row on the first change, updates it afterwards. */
@@ -50,7 +54,7 @@ public class AgentAvailabilityService {
         AgentAvailability row = availabilities.findByMembershipIdAndOrganizationId(me.getId(), organizationId)
                 .orElseGet(() -> new AgentAvailability(me, status));
         row.changeStatus(status);
-        return AvailabilityResponse.from(me, availabilities.saveAndFlush(row));
+        return AvailabilityResponse.from(me, availabilities.saveAndFlush(row), openCount(organizationId, me));
     }
 
     /** ADMIN or above: every member of the organization with their status. */
@@ -62,6 +66,13 @@ public class AgentAvailabilityService {
                 .findByOrganizationIdAndMembershipIdIn(organizationId,
                         found.getContent().stream().map(Membership::getId).toList())
                 .stream().collect(Collectors.toMap(a -> a.getMembership().getId(), Function.identity()));
-        return PageResponse.from(found, m -> AvailabilityResponse.from(m, byMembership.get(m.getId())));
+        Map<UUID, Long> open = workload.openCounts(organizationId,
+                found.getContent().stream().map(Membership::getId).toList());
+        return PageResponse.from(found,
+                m -> AvailabilityResponse.from(m, byMembership.get(m.getId()), open.get(m.getId())));
+    }
+
+    private long openCount(UUID organizationId, Membership member) {
+        return workload.openCounts(organizationId, List.of(member.getId())).get(member.getId());
     }
 }

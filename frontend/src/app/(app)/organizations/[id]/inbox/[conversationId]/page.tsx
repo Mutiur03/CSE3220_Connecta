@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/components/avatar";
+import AssignmentPanel from "@/components/assignment-panel";
 import ContactDetailsPane from "@/components/contact-details-pane";
 import InboxListPane from "@/components/inbox-list-pane";
 import InboxShell from "@/components/inbox-shell";
@@ -11,6 +12,10 @@ import OrgActionButton from "@/components/org-action-button";
 import RealtimeInboxRefresher from "@/components/realtime-inbox-refresher";
 import ReplyComposer from "@/components/reply-composer";
 import { Badge } from "@/components/ui/badge";
+import { assignConversationAction } from "@/lib/assignment-actions";
+import { listAssignments, listAvailability } from "@/lib/assignment-api";
+import { MAX_PAGE_SIZE } from "@/lib/org-api";
+import { section } from "@/lib/inventory-view";
 import {
   markConversationUnreadAction,
   sendAttachmentAction,
@@ -28,8 +33,10 @@ import {
 } from "@/lib/inbox-view";
 import { parsePageParam } from "@/lib/org-pagination";
 import { isUuid } from "@/lib/org-validation";
-import { loadSession, notFoundOnMissing } from "../../data";
+import { loadOrganization, loadSession, notFoundOnMissing } from "../../data";
 import { loadInboxList } from "../list-data";
+
+const HISTORY_SIZE = 10;
 
 type RouteParams = Promise<{ id: string; conversationId: string }>;
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -48,7 +55,22 @@ export default async function ConversationPage({
   const query = await searchParams;
   const history = parsePageParam(query.history);
   const { accessToken } = await loadSession(id);
-  const [list, conversation, messages] = await Promise.all([
+  // Only an admin may list the team and the history, so only then are those requests made; they run in
+  // parallel with the rest, and each section fails on its own.
+  const admin = loadOrganization(id).then(
+    (organization) => organization.callerRole === "ADMIN",
+  );
+  const adminData = admin.then((isAdmin) =>
+    isAdmin
+      ? Promise.all([
+          section(listAvailability(accessToken, id, 0, MAX_PAGE_SIZE)),
+          section(
+            listAssignments(accessToken, id, conversationId, 0, HISTORY_SIZE),
+          ),
+        ])
+      : null,
+  );
+  const [list, conversation, messages, team] = await Promise.all([
     loadInboxList(accessToken, id, query),
     notFoundOnMissing(getConversation(accessToken, id, conversationId)),
     notFoundOnMissing(
@@ -60,6 +82,7 @@ export default async function ConversationPage({
         MESSAGES_PAGE_SIZE,
       ),
     ),
+    adminData,
   ]);
 
   const threadPath = `/organizations/${id}/inbox/${conversationId}`;
@@ -114,6 +137,11 @@ export default async function ConversationPage({
               <Badge tone={closed ? "neutral" : "accent"}>
                 {closed ? "Closed" : "Open"}
               </Badge>
+              <Badge>
+                {conversation.assignee
+                  ? `Assigned to ${conversation.assignee.name}`
+                  : "Unassigned"}
+              </Badge>
             </p>
           </div>
         </div>
@@ -137,6 +165,15 @@ export default async function ConversationPage({
           />
         </span>
       </header>
+
+      {team && (
+        <AssignmentPanel
+          action={assignConversationAction.bind(null, id, conversationId)}
+          currentId={conversation.assignee?.membershipId ?? null}
+          members={team[0].ok ? team[0].value.content : null}
+          history={team[1].ok ? team[1].value : null}
+        />
+      )}
 
       {/* column-reverse starts the scroll at the newest message, with no script. */}
       <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain">

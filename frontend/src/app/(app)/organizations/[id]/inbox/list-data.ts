@@ -1,3 +1,4 @@
+import { getOwnAvailability } from "@/lib/assignment-api";
 import { listConversations } from "@/lib/inbox-api";
 import { parseInboxFilters } from "@/lib/inbox-view";
 import { ORG_PAGE_SIZE, parsePageParam } from "@/lib/org-pagination";
@@ -13,10 +14,14 @@ export async function loadInboxList(
 ) {
   const page = parsePageParam(query.page);
   const filters = parseInboxFilters(query);
-  const conversations = await notFoundOnMissing(
-    listConversations(accessToken, orgId, filters, page, ORG_PAGE_SIZE),
-  );
-  return { page, filters, conversations };
+  const [conversations, availability] = await Promise.all([
+    notFoundOnMissing(
+      listConversations(accessToken, orgId, filters, page, ORG_PAGE_SIZE),
+    ),
+    // The status control is a convenience: when it cannot load, the list still renders without it.
+    getOwnAvailability(accessToken, orgId).catch(() => null),
+  ]);
+  return { page, filters, conversations, availability };
 }
 
 export type InboxListData = Awaited<ReturnType<typeof loadInboxList>>;

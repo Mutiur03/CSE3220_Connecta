@@ -17,6 +17,7 @@ const conversation: ConversationDetail = {
       avatarUrl: null,
     },
   ],
+  assignee: { membershipId: "m1", userId: "u1", name: "Mira Das" },
   lastMessageAt: "2026-06-01T10:00:00Z",
   createdAt: "2026-05-20T09:00:00Z",
   updatedAt: "2026-06-01T10:00:00Z",
@@ -34,6 +35,19 @@ describe("ContactDetailsPane", () => {
     expect(markup).toContain('dateTime="2026-05-20T09:00:00Z"');
     expect(markup).toContain("Last message");
     expect(markup).not.toContain("Also in this conversation");
+  });
+
+  it("shows the assignee, or Unassigned", () => {
+    expect(
+      renderToStaticMarkup(<ContactDetailsPane conversation={conversation} />),
+    ).toContain("Mira Das");
+    expect(
+      renderToStaticMarkup(
+        <ContactDetailsPane
+          conversation={{ ...conversation, assignee: null }}
+        />,
+      ),
+    ).toContain("Unassigned");
   });
 
   it("lists other customers and skips the last message when there is none", () => {

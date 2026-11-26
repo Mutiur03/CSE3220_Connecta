@@ -18,6 +18,7 @@ export default function ContactDetailsPane({ conversation }: Props) {
       term: "Status",
       value: conversation.status === "CLOSED" ? "Closed" : "Open",
     },
+    { term: "Assignee", value: conversation.assignee?.name ?? "Unassigned" },
     {
       term: "First contact",
       value: (

@@ -16,7 +16,7 @@ public record ConversationAssignmentResponse(UUID id, Person from, Person to, Pe
     /** A person in the history. {@code membershipId} is null for the user who made the change. */
     public record Person(UUID membershipId, UUID userId, String name) {
 
-        static Person of(Membership member) {
+        public static Person of(Membership member) {
             return member == null ? null
                     : new Person(member.getId(), member.getUser().getId(), member.getUser().getFullName());
         }
