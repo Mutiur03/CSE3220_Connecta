@@ -20,13 +20,13 @@ export const INBOX_TAB_LABELS: Record<InboxTab, string> = {
   ALL: "All",
 };
 
-/** Who holds the conversation. Everyone is the default and is left out of the URL. */
+/** Who holds the conversation. Anyone is the default and is left out of the URL. */
 export const INBOX_ASSIGNEES = ["me", "none"] as const;
 export type InboxAssignee = (typeof INBOX_ASSIGNEES)[number];
 
 export const INBOX_ASSIGNEE_LABELS = {
-  everyone: "Everyone",
-  me: "Assigned to me",
+  everyone: "Anyone",
+  me: "Mine",
   none: "Unassigned",
 } as const;
 

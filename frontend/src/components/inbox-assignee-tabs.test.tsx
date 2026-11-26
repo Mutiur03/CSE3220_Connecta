@@ -16,7 +16,7 @@ const html = (
   );
 
 describe("InboxAssigneeTabs", () => {
-  it("marks Everyone by default and links the others, keeping the other filters", () => {
+  it("marks Anyone by default and links the others, keeping the other filters", () => {
     const markup = html({ q: "ana", tab: "CLOSED" });
     expect(markup).toMatch(
       /<a aria-current="page"[^>]*inbox\?q=ana&amp;status=CLOSED"/,

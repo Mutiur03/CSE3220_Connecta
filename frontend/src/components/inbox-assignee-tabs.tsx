@@ -20,7 +20,7 @@ const OPTIONS: { value: InboxAssignee | undefined; key: string }[] = [
   { value: "none", key: "none" },
 ];
 
-/** Everyone, Assigned to me, Unassigned (n). Plain links: the choice lives in the URL and drops the page. */
+/** Anyone, Mine, Unassigned (n). Plain links: the choice lives in the URL and drops the page. */
 export default function InboxAssigneeTabs({
   listPath,
   filters,
