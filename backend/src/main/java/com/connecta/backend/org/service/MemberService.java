@@ -88,7 +88,8 @@ public class MemberService {
         return target;
     }
 
-    private Membership findMember(UUID organizationId, UUID membershipId) {
+    /** The membership, only if it belongs to the organization. Other features resolve a member through this. */
+    public Membership findMember(UUID organizationId, UUID membershipId) {
         return memberships.findByIdAndOrganizationId(membershipId, organizationId)
                 .orElseThrow(MemberNotFoundException::new);
     }
