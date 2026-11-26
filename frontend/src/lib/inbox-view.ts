@@ -20,11 +20,22 @@ export const INBOX_TAB_LABELS: Record<InboxTab, string> = {
   ALL: "All",
 };
 
-/** `tab` undefined means the Open tab. */
+/** Who holds the conversation. Everyone is the default and is left out of the URL. */
+export const INBOX_ASSIGNEES = ["me", "none"] as const;
+export type InboxAssignee = (typeof INBOX_ASSIGNEES)[number];
+
+export const INBOX_ASSIGNEE_LABELS = {
+  everyone: "Everyone",
+  me: "Assigned to me",
+  none: "Unassigned",
+} as const;
+
+/** `tab` undefined means the Open tab; `assignee` undefined means everyone. */
 export type InboxFilters = {
   q?: string;
   channel?: InboxChannel;
   tab?: InboxTab;
+  assignee?: InboxAssignee;
 };
 
 /** The status the API filters on: OPEN by default, nothing for the All tab. */
@@ -41,15 +52,32 @@ export function parseInboxFilters(params: SearchParams): InboxFilters {
   const q = firstValue(params.q).trim().slice(0, INBOX_QUERY_MAX_LENGTH);
   const channel = firstValue(params.channel);
   const status = firstValue(params.status).toUpperCase();
+  const assignee = firstValue(params.assignee).toLowerCase();
   return {
     q: q || undefined,
     channel: INBOX_CHANNELS.find((known) => known === channel),
     tab: INBOX_TABS.find((known) => known !== "OPEN" && known === status),
+    assignee: INBOX_ASSIGNEES.find((known) => known === assignee),
   };
 }
 
 export const hasInboxFilters = (filters: InboxFilters) =>
-  Boolean(filters.q || filters.channel);
+  Boolean(filters.q || filters.channel || filters.assignee);
+
+/** "Unassigned (3)", or just the label when the count is unknown. */
+export const unassignedLabel = (count: number | null) =>
+  count === null
+    ? INBOX_ASSIGNEE_LABELS.none
+    : `${INBOX_ASSIGNEE_LABELS.none} (${count})`;
+
+type Held = {
+  status: "OPEN" | "CLOSED";
+  assignee: { online: boolean } | null;
+};
+
+/** An open conversation whose holder is offline: nobody is there to answer it. */
+export const heldByOffline = (conversation: Held) =>
+  conversation.status === "OPEN" && conversation.assignee?.online === false;
 
 /** The page URL's query string. Unset filters, the Open tab and page 0 are left out. */
 export function inboxListQuery(
@@ -60,6 +88,7 @@ export function inboxListQuery(
   const query = new URLSearchParams();
   if (filters.q) query.set("q", filters.q);
   if (filters.channel) query.set("channel", filters.channel);
+  if (filters.assignee) query.set("assignee", filters.assignee);
   if (filters.tab) query.set("status", filters.tab);
   if (page > 0) query.set("page", String(page));
   if (size !== undefined) query.set("size", String(size));

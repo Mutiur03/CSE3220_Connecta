@@ -13,7 +13,14 @@ const base: Conversation = {
   avatarUrl: "https://cdn.example/ana.jpg",
   lastMessagePreview: "Is the blue one in stock?",
   lastMessageAt: "2026-06-01T11:55:00Z",
+  assignee: null,
 };
+const holder = (online: boolean) => ({
+  membershipId: "m1",
+  userId: "u1",
+  name: "Bea Costa",
+  online,
+});
 const html = (...items: Conversation[]) =>
   renderToStaticMarkup(
     <ConversationList orgId="org-1" conversations={items} now={NOW} />,
@@ -94,5 +101,32 @@ describe("ConversationList", () => {
     expect(markup).toContain("Unknown contact");
     expect(markup).toContain("No messages yet");
     expect(markup).not.toContain("<time");
+  });
+
+  describe("assignee", () => {
+    it("shows an online holder's name without the offline marker", () => {
+      const markup = html({ ...base, assignee: holder(true) });
+      expect(markup).toContain("Bea Costa");
+      expect(markup).toContain("Assigned to ");
+      expect(markup).not.toContain("offline");
+    });
+
+    it("marks an open conversation held by an offline member", () => {
+      expect(html({ ...base, assignee: holder(false) })).toContain("offline");
+    });
+
+    it("does not mark a closed conversation", () => {
+      const markup = html({
+        ...base,
+        status: "CLOSED",
+        assignee: holder(false),
+      });
+      expect(markup).toContain("Bea Costa");
+      expect(markup).not.toContain("offline");
+    });
+
+    it("shows nothing extra when unassigned", () => {
+      expect(html(base)).not.toContain("Assigned to");
+    });
   });
 });

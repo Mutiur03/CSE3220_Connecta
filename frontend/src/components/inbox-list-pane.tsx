@@ -10,6 +10,7 @@ import ConversationList from "./conversation-list";
 import InboxFilterBar from "./inbox-filter-bar";
 import InboxKeyboard from "./inbox-keyboard";
 import ScrollMemory, { ScrollPlacement } from "./scroll-memory";
+import InboxAssigneeTabs from "./inbox-assignee-tabs";
 import InboxStatusTabs from "./inbox-status-tabs";
 import OrgPagination from "./org-pagination";
 
@@ -18,6 +19,8 @@ type Props = {
   filters: InboxFilters;
   page: number;
   conversations: Page<Conversation>;
+  /** Unassigned conversations under the other filters; null when it could not be fetched. */
+  unassignedCount: number | null;
   /** The open conversation, if any. */
   selectedId?: string;
   /** h1 on the inbox itself; h2 beside a thread, where the contact name is the page heading. */
@@ -59,6 +62,7 @@ export default function InboxListPane({
   filters,
   page,
   conversations,
+  unassignedCount,
   selectedId,
   headingLevel,
   now,
@@ -95,6 +99,11 @@ export default function InboxListPane({
           </div>
         </div>
         <InboxStatusTabs listPath={listPath} filters={filters} />
+        <InboxAssigneeTabs
+          listPath={listPath}
+          filters={filters}
+          unassignedCount={unassignedCount}
+        />
         {(conversations.totalElements > 0 || filtered) && (
           <InboxFilterBar listPath={listPath} filters={filters} />
         )}

@@ -24,6 +24,9 @@ export default function InboxFilterBar({ listPath, filters }: Props) {
       className="flex flex-wrap items-center gap-2"
     >
       {filters.tab && <input type="hidden" name="status" value={filters.tab} />}
+      {filters.assignee && (
+        <input type="hidden" name="assignee" value={filters.assignee} />
+      )}
       <div className="flex basis-full items-center gap-2">
         <label htmlFor="inbox-search" className="sr-only">
           Search
@@ -72,7 +75,10 @@ export default function InboxFilterBar({ listPath, filters }: Props) {
         </button>
         {hasInboxFilters(filters) && (
           <Link
-            href={inboxHref(listPath, { tab: filters.tab })}
+            href={inboxHref(listPath, {
+              tab: filters.tab,
+              assignee: filters.assignee,
+            })}
             className="text-sm text-secondary underline-offset-4 hover:text-primary hover:underline"
           >
             Reset filters
