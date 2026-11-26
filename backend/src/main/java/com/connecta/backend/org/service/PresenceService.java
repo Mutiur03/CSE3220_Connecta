@@ -7,9 +7,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.TaskScheduler;
@@ -35,6 +38,7 @@ public class PresenceService {
 
     private static final class State {
         int connections;
+        UUID membershipId;
         Instant droppedAt;
         ScheduledFuture<?> pendingClose;
     }
@@ -54,7 +58,10 @@ public class PresenceService {
             state.pendingClose.cancel(false);
             state.pendingClose = null;
         } else if (state.connections == 1) {
-            findMembership(organizationId, userId).ifPresent(intervals::open);
+            findMembership(organizationId, userId).ifPresent(member -> {
+                state.membershipId = member.getId();
+                intervals.open(member);
+            });
         }
     }
 
@@ -72,6 +79,12 @@ public class PresenceService {
     /** Connected now, or inside the grace period after the last connection dropped. */
     public synchronized boolean isOnline(UUID organizationId, UUID userId) {
         return states.containsKey(new Key(organizationId, userId));
+    }
+
+    /** Members holding a connection right now; one still inside its grace period is gone and not listed. */
+    public synchronized Set<UUID> connectedMembershipIds() {
+        return states.values().stream().filter(state -> state.connections > 0)
+                .map(state -> state.membershipId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     private synchronized void closeIfStillGone(Key key) {

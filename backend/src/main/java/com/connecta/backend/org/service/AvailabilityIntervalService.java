@@ -5,6 +5,7 @@ import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.repository.AvailabilityIntervalRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -38,13 +39,16 @@ public class AvailabilityIntervalService {
         intervals.findByMembershipUserIdAndEndedAtIsNull(userId).forEach(interval -> interval.close(now));
     }
 
-    /**
-     * Closes every interval left open by a stop or crash, ending each where it started. A crash therefore
-     * undercounts that stretch of time rather than overcounting it.
-     */
+    /** Closes every interval a stop left open, ending each at the last heartbeat that saw its member. */
     @Transactional
     public void closeAllStale() {
-        intervals.closeAllOpenAtStart();
+        intervals.closeAllOpenAtLastSeen();
+    }
+
+    /** Marks the given members' open intervals as seen now: one statement however many members. */
+    @Transactional
+    public void heartbeat(Collection<UUID> membershipIds) {
+        intervals.touchOpen(membershipIds, clock.instant());
     }
 
     private Optional<AvailabilityInterval> findOpen(Membership member) {

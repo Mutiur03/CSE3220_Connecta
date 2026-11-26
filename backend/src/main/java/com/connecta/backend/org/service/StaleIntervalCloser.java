@@ -5,7 +5,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-/** Observer: after a start no connection exists, so intervals a stop or crash left open are closed. */
+/** Observer: after a start no connection exists, so intervals a stop left open are closed at their last heartbeat. */
 @Component
 @RequiredArgsConstructor
 public class StaleIntervalCloser {

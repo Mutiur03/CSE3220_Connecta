@@ -1,5 +1,6 @@
 package com.connecta.backend.org.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,6 +21,7 @@ import com.connecta.backend.user.domain.Role;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ScheduledFuture;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,7 +66,7 @@ class PresenceServiceTests {
         TestUsers.set(beta, "id", UUID.randomUUID());
         acmeA = member(acme);
         acmeB = member(acme);
-        presence = new PresenceService(new PresenceProperties(GRACE), clock, scheduler, memberships, intervals);
+        presence = new PresenceService(new PresenceProperties(GRACE, Duration.ofSeconds(30)), clock, scheduler, memberships, intervals);
     }
 
     private Membership member(Organization organization) {
@@ -149,6 +151,47 @@ class PresenceServiceTests {
             presence.connected(acme.getId(), userA);
 
             verify(intervals, never()).open(any());
+        }
+    }
+
+    @Nested
+    class ConnectedMembershipIds {
+
+        @Test
+        void listsEachConnectedMemberOnceHoweverManyTabs() {
+            knows(acme, userA, acmeA);
+            knows(acme, userB, acmeB);
+
+            presence.connected(acme.getId(), userA);
+            presence.connected(acme.getId(), userA);
+            presence.connected(acme.getId(), userB);
+
+            assertEquals(Set.of(acmeA.getId(), acmeB.getId()), presence.connectedMembershipIds());
+        }
+
+        @Test
+        void leavesOutAMemberInsideTheirGracePeriod() {
+            knows(acme, userA, acmeA);
+            knows(acme, userB, acmeB);
+            schedulerReturnsPending();
+            presence.connected(acme.getId(), userA);
+            presence.connected(acme.getId(), userB);
+
+            presence.disconnected(acme.getId(), userA);
+
+            assertEquals(Set.of(acmeB.getId()), presence.connectedMembershipIds());
+        }
+
+        @Test
+        void listsAMemberAgainAfterAReconnectInsideTheGrace() {
+            knows(acme, userA, acmeA);
+            schedulerReturnsPending();
+            presence.connected(acme.getId(), userA);
+            presence.disconnected(acme.getId(), userA);
+
+            presence.connected(acme.getId(), userA);
+
+            assertEquals(Set.of(acmeA.getId()), presence.connectedMembershipIds());
         }
     }
 

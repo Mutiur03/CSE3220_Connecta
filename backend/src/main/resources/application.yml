@@ -99,6 +99,8 @@ app:
   # Online presence: how long a member's last realtime connection must stay gone before they count as offline.
   presence:
     grace-period: ${PRESENCE_GRACE_PERIOD:60s}
+    # How often a connected member's open interval is stamped; a restart loses at most this much per session.
+    heartbeat-interval: ${PRESENCE_HEARTBEAT_INTERVAL:30s}
 
   frontend:
     # Where the browser goes after a Meta callback (the Integrations page).

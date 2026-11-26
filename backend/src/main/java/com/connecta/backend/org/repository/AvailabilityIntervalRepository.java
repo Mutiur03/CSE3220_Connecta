@@ -21,10 +21,19 @@ public interface AvailabilityIntervalRepository extends JpaRepository<Availabili
     /** Every open interval of one user across all of their memberships. */
     List<AvailabilityInterval> findByMembershipUserIdAndEndedAtIsNull(UUID userId);
 
-    /** Ends every open interval at its own start. */
+    /** Ends every open interval at its last sighting, or at its start when it has none. */
     @Modifying
-    @Query("update AvailabilityInterval i set i.endedAt = i.startedAt where i.endedAt is null")
-    int closeAllOpenAtStart();
+    @Query("""
+            update AvailabilityInterval i set i.endedAt = coalesce(i.lastSeenAt, i.startedAt)
+            where i.endedAt is null""")
+    int closeAllOpenAtLastSeen();
+
+    /** Stamps the open intervals of the given members as seen at {@code seenAt}, in one statement. */
+    @Modifying
+    @Query("""
+            update AvailabilityInterval i set i.lastSeenAt = :seenAt
+            where i.membership.id in :membershipIds and i.endedAt is null""")
+    int touchOpen(@Param("membershipIds") Collection<UUID> membershipIds, @Param("seenAt") Instant seenAt);
 
     /** Intervals of the given members that overlap [from, to), membership loaded in the same query. */
     @EntityGraph(attributePaths = "membership")
