@@ -5,7 +5,7 @@ services:
     container_name: connecta-postgres
     env_file: ./backend/.env
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
