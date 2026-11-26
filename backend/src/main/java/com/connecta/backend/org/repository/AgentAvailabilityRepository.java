@@ -10,6 +10,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
@@ -18,6 +19,18 @@ public interface AgentAvailabilityRepository extends JpaRepository<AgentAvailabi
 
     /** A member's availability only inside the organization, so another tenant's member reads as absent. */
     Optional<AgentAvailability> findByMembershipIdAndOrganizationId(UUID membershipId, UUID organizationId);
+
+    /**
+     * Creates the member's not-assignable row unless one exists. The unique key makes a concurrent second insert
+     * a no-op instead of a failure, so two first toggles cannot fail each other.
+     */
+    @Modifying
+    @Query(value = """
+            insert into agent_availability (organization_id, membership_id, assignable, updated_at)
+            values (:organizationId, :membershipId, false, now())
+            on conflict (membership_id) do nothing
+            """, nativeQuery = true)
+    void insertIfAbsent(@Param("organizationId") UUID organizationId, @Param("membershipId") UUID membershipId);
 
     /** The rows of these members inside the organization, so a page of members needs one query. */
     @EntityGraph(attributePaths = "membership")

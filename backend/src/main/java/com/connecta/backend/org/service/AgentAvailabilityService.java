@@ -46,9 +46,16 @@ public class AgentAvailabilityService {
         Membership member = memberships.findByIdAndOrganizationId(membershipId, organizationId)
                 .orElseThrow(MemberNotFoundException::new);
         AgentAvailability row = availabilities.findByMembershipIdAndOrganizationId(membershipId, organizationId)
-                .orElseGet(() -> new AgentAvailability(member));
+                .orElseGet(() -> createRow(member));
         row.changeAssignable(assignable);
         return new AssignableResponse(membershipId, availabilities.saveAndFlush(row).isAssignable());
+    }
+
+    /** Insert-if-absent, then read: a concurrent first toggle that won the insert is simply reused. */
+    private AgentAvailability createRow(Membership member) {
+        UUID organizationId = member.getOrganization().getId();
+        availabilities.insertIfAbsent(organizationId, member.getId());
+        return availabilities.findByMembershipIdAndOrganizationId(member.getId(), organizationId).orElseThrow();
     }
 
     /** ADMIN or above: every member of the organization with their availability. */
