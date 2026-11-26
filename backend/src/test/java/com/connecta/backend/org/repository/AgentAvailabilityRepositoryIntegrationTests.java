@@ -81,12 +81,23 @@ class AgentAvailabilityRepositoryIntegrationTests {
     }
 
     @Test
-    void skipsAwayAndDisabledMembers() {
+    void skipsNonAssignableAndDisabledMembers() {
         Organization org = newOrganization();
-        persist(new AgentAvailability(newMember(org, true), AvailabilityStatus.AWAY));
+        persist(new AgentAvailability(newMember(org, true), AvailabilityStatus.AVAILABLE));
         newAvailable(org, false, null);
 
         assertEquals(null, nextMember(org));
+    }
+
+    @Test
+    void anAssignableMemberIsChosenWhileAway() {
+        Organization org = newOrganization();
+        Membership member = newMember(org, true);
+        AgentAvailability row = new AgentAvailability(member, AvailabilityStatus.AWAY);
+        row.changeAssignable(true);
+        persist(row);
+
+        assertEquals(member.getId(), nextMember(org));
     }
 
     @Test
@@ -99,7 +110,8 @@ class AgentAvailabilityRepositoryIntegrationTests {
 
     private Membership newAvailable(Organization org, boolean enabled, Instant lastAssigned) {
         Membership member = newMember(org, enabled);
-        AgentAvailability row = new AgentAvailability(member, AvailabilityStatus.AVAILABLE);
+        AgentAvailability row = new AgentAvailability(member, AvailabilityStatus.AWAY);
+        row.changeAssignable(true);
         if (lastAssigned != null) {
             row.recordAssignmentAt(lastAssigned);
         }

@@ -18,6 +18,7 @@ import com.connecta.backend.org.domain.AgentAvailability;
 import com.connecta.backend.org.domain.AvailabilityStatus;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
+import com.connecta.backend.org.dto.AssignableResponse;
 import com.connecta.backend.org.dto.AvailabilityResponse;
 import com.connecta.backend.org.repository.AgentAvailabilityRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
@@ -166,6 +167,71 @@ class AgentAvailabilityServiceTests {
     }
 
     @Nested
+    class SetAssignable {
+
+        @Test
+        void theFirstSwitchCreatesTheRowAsAway() {
+            callerIs(Roles.ADMIN);
+            Membership target = membership(TestUsers.user("t@example.com", Roles.AGENT), Roles.AGENT);
+            when(memberships.findByIdAndOrganizationId(target.getId(), organizationId)).thenReturn(Optional.of(target));
+            when(availabilities.findByMembershipIdAndOrganizationId(target.getId(), organizationId))
+                    .thenReturn(Optional.empty());
+
+            AssignableResponse response = service.setAssignable(subject, organizationId, target.getId(), true);
+
+            assertEquals(new AssignableResponse(target.getId(), true), response);
+            org.mockito.ArgumentCaptor<AgentAvailability> saved = org.mockito.ArgumentCaptor
+                    .forClass(AgentAvailability.class);
+            verify(availabilities).saveAndFlush(saved.capture());
+            assertEquals(AvailabilityStatus.AWAY, saved.getValue().getStatus());
+        }
+
+        @Test
+        void aLaterSwitchTogglesTheExistingRowAndKeepsItsStatus() {
+            callerIs(Roles.OWNER);
+            Membership target = membership(TestUsers.user("t@example.com", Roles.AGENT), Roles.AGENT);
+            AgentAvailability row = new AgentAvailability(target, AvailabilityStatus.AVAILABLE);
+            row.changeAssignable(true);
+            when(memberships.findByIdAndOrganizationId(target.getId(), organizationId)).thenReturn(Optional.of(target));
+            when(availabilities.findByMembershipIdAndOrganizationId(target.getId(), organizationId))
+                    .thenReturn(Optional.of(row));
+
+            AssignableResponse response = service.setAssignable(subject, organizationId, target.getId(), false);
+
+            assertEquals(false, response.assignable());
+            assertEquals(AvailabilityStatus.AVAILABLE, row.getStatus());
+        }
+
+        @Test
+        void anAgentIsDenied() {
+            callerIs(Roles.AGENT);
+
+            assertThrows(InsufficientOrganizationRoleException.class,
+                    () -> service.setAssignable(subject, organizationId, UUID.randomUUID(), true));
+            verify(availabilities, never()).saveAndFlush(any());
+        }
+
+        @Test
+        void aNonMemberCallerIsNotFound() {
+            callerIsNotAMember();
+
+            assertThrows(NotAMemberException.class,
+                    () -> service.setAssignable(subject, organizationId, UUID.randomUUID(), true));
+        }
+
+        @Test
+        void aMembershipOfAnotherOrganizationIsNotFound() {
+            callerIs(Roles.ADMIN);
+            UUID foreign = UUID.randomUUID();
+            when(memberships.findByIdAndOrganizationId(foreign, organizationId)).thenReturn(Optional.empty());
+
+            assertThrows(MemberNotFoundException.class,
+                    () -> service.setAssignable(subject, organizationId, foreign, true));
+            verify(availabilities, never()).saveAndFlush(any());
+        }
+    }
+
+    @Nested
     class GetOwn {
 
         @Test
@@ -178,6 +244,7 @@ class AgentAvailabilityServiceTests {
 
             assertEquals(AvailabilityStatus.AWAY, response.status());
             assertNull(response.updatedAt());
+            assertEquals(false, response.assignable());
         }
 
         @Test

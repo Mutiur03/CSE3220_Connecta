@@ -5,6 +5,7 @@ import com.connecta.backend.inbox.service.ConversationWorkloadService;
 import com.connecta.backend.org.domain.AgentAvailability;
 import com.connecta.backend.org.domain.AvailabilityStatus;
 import com.connecta.backend.org.domain.Membership;
+import com.connecta.backend.org.dto.AssignableResponse;
 import com.connecta.backend.org.dto.AvailabilityResponse;
 import com.connecta.backend.org.repository.AgentAvailabilityRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
@@ -59,6 +60,19 @@ public class AgentAvailabilityService {
         row.changeStatus(status);
         return AvailabilityResponse.from(me, availabilities.saveAndFlush(row), openCount(organizationId, me),
                 isOnline(organizationId, me));
+    }
+
+    /** ADMIN or above: lets a member of the organization receive automatic assignments, or not. */
+    @Transactional
+    public AssignableResponse setAssignable(String subject, UUID organizationId, UUID membershipId,
+            boolean assignable) {
+        tenants.requireRole(organizationId, activeCaller.load(subject).getId(), Roles.ADMIN);
+        Membership member = memberships.findByIdAndOrganizationId(membershipId, organizationId)
+                .orElseThrow(MemberNotFoundException::new);
+        AgentAvailability row = availabilities.findByMembershipIdAndOrganizationId(membershipId, organizationId)
+                .orElseGet(() -> new AgentAvailability(member, AvailabilityStatus.AWAY));
+        row.changeAssignable(assignable);
+        return new AssignableResponse(membershipId, availabilities.saveAndFlush(row).isAssignable());
     }
 
     /** ADMIN or above: every member of the organization with their status. */
