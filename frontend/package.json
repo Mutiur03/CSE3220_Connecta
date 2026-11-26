@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write ."
   },
   "dependencies": {
