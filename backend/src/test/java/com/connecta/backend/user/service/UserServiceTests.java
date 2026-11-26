@@ -219,6 +219,16 @@ class UserServiceTests {
             service.enable(user.getId());
 
             assertTrue(user.isEnabled());
+            verify(events, times(1)).publishEvent(new UserEnabledEvent(user.getId()));
+        }
+
+        @Test
+        void anAlreadyEnabledUserPublishesNothing() {
+            User user = TestUsers.user(EMAIL, Roles.AGENT);
+            when(users.findById(user.getId())).thenReturn(Optional.of(user));
+
+            service.enable(user.getId());
+
             verify(events, never()).publishEvent(any(Object.class));
         }
 

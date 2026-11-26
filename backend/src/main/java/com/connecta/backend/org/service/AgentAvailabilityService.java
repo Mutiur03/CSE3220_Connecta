@@ -11,6 +11,7 @@ import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.user.domain.Roles;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,6 +35,7 @@ public class AgentAvailabilityService {
 
     private final AgentAvailabilityRepository availabilities;
     private final MembershipRepository memberships;
+    private final AvailabilityIntervalService intervals;
     private final ConversationWorkloadService workload;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
@@ -51,9 +53,14 @@ public class AgentAvailabilityService {
     @Transactional
     public AvailabilityResponse setOwn(String subject, UUID organizationId, AvailabilityStatus status) {
         Membership me = tenants.requireMembership(organizationId, activeCaller.load(subject).getId());
-        AgentAvailability row = availabilities.findByMembershipIdAndOrganizationId(me.getId(), organizationId)
-                .orElseGet(() -> new AgentAvailability(me, status));
+        Optional<AgentAvailability> existing = availabilities
+                .findByMembershipIdAndOrganizationId(me.getId(), organizationId);
+        AvailabilityStatus before = existing.map(AgentAvailability::getStatus).orElse(AvailabilityStatus.AWAY);
+        AgentAvailability row = existing.orElseGet(() -> new AgentAvailability(me, status));
         row.changeStatus(status);
+        if (before != status) {
+            recordInterval(me, status);
+        }
         return AvailabilityResponse.from(me, availabilities.saveAndFlush(row), openCount(organizationId, me));
     }
 
@@ -70,6 +77,14 @@ public class AgentAvailabilityService {
                 found.getContent().stream().map(Membership::getId).toList());
         return PageResponse.from(found,
                 m -> AvailabilityResponse.from(m, byMembership.get(m.getId()), open.get(m.getId())));
+    }
+
+    private void recordInterval(Membership member, AvailabilityStatus status) {
+        if (status == AvailabilityStatus.AVAILABLE) {
+            intervals.open(member);
+        } else {
+            intervals.close(member);
+        }
     }
 
     private long openCount(UUID organizationId, Membership member) {
