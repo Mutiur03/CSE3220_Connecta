@@ -89,7 +89,11 @@ public class UserService {
     @Transactional
     public User enable(UUID userId) {
         User user = load(userId);
-        user.enable();
+        if (!user.isEnabled()) {
+            user.enable();
+            users.saveAndFlush(user);
+            events.publishEvent(new UserEnabledEvent(userId));
+        }
         return user;
     }
 

@@ -2,6 +2,8 @@ package com.connecta.backend.org.service;
 
 import com.connecta.backend.org.domain.AvailabilityInterval;
 import com.connecta.backend.org.domain.Membership;
+import com.connecta.backend.org.domain.AvailabilityStatus;
+import com.connecta.backend.org.repository.AgentAvailabilityRepository;
 import com.connecta.backend.org.repository.AvailabilityIntervalRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AvailabilityIntervalService {
 
     private final AvailabilityIntervalRepository intervals;
+    private final AgentAvailabilityRepository availabilities;
     private final Clock clock;
 
     @Transactional
@@ -35,6 +38,13 @@ public class AvailabilityIntervalService {
     public void closeAllForUser(UUID userId) {
         Instant now = clock.instant();
         intervals.findByMembershipUserIdAndEndedAtIsNull(userId).forEach(interval -> interval.close(now));
+    }
+
+    /** For a re-enabled user: opens an interval for each membership still marked AVAILABLE. */
+    @Transactional
+    public void openAllAvailableForUser(UUID userId) {
+        availabilities.findByMembershipUserIdAndStatus(userId, AvailabilityStatus.AVAILABLE)
+                .forEach(row -> open(row.getMembership()));
     }
 
     private Optional<AvailabilityInterval> findOpen(Membership member) {

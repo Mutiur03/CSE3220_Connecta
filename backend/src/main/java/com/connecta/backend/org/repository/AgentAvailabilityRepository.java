@@ -1,6 +1,7 @@
 package com.connecta.backend.org.repository;
 
 import com.connecta.backend.org.domain.AgentAvailability;
+import com.connecta.backend.org.domain.AvailabilityStatus;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import java.util.Collection;
@@ -18,6 +19,9 @@ public interface AgentAvailabilityRepository extends JpaRepository<AgentAvailabi
 
     /** A member's availability only inside the organization, so another tenant's member reads as absent. */
     Optional<AgentAvailability> findByMembershipIdAndOrganizationId(UUID membershipId, UUID organizationId);
+
+    /** The AVAILABLE rows of one user across all of their memberships. */
+    List<AgentAvailability> findByMembershipUserIdAndStatus(UUID userId, AvailabilityStatus status);
 
     /** The rows of these members inside the organization, so a page of members needs one query. */
     @EntityGraph(attributePaths = "membership")

@@ -10,6 +10,9 @@ import static org.mockito.Mockito.when;
 import com.connecta.backend.org.domain.AvailabilityInterval;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
+import com.connecta.backend.org.domain.AgentAvailability;
+import com.connecta.backend.org.domain.AvailabilityStatus;
+import com.connecta.backend.org.repository.AgentAvailabilityRepository;
 import com.connecta.backend.org.repository.AvailabilityIntervalRepository;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
@@ -35,6 +38,9 @@ class AvailabilityIntervalServiceTests {
     @Mock
     AvailabilityIntervalRepository intervals;
 
+    @Mock
+    AgentAvailabilityRepository availabilities;
+
     AvailabilityIntervalService service;
 
     private final Organization organization = new Organization("Acme", "acme");
@@ -44,7 +50,7 @@ class AvailabilityIntervalServiceTests {
     void setUp() {
         TestUsers.set(organization, "id", UUID.randomUUID());
         TestUsers.set(member, "id", UUID.randomUUID());
-        service = new AvailabilityIntervalService(intervals, TestClock.FIXED);
+        service = new AvailabilityIntervalService(intervals, availabilities, TestClock.FIXED);
     }
 
     private Membership membership() {
@@ -127,6 +133,33 @@ class AvailabilityIntervalServiceTests {
             when(intervals.findByMembershipUserIdAndEndedAtIsNull(userId)).thenReturn(List.of());
 
             service.closeAllForUser(userId);
+
+            verify(intervals, never()).save(any());
+        }
+    }
+
+    @Nested
+    class OpenAllAvailableForUser {
+
+        @Test
+        void opensForEachAvailableRowAndNothingWhenThereAreNone() {
+            UUID userId = UUID.randomUUID();
+            when(availabilities.findByMembershipUserIdAndStatus(userId, AvailabilityStatus.AVAILABLE))
+                    .thenReturn(List.of(new AgentAvailability(member, AvailabilityStatus.AVAILABLE)));
+            openIntervalExists(null);
+
+            service.openAllAvailableForUser(userId);
+
+            verify(intervals).save(any(AvailabilityInterval.class));
+        }
+
+        @Test
+        void opensNothingWithoutAvailableRows() {
+            UUID userId = UUID.randomUUID();
+            when(availabilities.findByMembershipUserIdAndStatus(userId, AvailabilityStatus.AVAILABLE))
+                    .thenReturn(List.of());
+
+            service.openAllAvailableForUser(userId);
 
             verify(intervals, never()).save(any());
         }
