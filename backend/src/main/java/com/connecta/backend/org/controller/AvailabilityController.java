@@ -5,7 +5,6 @@ import com.connecta.backend.org.dto.AssignableResponse;
 import com.connecta.backend.org.dto.AvailabilityReportResponse;
 import com.connecta.backend.org.dto.AvailabilityResponse;
 import com.connecta.backend.org.dto.SetAssignableRequest;
-import com.connecta.backend.org.dto.SetAvailabilityRequest;
 import com.connecta.backend.org.service.AgentAvailabilityService;
 import com.connecta.backend.org.service.AvailabilityReportService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,9 +28,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Role rules (checked by AgentAvailabilityService through TenantAccessService). Reading or setting your
- * own status needs any membership of the organization (non-members get 404). Listing everyone's status,
- * the time report and the assignable switch need ADMIN or above (AGENT gets 403).
+ * Role rules (checked by AgentAvailabilityService through TenantAccessService). Listing everyone's
+ * availability, the time report and the assignable switch need ADMIN or above (AGENT gets 403).
  */
 @RestController
 @Tag(name = "Availability", description = "Whether a member takes new conversations")
@@ -41,31 +39,9 @@ public class AvailabilityController {
     private final AgentAvailabilityService availability;
     private final AvailabilityReportService report;
 
-    @Operation(summary = "Your own availability, AWAY if never set (any member)",
-            security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponse(responseCode = "200", description = "The caller's availability")
-    @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
-    @ApiResponse(responseCode = "404", description = "Not found, or the caller is not a member")
-    @GetMapping("/api/organizations/{organizationId}/availability/me")
-    AvailabilityResponse getOwn(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID organizationId) {
-        return availability.getOwn(jwt.getSubject(), organizationId);
-    }
-
-    @Operation(summary = "Set your own availability (any member)",
-            security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponse(responseCode = "200", description = "The caller's availability as now stored")
-    @ApiResponse(responseCode = "400", description = "Status is not AVAILABLE or AWAY")
-    @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
-    @ApiResponse(responseCode = "404", description = "Not found, or the caller is not a member")
-    @PutMapping("/api/organizations/{organizationId}/availability/me")
-    AvailabilityResponse setOwn(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID organizationId,
-            @Valid @RequestBody SetAvailabilityRequest request) {
-        return availability.setOwn(jwt.getSubject(), organizationId, request.toStatus());
-    }
-
     @Operation(summary = "Every member's availability, by name (ADMIN of it)",
             security = @SecurityRequirement(name = "bearerAuth"))
-    @ApiResponse(responseCode = "200", description = "One page of members with their status")
+    @ApiResponse(responseCode = "200", description = "One page of members with their availability")
     @ApiResponse(responseCode = "400", description = "Page or size out of range")
     @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
     @ApiResponse(responseCode = "403", description = "Caller is an AGENT")

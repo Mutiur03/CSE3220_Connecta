@@ -2,8 +2,6 @@ package com.connecta.backend.org.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -21,8 +19,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Whether one member takes new conversations, and when they last got one automatically. A member
- * without this row is treated as not available and not assignable.
+ * Whether an admin lets one member take automatic assignments, and when they last got one. A member
+ * without this row is not assignable.
  */
 @Entity
 @Table(name = "agent_availability")
@@ -42,10 +40,6 @@ public class AgentAvailability {
     @JoinColumn(name = "membership_id", nullable = false, updatable = false, unique = true)
     private Membership membership;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
-    private AvailabilityStatus status;
-
     /** Admin-controlled: only assignable members get automatic assignments, online or not. */
     @Column(nullable = false)
     private boolean assignable;
@@ -57,14 +51,9 @@ public class AgentAvailability {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public AgentAvailability(Membership membership, AvailabilityStatus status) {
+    public AgentAvailability(Membership membership) {
         this.organization = membership.getOrganization();
         this.membership = membership;
-        this.status = status;
-    }
-
-    public void changeStatus(AvailabilityStatus status) {
-        this.status = status;
     }
 
     public void changeAssignable(boolean assignable) {

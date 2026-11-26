@@ -58,23 +58,22 @@ class AgentAvailabilityIntegrationTests {
     AgentAvailabilityRepository availability;
 
     @Test
-    void storesTheStatusAndRoundRobinCursorOfAMember() {
+    void storesTheRoundRobinCursorOfAMember() {
         Membership member = newMember(newOrganization());
-        AgentAvailability row = new AgentAvailability(member, AvailabilityStatus.AVAILABLE);
+        AgentAvailability row = new AgentAvailability(member);
         row.recordAssignmentAt(TestClock.NOW);
         persist(row);
 
         AgentAvailability loaded = availability
                 .findByMembershipIdAndOrganizationId(member.getId(), member.getOrganization().getId()).orElseThrow();
 
-        assertEquals(AvailabilityStatus.AVAILABLE, loaded.getStatus());
         assertEquals(TestClock.NOW, loaded.getLastAssignedAt().truncatedTo(ChronoUnit.MILLIS));
     }
 
     @Test
     void assignableDefaultsToFalseAndIsStoredWhenSwitched() {
         Membership member = newMember(newOrganization());
-        AgentAvailability row = persist(new AgentAvailability(member, AvailabilityStatus.AWAY));
+        AgentAvailability row = persist(new AgentAvailability(member));
         assertEquals(false, row.isAssignable());
 
         transactions.executeWithoutResult(status -> availability
@@ -88,7 +87,7 @@ class AgentAvailabilityIntegrationTests {
     @Test
     void anotherOrganizationCannotReadTheRow() {
         Membership member = newMember(newOrganization());
-        persist(new AgentAvailability(member, AvailabilityStatus.AWAY));
+        persist(new AgentAvailability(member));
 
         assertTrue(availability.findByMembershipIdAndOrganizationId(member.getId(), newOrganization().getId())
                 .isEmpty());
@@ -97,26 +96,16 @@ class AgentAvailabilityIntegrationTests {
     @Test
     void rejectsASecondRowForTheSameMember() {
         Membership member = newMember(newOrganization());
-        persist(new AgentAvailability(member, AvailabilityStatus.AVAILABLE));
+        persist(new AgentAvailability(member));
 
         assertThrows(PersistenceException.class,
-                () -> persist(new AgentAvailability(member, AvailabilityStatus.AWAY)));
-    }
-
-    @Test
-    void rejectsAnUnknownStatus() {
-        Membership member = newMember(newOrganization());
-        AgentAvailability row = persist(new AgentAvailability(member, AvailabilityStatus.AVAILABLE));
-
-        assertThrows(PersistenceException.class, () -> transactions.executeWithoutResult(status -> entities
-                .createNativeQuery("update agent_availability set status = 'BUSY' where id = :id")
-                .setParameter("id", row.getId()).executeUpdate()));
+                () -> persist(new AgentAvailability(member)));
     }
 
     @Test
     void isRemovedWithTheMembership() {
         Membership member = newMember(newOrganization());
-        AgentAvailability row = persist(new AgentAvailability(member, AvailabilityStatus.AVAILABLE));
+        AgentAvailability row = persist(new AgentAvailability(member));
 
         transactions.executeWithoutResult(status -> entities.remove(entities.find(Membership.class, member.getId())));
 

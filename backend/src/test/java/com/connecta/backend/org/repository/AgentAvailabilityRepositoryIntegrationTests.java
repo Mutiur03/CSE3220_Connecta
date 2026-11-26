@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.connecta.backend.org.domain.AgentAvailability;
-import com.connecta.backend.org.domain.AvailabilityStatus;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.support.RandomJwtSecret;
@@ -83,7 +82,7 @@ class AgentAvailabilityRepositoryIntegrationTests {
     @Test
     void skipsNonAssignableAndDisabledMembers() {
         Organization org = newOrganization();
-        persist(new AgentAvailability(newMember(org, true), AvailabilityStatus.AVAILABLE));
+        persist(new AgentAvailability(newMember(org, true)));
         newAvailable(org, false, null);
 
         assertEquals(null, nextMember(org));
@@ -93,7 +92,7 @@ class AgentAvailabilityRepositoryIntegrationTests {
     void anAssignableMemberIsChosenWhileAway() {
         Organization org = newOrganization();
         Membership member = newMember(org, true);
-        AgentAvailability row = new AgentAvailability(member, AvailabilityStatus.AWAY);
+        AgentAvailability row = new AgentAvailability(member);
         row.changeAssignable(true);
         persist(row);
 
@@ -110,7 +109,7 @@ class AgentAvailabilityRepositoryIntegrationTests {
 
     private Membership newAvailable(Organization org, boolean enabled, Instant lastAssigned) {
         Membership member = newMember(org, enabled);
-        AgentAvailability row = new AgentAvailability(member, AvailabilityStatus.AWAY);
+        AgentAvailability row = new AgentAvailability(member);
         row.changeAssignable(true);
         if (lastAssigned != null) {
             row.recordAssignmentAt(lastAssigned);

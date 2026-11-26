@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 import com.connecta.backend.common.dto.PageResponse;
 import com.connecta.backend.inbox.service.ConversationWorkloadService;
 import com.connecta.backend.org.domain.AgentAvailability;
-import com.connecta.backend.org.domain.AvailabilityStatus;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.dto.AssignableResponse;
@@ -103,74 +102,17 @@ class AgentAvailabilityServiceTests {
         when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId())).thenReturn(Optional.empty());
     }
 
-    @Nested
-    class SetOwn {
-
-        @Test
-        void theFirstChangeCreatesTheRow() {
-            Membership mine = callerIs(Roles.AGENT);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.empty());
-
-            AvailabilityResponse response = service.setOwn(subject, organizationId, AvailabilityStatus.AVAILABLE);
-
-            assertEquals(AvailabilityStatus.AVAILABLE, response.status());
-            assertEquals(mine.getId(), response.membershipId());
-            assertEquals("caller@example.com", response.email());
-            verify(availabilities).saveAndFlush(any(AgentAvailability.class));
-        }
-
-        @Test
-        void aLaterChangeUpdatesTheExistingRow() {
-            Membership mine = callerIs(Roles.AGENT);
-            AgentAvailability row = new AgentAvailability(mine, AvailabilityStatus.AVAILABLE);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.of(row));
-
-            AvailabilityResponse response = service.setOwn(subject, organizationId, AvailabilityStatus.AWAY);
-
-            assertEquals(AvailabilityStatus.AWAY, response.status());
-            assertEquals(AvailabilityStatus.AWAY, row.getStatus());
-        }
-
-        @Test
-        void doesNotChangePresenceBecauseOnlyConnectionsDoThat() {
-            Membership mine = callerIs(Roles.AGENT);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.empty());
-
-            service.setOwn(subject, organizationId, AvailabilityStatus.AVAILABLE);
-            service.setOwn(subject, organizationId, AvailabilityStatus.AWAY);
-
-            verify(presence, never()).connected(any(), any());
-            verify(presence, never()).disconnected(any(), any());
-        }
-
-        @Test
-        void anAdminMaySetTheirOwnStatusToo() {
-            Membership mine = callerIs(Roles.ADMIN);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.empty());
-
-            assertEquals(Roles.ADMIN,
-                    service.setOwn(subject, organizationId, AvailabilityStatus.AVAILABLE).role());
-        }
-
-        @Test
-        void aNonMemberIsNotFoundAndNothingIsSaved() {
-            callerIsNotAMember();
-
-            assertThrows(NotAMemberException.class,
-                    () -> service.setOwn(subject, organizationId, AvailabilityStatus.AVAILABLE));
-            verify(availabilities, never()).saveAndFlush(any());
-        }
+    private static AgentAvailability assignableRow(Membership member) {
+        AgentAvailability row = new AgentAvailability(member);
+        row.changeAssignable(true);
+        return row;
     }
 
     @Nested
     class SetAssignable {
 
         @Test
-        void theFirstSwitchCreatesTheRowAsAway() {
+        void theFirstSwitchCreatesTheRowNotYetAssigned() {
             callerIs(Roles.ADMIN);
             Membership target = membership(TestUsers.user("t@example.com", Roles.AGENT), Roles.AGENT);
             when(memberships.findByIdAndOrganizationId(target.getId(), organizationId)).thenReturn(Optional.of(target));
@@ -183,14 +125,15 @@ class AgentAvailabilityServiceTests {
             org.mockito.ArgumentCaptor<AgentAvailability> saved = org.mockito.ArgumentCaptor
                     .forClass(AgentAvailability.class);
             verify(availabilities).saveAndFlush(saved.capture());
-            assertEquals(AvailabilityStatus.AWAY, saved.getValue().getStatus());
+            assertEquals(true, saved.getValue().isAssignable());
+            assertNull(saved.getValue().getLastAssignedAt());
         }
 
         @Test
-        void aLaterSwitchTogglesTheExistingRowAndKeepsItsStatus() {
+        void aLaterSwitchTogglesTheExistingRow() {
             callerIs(Roles.OWNER);
             Membership target = membership(TestUsers.user("t@example.com", Roles.AGENT), Roles.AGENT);
-            AgentAvailability row = new AgentAvailability(target, AvailabilityStatus.AVAILABLE);
+            AgentAvailability row = new AgentAvailability(target);
             row.changeAssignable(true);
             when(memberships.findByIdAndOrganizationId(target.getId(), organizationId)).thenReturn(Optional.of(target));
             when(availabilities.findByMembershipIdAndOrganizationId(target.getId(), organizationId))
@@ -199,7 +142,7 @@ class AgentAvailabilityServiceTests {
             AssignableResponse response = service.setAssignable(subject, organizationId, target.getId(), false);
 
             assertEquals(false, response.assignable());
-            assertEquals(AvailabilityStatus.AVAILABLE, row.getStatus());
+            assertEquals(false, row.isAssignable());
         }
 
         @Test
@@ -232,56 +175,23 @@ class AgentAvailabilityServiceTests {
     }
 
     @Nested
-    class GetOwn {
-
-        @Test
-        void withoutARowTheMemberIsAway() {
-            Membership mine = callerIs(Roles.AGENT);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.empty());
-
-            AvailabilityResponse response = service.getOwn(subject, organizationId);
-
-            assertEquals(AvailabilityStatus.AWAY, response.status());
-            assertNull(response.updatedAt());
-            assertEquals(false, response.assignable());
-        }
-
-        @Test
-        void withARowTheStoredStatusIsReturned() {
-            Membership mine = callerIs(Roles.AGENT);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.of(new AgentAvailability(mine, AvailabilityStatus.AVAILABLE)));
-
-            assertEquals(AvailabilityStatus.AVAILABLE, service.getOwn(subject, organizationId).status());
-        }
-
-        @Test
-        void aMemberOfAnotherOrganizationIsNotFound() {
-            callerIsNotAMember();
-
-            assertThrows(NotAMemberException.class, () -> service.getOwn(subject, organizationId));
-        }
-    }
-
-    @Nested
     class ListForOrganization {
 
         @Test
-        void membersWithoutARowAreAwayAndOthersKeepTheirStatus() {
+        void membersWithoutARowAreNotAssignable() {
             callerIs(Roles.ADMIN);
             Membership withRow = membership(TestUsers.user("a@example.com", Roles.AGENT), Roles.AGENT);
             Membership withoutRow = membership(TestUsers.user("b@example.com", Roles.AGENT), Roles.AGENT);
             when(memberships.findByOrganizationId(eq(organizationId), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(withRow, withoutRow), PageRequest.of(0, 20), 2));
             when(availabilities.findByOrganizationIdAndMembershipIdIn(eq(organizationId), anyCollection()))
-                    .thenReturn(List.of(new AgentAvailability(withRow, AvailabilityStatus.AVAILABLE)));
+                    .thenReturn(List.of(assignableRow(withRow)));
 
             PageResponse<AvailabilityResponse> page = service.list(subject, organizationId, 0, 20);
 
             assertEquals(2, page.totalElements());
-            assertEquals(AvailabilityStatus.AVAILABLE, page.content().get(0).status());
-            assertEquals(AvailabilityStatus.AWAY, page.content().get(1).status());
+            assertEquals(true, page.content().get(0).assignable());
+            assertEquals(false, page.content().get(1).assignable());
         }
 
         @Test

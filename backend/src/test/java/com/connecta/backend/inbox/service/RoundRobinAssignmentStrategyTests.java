@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.org.domain.AgentAvailability;
-import com.connecta.backend.org.domain.AvailabilityStatus;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.AgentAvailabilityRepository;
@@ -46,7 +45,7 @@ class RoundRobinAssignmentStrategyTests {
         if (!enabled) {
             user.disable();
         }
-        AgentAvailability row = new AgentAvailability(new Membership(org, user, null), AvailabilityStatus.AWAY);
+        AgentAvailability row = new AgentAvailability(new Membership(org, user, null));
         row.changeAssignable(assignable);
         if (lastAssigned != null) {
             row.recordAssignmentAt(lastAssigned);
@@ -67,12 +66,11 @@ class RoundRobinAssignmentStrategyTests {
     class Choosing {
 
         @Test
-        void anAssignableMemberIsChosenWhileAway() {
-            AgentAvailability awayButAssignable = row("away", true, true, null);
-            assertEquals(AvailabilityStatus.AWAY, awayButAssignable.getStatus());
-            fakeRepository(List.of(awayButAssignable));
+        void anAssignableMemberIsChosen() {
+            AgentAvailability assignable = row("away", true, true, null);
+            fakeRepository(List.of(assignable));
 
-            assertSame(awayButAssignable.getMembership(), strategy.choose(conversation).orElseThrow());
+            assertSame(assignable.getMembership(), strategy.choose(conversation).orElseThrow());
         }
 
         @Test

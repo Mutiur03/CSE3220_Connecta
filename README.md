@@ -232,11 +232,10 @@ erDiagram
         uuid assignee_membership_id FK "nullable, the member handling it"
         timestamp last_message_at "nullable" }
     MEMBERSHIPS |o--o{ CONVERSATIONS : "handles (SET NULL)"
-    MEMBERSHIPS ||--o| AGENT_AVAILABILITY : sets
+    MEMBERSHIPS ||--o| AGENT_AVAILABILITY : "assignable switch"
     AGENT_AVAILABILITY { uuid id PK
         uuid organization_id FK
         uuid membership_id FK "unique, on delete cascade"
-        string status "AVAILABLE or AWAY"
         boolean assignable "admin switch for auto-assignment"
         timestamp last_assigned_at "nullable, round-robin cursor" }
     CONVERSATIONS ||--o{ CONVERSATION_ASSIGNMENTS : "assignment history"
@@ -327,8 +326,6 @@ erDiagram
 | GET | `/api/organizations/{id}/members` | any member of it | 200 | List its members with their role (`page`, `size` max 100). No password data. |
 | PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` of it | 200 | Change a member's role (`ADMIN` or `AGENT`). The last `ADMIN` cannot be demoted (`422`). |
 | DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. The last `ADMIN` cannot leave (`422`). |
-| GET | `/api/organizations/{id}/availability/me` | any member of it | 200 | Your own availability (`AVAILABLE` or `AWAY`; `AWAY` until first set), your `openConversations` and `online` (true while you hold a realtime connection, or within the 60 s grace after the last one dropped). Non-members get `404`. |
-| PUT | `/api/organizations/{id}/availability/me` | any member of it | 200 | Set your own availability (it no longer starts or stops tracked time; presence does), body `{"status":"AVAILABLE"\|"AWAY"}`. Other values give `400`. |
 | GET | `/api/organizations/{id}/availability` | `ADMIN` of it | 200 | Every member with their availability, `online` and `openConversations` (OPEN conversations assigned to them, one grouped query; `page`, `size` max 100). An `AGENT` gets `403`. |
 | PUT | `/api/organizations/{id}/members/{membershipId}/assignable` | `ADMIN` of it | 200 | Let a member receive automatic assignments, body `{"assignable":true\|false}`, returns `{membershipId, assignable}`. Creates the availability row on first use. Missing or non-boolean gives `400`; an `AGENT` gets `403`; an unknown or other organization's member gets `404`. Availability list items also carry `assignable`. |
 | GET | `/api/organizations/{id}/availability/report?from=&to=` | `ADMIN` of it | 200 | Seconds each member was online per UTC day. `from` and `to` are required inclusive `YYYY-MM-DD` dates, at most 31 days; reversed, over-long, missing or malformed gives `400`. Returns `{from, to, content: [{membershipId, userId, name, role, totalSeconds, days: [{date, availableSeconds}]}], page, size, totalElements}`; `days` has every date zero-filled, members by name (`page`, `size` max 100), open intervals count up to now, future days are 0. An `AGENT` gets `403`. |
