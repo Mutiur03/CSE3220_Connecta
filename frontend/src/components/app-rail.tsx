@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
-import { ApiError, fetchMe, type User } from "@/lib/api";
+import { ApiError, type User } from "@/lib/api";
 import { listOrganizations, MAX_PAGE_SIZE } from "@/lib/org-api";
 import { logout } from "@/lib/auth-actions";
 import { isSystemOwner } from "@/lib/org-permissions";
+import { fetchMeOnce } from "@/lib/session";
 import { ACCESS_COOKIE } from "@/lib/session-cookies";
 import {
   BuildingIcon,
@@ -21,12 +22,11 @@ import ThemeToggle from "./theme-toggle";
 
 // Unlike getCurrentUser, this never redirects: the rail also renders on /login, where the
 // visitor is signed out. A rejected token shows as signed out; the pages still redirect.
-// ponytail: the rail asks /me once more per page; share it with React cache() if that costs.
 export async function signedInUser(): Promise<User | null> {
   const accessToken = (await cookies()).get(ACCESS_COOKIE)?.value;
   if (!accessToken) return null;
   try {
-    return await fetchMe(accessToken);
+    return await fetchMeOnce(accessToken);
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return null;
     throw error;
