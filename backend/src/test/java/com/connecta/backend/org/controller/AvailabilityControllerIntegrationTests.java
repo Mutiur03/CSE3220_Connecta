@@ -1,5 +1,6 @@
 package com.connecta.backend.org.controller;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -17,6 +18,7 @@ import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.AvailabilityIntervalRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
+import com.connecta.backend.org.service.PresenceService;
 import com.connecta.backend.support.RandomJwtSecret;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestTokens;
@@ -93,6 +95,9 @@ class AvailabilityControllerIntegrationTests {
 
     @Autowired
     AvailabilityIntervalRepository intervals;
+
+    @Autowired
+    PresenceService presence;
 
     private static String path(Organization organization, String suffix) {
         return "/api/organizations/" + organization.getId() + "/availability" + suffix;
@@ -224,6 +229,24 @@ class AvailabilityControllerIntegrationTests {
                     .andExpect(jsonPath("$.size").value(20))
                     .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].status").value("AVAILABLE"))
                     .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].status").value("AWAY"));
+        }
+
+        @Test
+        void aConnectedMemberIsOnlineAndTheOthersAreNot() throws Exception {
+            User admin = newUser();
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+            join(acme, agent, Roles.AGENT);
+            presence.connected(acme.getId(), agent.getId());
+
+            mvc.perform(get(path(acme, "")).header(AUTH, bearer(admin)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].online").value(true))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].online").value(false));
+            mvc.perform(get(path(acme, "/me")).header(AUTH, bearer(agent)))
+                    .andExpect(jsonPath("$.online").value(true));
+            assertTrue(intervals.findByMembershipUserIdAndEndedAtIsNull(agent.getId()).size() == 1);
         }
 
         @Test

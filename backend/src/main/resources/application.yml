@@ -96,6 +96,10 @@ app:
     ticket-rate-window: 1m
     max-frame-bytes: 1024
 
+  # Online presence: how long a member's last realtime connection must stay gone before they count as offline.
+  presence:
+    grace-period: ${PRESENCE_GRACE_PERIOD:60s}
+
   frontend:
     # Where the browser goes after a Meta callback (the Integrations page).
     url: ${FRONTEND_URL}

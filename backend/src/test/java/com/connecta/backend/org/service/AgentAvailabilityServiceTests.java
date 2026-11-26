@@ -52,7 +52,7 @@ class AgentAvailabilityServiceTests {
     MembershipRepository memberships;
 
     @Mock
-    AvailabilityIntervalService intervals;
+    PresenceService presence;
 
     @Mock
     UserService users;
@@ -71,7 +71,7 @@ class AgentAvailabilityServiceTests {
     void setUp() {
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
-        service = new AgentAvailabilityService(availabilities, memberships, intervals, workload, tenants, new ActiveCaller(users));
+        service = new AgentAvailabilityService(availabilities, memberships, presence, workload, tenants, new ActiveCaller(users));
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
         lenient().when(workload.openCounts(eq(organizationId), anyCollection())).thenAnswer(call ->
                 ((java.util.Collection<UUID>) call.getArgument(1)).stream()
@@ -133,38 +133,16 @@ class AgentAvailabilityServiceTests {
         }
 
         @Test
-        void becomingAvailableOpensAnInterval() {
+        void doesNotChangePresenceBecauseOnlyConnectionsDoThat() {
             Membership mine = callerIs(Roles.AGENT);
             when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
                     .thenReturn(Optional.empty());
 
             service.setOwn(subject, organizationId, AvailabilityStatus.AVAILABLE);
-
-            verify(intervals).open(mine);
-            verify(intervals, never()).close(any());
-        }
-
-        @Test
-        void becomingAwayClosesTheInterval() {
-            Membership mine = callerIs(Roles.AGENT);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.of(new AgentAvailability(mine, AvailabilityStatus.AVAILABLE)));
-
             service.setOwn(subject, organizationId, AvailabilityStatus.AWAY);
 
-            verify(intervals).close(mine);
-            verify(intervals, never()).open(any());
-        }
-
-        @Test
-        void anUnchangedStatusTouchesNoInterval() {
-            Membership mine = callerIs(Roles.AGENT);
-            when(availabilities.findByMembershipIdAndOrganizationId(mine.getId(), organizationId))
-                    .thenReturn(Optional.of(new AgentAvailability(mine, AvailabilityStatus.AVAILABLE)));
-
-            service.setOwn(subject, organizationId, AvailabilityStatus.AVAILABLE);
-
-            verifyNoInteractions(intervals);
+            verify(presence, never()).connected(any(), any());
+            verify(presence, never()).disconnected(any(), any());
         }
 
         @Test
