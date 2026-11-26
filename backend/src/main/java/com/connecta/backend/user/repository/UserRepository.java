@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
 
@@ -14,7 +16,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @EntityGraph(attributePaths = "roles")
     Optional<User> findByEmail(String email);
 
-    Page<User> findAllBy(Pageable pageable);
+    /** Every user, the given caller first, then by email. Pass an unsorted Pageable: the order is in the query. */
+    @Query(value = "select u from User u order by case when u.id = :callerId then 0 else 1 end, u.email, u.id",
+            countQuery = "select count(u) from User u")
+    Page<User> findAllCallerFirst(@Param("callerId") UUID callerId, Pageable pageable);
 
     boolean existsByEmail(String email);
 

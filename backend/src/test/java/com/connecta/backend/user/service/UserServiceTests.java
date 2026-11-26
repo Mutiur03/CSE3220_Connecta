@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -255,17 +256,20 @@ class UserServiceTests {
     class ListAll {
 
         @Test
-        void mapsOnePageSortedByEmail() {
+        void mapsOnePageAskingForTheCallerFirst() {
             User user = TestUsers.user(EMAIL, Roles.AGENT);
-            when(users.findAllBy(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(user)));
+            UUID callerId = UUID.randomUUID();
+            when(users.findAllCallerFirst(eq(callerId), any(Pageable.class))).thenReturn(new PageImpl<>(List.of(user)));
 
-            PageResponse<AdminUserResponse> page = service.listAll(0, 20);
+            PageResponse<AdminUserResponse> page = service.listAll(callerId, 0, 20);
 
             assertEquals(1, page.totalElements());
             assertEquals(EMAIL, page.content().get(0).email());
             ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-            verify(users).findAllBy(pageable.capture());
-            assertEquals("email: ASC,id: ASC", pageable.getValue().getSort().toString());
+            verify(users).findAllCallerFirst(eq(callerId), pageable.capture());
+            assertEquals(0, pageable.getValue().getPageNumber());
+            assertEquals(20, pageable.getValue().getPageSize());
+            assertTrue(pageable.getValue().getSort().isUnsorted());
         }
     }
 }

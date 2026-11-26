@@ -120,6 +120,22 @@ class AdminUserControllerIntegrationTests {
     }
 
     @Test
+    void theOwnersOwnAccountIsFirstOnPageZeroAndNeverRepeats() throws Exception {
+        User owner = new User("zzz-" + UUID.randomUUID() + "@example.com", "hash", "Owner");
+        owner.addRole(roles.findByName(Roles.OWNER).orElseThrow());
+        users.saveAndFlush(owner);
+        userWith(Roles.AGENT);
+        String token = bearer(owner);
+
+        mvc.perform(get(PATH).param("size", "1").header(AUTH, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(owner.getId().toString()));
+        mvc.perform(get(PATH).param("page", "1").param("size", "1").header(AUTH, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(org.hamcrest.Matchers.not(owner.getId().toString())));
+    }
+
+    @Test
     void anAdminAndAnAgentAreForbiddenFromEveryEndpoint() throws Exception {
         User target = userWith(Roles.AGENT);
         for (String role : new String[] {Roles.ADMIN, Roles.AGENT}) {

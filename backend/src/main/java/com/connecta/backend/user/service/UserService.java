@@ -12,7 +12,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,12 +71,12 @@ public class UserService {
         return users.saveAndFlush(user);
     }
 
-    /** The system OWNER only: every account, sorted by email. */
+    /** The system OWNER only: every account, the caller first, then sorted by email. */
     @PreAuthorize("hasRole('" + Roles.OWNER + "')")
     @Transactional(readOnly = true)
-    public PageResponse<AdminUserResponse> listAll(int page, int size) {
-        Sort byEmail = Sort.by("email").ascending().and(Sort.by("id"));
-        return PageResponse.from(users.findAllBy(PageRequest.of(page, size, byEmail)), AdminUserResponse::from);
+    public PageResponse<AdminUserResponse> listAll(UUID callerId, int page, int size) {
+        return PageResponse.from(users.findAllCallerFirst(callerId, PageRequest.of(page, size)),
+                AdminUserResponse::from);
     }
 
     /** The system OWNER only. Repeating the current state changes nothing and publishes nothing. */
