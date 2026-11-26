@@ -64,6 +64,26 @@ const pick = (value: string) =>
   });
 
 describe("AssignConversationForm", () => {
+  it("derives every id from idPrefix", async () => {
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () =>
+      root.render(
+        <AssignConversationForm
+          action={async () => ({})}
+          members={members}
+          currentId={null}
+          idPrefix="assignee-compact"
+        />,
+      ),
+    );
+    expect(container.querySelector("#assignee-compact")).not.toBeNull();
+    expect(container.querySelector("#assignee-compact-status")).not.toBeNull();
+    expect(container.querySelector("#assignee")).toBeNull();
+    expect(container.querySelector("label")?.htmlFor).toBe("assignee-compact");
+  });
+
   it("starts on the saved assignee and has no save button", async () => {
     await mount(async () => ({}), "m2");
     expect(select().value).toBe("m2");

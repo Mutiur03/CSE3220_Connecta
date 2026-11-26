@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Avatar from "@/components/avatar";
 import AssignmentPanel from "@/components/assignment-panel";
+import CompactAssignment from "@/components/compact-assignment";
 import ContactDetailsPane from "@/components/contact-details-pane";
 import InboxListPane from "@/components/inbox-list-pane";
 import InboxShell from "@/components/inbox-shell";
@@ -163,6 +164,13 @@ export default async function ConversationPage({
             </p>
           </div>
         </div>
+        {team?.[0].ok && (
+          <CompactAssignment
+            action={assignConversationAction.bind(null, id, conversationId)}
+            currentId={conversation.assignee?.membershipId ?? null}
+            members={team[0].value.content}
+          />
+        )}
         <OrgActionButton
           action={markConversationUnreadAction.bind(null, id, conversationId)}
           label="Mark unread"
