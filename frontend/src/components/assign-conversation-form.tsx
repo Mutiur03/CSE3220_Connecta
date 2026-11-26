@@ -28,20 +28,32 @@ export default function AssignConversationForm({
   const [state, formAction, pending] = useActionState(action, {});
   const saved = currentId ?? UNASSIGNED;
   const [picked, setPicked] = useState(saved);
+  const [syncedSaved, setSyncedSaved] = useState(saved);
+  if (syncedSaved !== saved) {
+    setSyncedSaved(saved);
+    setPicked(saved);
+  }
   const alert = alertText(state);
   const error = state.errors?.membershipId;
 
   return (
-    <form action={formAction} className="flex flex-col gap-2">
+    <form
+      action={formAction}
+      onReset={() => setPicked(saved)}
+      className="flex flex-col gap-2"
+    >
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex min-w-48 flex-1 flex-col gap-1">
-          <label htmlFor="assignee" className="text-sm font-medium">
+          <label htmlFor="assignee" className="sr-only">
             Assignee
           </label>
+          {/* Uncontrolled: React resets the form after the action, and a controlled select would fall back
+              to its first option. The key remounts it with the new saved assignee as its default. */}
           <Select
+            key={saved}
             id="assignee"
             name="membershipId"
-            value={picked}
+            defaultValue={saved}
             onChange={(event) => setPicked(event.currentTarget.value)}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "assignee-error" : undefined}

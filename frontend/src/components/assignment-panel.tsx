@@ -21,7 +21,7 @@ type Props = {
   history: Page<AssignmentRecord> | null;
 };
 
-/** Admin only, under the thread header: change the assignee and read who held the conversation before. */
+/** Admin only, in the details pane's Assignee row: change the assignee and read who held the conversation before. */
 export default function AssignmentPanel({
   action,
   currentId,
@@ -29,10 +29,7 @@ export default function AssignmentPanel({
   history,
 }: Props) {
   return (
-    <section
-      aria-label="Assignment"
-      className="flex flex-col gap-3 border-b border-line px-4 py-3"
-    >
+    <section aria-label="Assignment" className="flex flex-col gap-3 pt-1">
       {members ? (
         <AssignConversationForm
           action={action}

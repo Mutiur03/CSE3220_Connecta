@@ -50,6 +50,17 @@ describe("ContactDetailsPane", () => {
     ).toContain("Unassigned");
   });
 
+  it("puts the assignment control in the Assignee row in place of the plain name", () => {
+    const markup = renderToStaticMarkup(
+      <ContactDetailsPane
+        conversation={conversation}
+        assignmentControl={<select id="assignee" />}
+      />,
+    );
+    expect(markup).toContain('id="assignee"');
+    expect(markup).not.toContain("Mira Das");
+  });
+
   it("lists other customers and skips the last message when there is none", () => {
     const markup = renderToStaticMarkup(
       <ContactDetailsPane

@@ -95,7 +95,21 @@ export default async function ConversationPage({
   return (
     <InboxShell
       threadOpen
-      details={<ContactDetailsPane conversation={conversation} />}
+      details={
+        <ContactDetailsPane
+          conversation={conversation}
+          assignmentControl={
+            team && (
+              <AssignmentPanel
+                action={assignConversationAction.bind(null, id, conversationId)}
+                currentId={conversation.assignee?.membershipId ?? null}
+                members={team[0].ok ? team[0].value.content : null}
+                history={team[1].ok ? team[1].value : null}
+              />
+            )
+          }
+        />
+      }
       list={
         <InboxListPane
           orgId={id}
@@ -165,15 +179,6 @@ export default async function ConversationPage({
           />
         </span>
       </header>
-
-      {team && (
-        <AssignmentPanel
-          action={assignConversationAction.bind(null, id, conversationId)}
-          currentId={conversation.assignee?.membershipId ?? null}
-          members={team[0].ok ? team[0].value.content : null}
-          history={team[1].ok ? team[1].value : null}
-        />
-      )}
 
       {/* column-reverse starts the scroll at the newest message, with no script. */}
       <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto overscroll-contain">
