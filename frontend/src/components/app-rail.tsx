@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { ApiError, type User } from "@/lib/api";
-import { listOrganizations, MAX_PAGE_SIZE } from "@/lib/org-api";
+import { listMemberOrganizations } from "@/lib/org-api";
 import { logout } from "@/lib/auth-actions";
 import { isSystemOwner } from "@/lib/org-permissions";
 import { fetchMeOnce } from "@/lib/session";
@@ -46,7 +46,7 @@ async function memberOrganizations() {
   const accessToken = store.get(ACCESS_COOKIE)?.value;
   if (!accessToken) return { organizations: [], remembered: undefined };
   try {
-    const page = await listOrganizations(accessToken, 0, MAX_PAGE_SIZE);
+    const page = await listMemberOrganizations(accessToken);
     return {
       organizations: page.content,
       remembered: store.get(CURRENT_ORG_COOKIE)?.value,
