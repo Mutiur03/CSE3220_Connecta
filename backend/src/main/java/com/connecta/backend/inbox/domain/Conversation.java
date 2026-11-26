@@ -2,7 +2,9 @@ package com.connecta.backend.inbox.domain;
 
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
 import com.connecta.backend.meta.domain.MetaConnectedPage;
+import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
+import com.connecta.backend.user.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -61,6 +63,11 @@ public class Conversation {
     @JoinColumn(name = "instagram_account_id")
     private MetaConnectedAccount instagramAccount;
 
+    /** The member handling this conversation. Null when unassigned or once that member leaves. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignee_membership_id")
+    private Membership assignee;
+
     /** A customer wrote since a member last read the conversation. Shared by the whole team. */
     @Column(nullable = false)
     private boolean unread;
@@ -93,6 +100,16 @@ public class Conversation {
         if (lastMessageAt == null || sentAt.isAfter(lastMessageAt)) {
             lastMessageAt = sentAt;
         }
+    }
+
+    /**
+     * Hands the conversation to {@code newAssignee} (null unassigns) and returns the history row the
+     * caller must save, so the current assignee and the history cannot disagree.
+     */
+    public ConversationAssignment assignTo(Membership newAssignee, User assignedBy, AssignmentSource source) {
+        ConversationAssignment record = new ConversationAssignment(this, assignee, newAssignee, assignedBy, source);
+        this.assignee = newAssignee;
+        return record;
     }
 
     public void changeStatus(ConversationStatus newStatus) {

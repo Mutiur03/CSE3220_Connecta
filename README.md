@@ -229,7 +229,26 @@ erDiagram
         uuid instagram_account_id FK "nullable, the account of an Instagram conversation"
         string status "OPEN or CLOSED"
         boolean unread "a customer wrote since a member read it"
+        uuid assignee_membership_id FK "nullable, the member handling it"
         timestamp last_message_at "nullable" }
+    MEMBERSHIPS |o--o{ CONVERSATIONS : "handles (SET NULL)"
+    MEMBERSHIPS ||--o| AGENT_AVAILABILITY : sets
+    AGENT_AVAILABILITY { uuid id PK
+        uuid organization_id FK
+        uuid membership_id FK "unique, on delete cascade"
+        string status "AVAILABLE or AWAY"
+        timestamp last_assigned_at "nullable, round-robin cursor" }
+    CONVERSATIONS ||--o{ CONVERSATION_ASSIGNMENTS : "assignment history"
+    MEMBERSHIPS |o--o{ CONVERSATION_ASSIGNMENTS : "from / to (SET NULL)"
+    USERS |o--o{ CONVERSATION_ASSIGNMENTS : assigns
+    CONVERSATION_ASSIGNMENTS { uuid id PK
+        uuid organization_id FK
+        uuid conversation_id FK "on delete cascade"
+        uuid from_membership_id FK "nullable, null on the first assignment"
+        uuid to_membership_id FK "nullable, null on an unassignment"
+        uuid assigned_by_user_id FK "nullable, null when automatic"
+        string source "AUTO_ROUND_ROBIN or MANUAL"
+        timestamp created_at }
     ORGANIZATIONS ||--o{ PARTICIPANTS : owns
     PARTICIPANTS { uuid id PK
         uuid organization_id FK
@@ -277,7 +296,7 @@ erDiagram
         bytea data
         timestamp created_at }
 ```
-`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. More tables arrive with later milestones.
+`users` to `roles` is many-to-many through `user_roles`; `users` to `refresh_tokens` is one-to-many. `users` to `organizations` is many-to-many through `memberships`, which also stores the user's role in that organization (one membership per user and organization). `system_setup` holds one row (id 1), written when the first-run setup creates the system `OWNER`. A membership has at most one `agent_availability` row (no row means not available for automatic assignment); `conversations.assignee_membership_id` is the current assignee and `conversation_assignments` keeps every hand-over, append-only. More tables arrive with later milestones.
 
 ## API endpoints
 | Method | Path | Access | Success | Description |
