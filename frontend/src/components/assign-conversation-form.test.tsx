@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { MemberAvailability } from "@/lib/assignment-api";
+import type { OrgActionState } from "@/lib/org-actions";
 import AssignConversationForm from "./assign-conversation-form";
 
 const member = (id: string, name: string): MemberAvailability => ({
@@ -17,7 +18,11 @@ const member = (id: string, name: string): MemberAvailability => ({
 });
 
 const members = [member("m1", "Mira Das"), member("m2", "Noor Ali")];
-const action = async () => ({ notice: "Assignee saved." });
+
+type Action = (
+  previous: OrgActionState,
+  formData: FormData,
+) => Promise<OrgActionState>;
 
 let container: HTMLDivElement;
 let root: Root;
@@ -33,11 +38,8 @@ afterEach(() => {
   container.remove();
 });
 
-const mount = (currentId: string | null) => {
-  container = document.createElement("div");
-  document.body.append(container);
-  root = createRoot(container);
-  act(() =>
+const render = (action: Action, currentId: string | null) =>
+  act(async () =>
     root.render(
       <AssignConversationForm
         action={action}
@@ -46,42 +48,60 @@ const mount = (currentId: string | null) => {
       />,
     ),
   );
+
+const mount = async (action: Action, currentId: string | null) => {
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await render(action, currentId);
 };
 
 const select = () => container.querySelector<HTMLSelectElement>("#assignee")!;
-const saveButton = () =>
-  container.querySelector<HTMLButtonElement>("button[type=submit]")!;
-
-describe("AssignConversationForm", () => {
-  it("starts on the saved assignee with Save off", () => {
-    mount("m2");
-    expect(select().value).toBe("m2");
-    expect(saveButton().disabled).toBe(true);
+const pick = (value: string) =>
+  act(async () => {
+    select().value = value;
+    select().dispatchEvent(new Event("change", { bubbles: true }));
   });
 
-  it("keeps showing the new assignee after a save, which resets the form", async () => {
-    mount(null);
-    act(() => {
-      select().value = "m1";
-      select().dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(saveButton().disabled).toBe(false);
+describe("AssignConversationForm", () => {
+  it("starts on the saved assignee and has no save button", async () => {
+    await mount(async () => ({}), "m2");
+    expect(select().value).toBe("m2");
+    expect(container.querySelector("button")).toBeNull();
+  });
 
-    await act(async () => {
-      saveButton().form!.requestSubmit();
-    });
+  it("saves as soon as a member is picked and keeps showing them after the refresh", async () => {
+    const action = vi.fn<Action>(async () => ({ notice: "Assignee saved." }));
+    await mount(action, null);
+
+    await pick("m1");
+    expect(action).toHaveBeenCalledOnce();
+    expect(action.mock.calls[0][1].get("membershipId")).toBe("m1");
+    expect(container.textContent).toContain("Assignee saved.");
+
     // The server refresh hands the form its new saved assignee.
-    await act(async () =>
-      root.render(
-        <AssignConversationForm
-          action={action}
-          members={members}
-          currentId="m1"
-        />,
-      ),
-    );
-
+    await render(action, "m1");
     expect(select().value).toBe("m1");
-    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("saves an empty id to unassign", async () => {
+    const action = vi.fn<Action>(async () => ({ notice: "Unassigned." }));
+    await mount(action, "m1");
+
+    await pick("");
+    expect(action.mock.calls[0][1].get("membershipId")).toBe("");
+  });
+
+  it("shows the failure and falls back to the saved assignee", async () => {
+    const action = vi.fn<Action>(async () => ({
+      message: "That member's account is disabled.",
+    }));
+    await mount(action, "m2");
+
+    await pick("m1");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "disabled",
+    );
+    expect(select().value).toBe("m2");
   });
 });
