@@ -1,4 +1,5 @@
 import { request } from "./api";
+import type { Assignee } from "./assignment-api";
 import type { Page } from "./org-api";
 import {
   apiStatus,
@@ -58,6 +59,8 @@ export type ConversationDetail = {
   status: ConversationStatus;
   unread: boolean;
   participants: Participant[];
+  /** The member handling it, or null when unassigned. */
+  assignee: Assignee | null;
   lastMessageAt: string | null;
   createdAt: string;
   updatedAt: string;

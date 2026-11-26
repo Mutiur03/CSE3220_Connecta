@@ -8,6 +8,7 @@ import {
   PackageIcon,
   PlugIcon,
   TagIcon,
+  UsersIcon,
 } from "./icons";
 import RailLink from "./rail-link";
 
@@ -57,6 +58,9 @@ export default function RailOrgSection({
         label="Inventory"
       >
         <ArchiveIcon />
+      </RailLink>
+      <RailLink href={`/organizations/${current.id}/team`} label="Team">
+        <UsersIcon />
       </RailLink>
       <RailLink
         href={`/organizations/${current.id}/integrations`}
