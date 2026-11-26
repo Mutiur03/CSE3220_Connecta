@@ -2,10 +2,14 @@
 // is testable with a fake socket and fake timers.
 
 export type RealtimeEvent = {
-  type: "message.created" | "participant.updated" | "inbox.refresh";
+  type:
+    | "message.created"
+    | "participant.updated"
+    | "conversation.assigned"
+    | "inbox.refresh";
   /** Empty for inbox.refresh (many conversations changed: a history import). */
   conversationId: string;
-  /** Empty for participant.updated (a customer name was stored) and inbox.refresh. */
+  /** Empty for participant.updated (a customer name was stored), conversation.assigned and inbox.refresh. */
   messageId: string;
   channel: string;
   direction: string;
@@ -76,7 +80,7 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
     };
   }
   if (typeof e.conversationId !== "string") return null;
-  if (e.type === "participant.updated") {
+  if (e.type === "participant.updated" || e.type === "conversation.assigned") {
     return {
       type: e.type,
       conversationId: e.conversationId,
