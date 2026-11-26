@@ -13,6 +13,7 @@ import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.repository.RoleRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -102,6 +103,33 @@ class AvailabilityIntervalRepositoryIntegrationTests {
         int open = transactions.execute(status -> intervals.findByMembershipUserIdAndEndedAtIsNull(user.getId())
                 .size());
         assertEquals(2, open);
+    }
+
+    @Test
+    void overlappingFindsOnlyIntervalsTouchingTheRangeInsideTheOrganization() {
+        Organization mine = newOrganization();
+        Membership member = newMember(mine);
+        Instant from = START;
+        Instant to = START.plusSeconds(3600);
+        persist(closed(member, from.minusSeconds(600), from.plusSeconds(60)));
+        persist(closed(member, from.minusSeconds(7200), from.minusSeconds(3600)));
+        persist(closed(member, to, to.plusSeconds(60)));
+        persist(new AvailabilityInterval(member, to.minusSeconds(60)));
+
+        List<AvailabilityInterval> found = transactions.execute(status ->
+                intervals.findOverlapping(mine.getId(), List.of(member.getId()), from, to).stream()
+                        .peek(i -> i.getMembership().getId()).toList());
+        List<AvailabilityInterval> elsewhere =
+                intervals.findOverlapping(newOrganization().getId(), List.of(member.getId()), from, to);
+
+        assertEquals(2, found.size());
+        assertTrue(elsewhere.isEmpty());
+    }
+
+    private static AvailabilityInterval closed(Membership member, Instant start, Instant end) {
+        AvailabilityInterval interval = new AvailabilityInterval(member, start);
+        interval.close(end);
+        return interval;
     }
 
     private <T> T persist(T entity) {

@@ -11,8 +11,10 @@ import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationStatus;
 import com.connecta.backend.inbox.domain.AssignmentSource;
 import com.connecta.backend.inbox.repository.ConversationRepository;
+import com.connecta.backend.org.domain.AvailabilityInterval;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
+import com.connecta.backend.org.repository.AvailabilityIntervalRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
 import com.connecta.backend.support.RandomJwtSecret;
@@ -23,6 +25,7 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.repository.RoleRepository;
 import com.connecta.backend.user.repository.UserRepository;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -87,6 +90,9 @@ class AvailabilityControllerIntegrationTests {
 
     @Autowired
     ConversationRepository conversations;
+
+    @Autowired
+    AvailabilityIntervalRepository intervals;
 
     private static String path(Organization organization, String suffix) {
         return "/api/organizations/" + organization.getId() + "/availability" + suffix;
@@ -283,6 +289,131 @@ class AvailabilityControllerIntegrationTests {
         @Test
         void anAnonymousCallerIsUnauthorized() throws Exception {
             mvc.perform(get(path(organization("Acme"), ""))).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
+    class Report {
+
+        private static final String RANGE_FROM = "2026-11-13";
+        private static final String RANGE_TO = "2026-11-16";
+
+        private org.springframework.test.web.servlet.ResultActions report(Organization org, User caller,
+                String from, String to) throws Exception {
+            MockHttpServletRequestBuilder request = get(path(org, "/report")).header(AUTH, bearer(caller));
+            if (from != null) {
+                request.param("from", from);
+            }
+            if (to != null) {
+                request.param("to", to);
+            }
+            return mvc.perform(request);
+        }
+
+        private Organization acmeWith(User admin) {
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+            return acme;
+        }
+
+        @Test
+        void anAdminSeesPerDaySecondsForEveryMemberZeroFilled() throws Exception {
+            User admin = newUser();
+            User agent = newUser();
+            Organization acme = acmeWith(admin);
+            Membership seat = join(acme, agent, Roles.AGENT);
+            closed(seat, "2026-11-13T23:00:00Z", "2026-11-14T02:00:00Z");
+            intervals.saveAndFlush(new AvailabilityInterval(seat, Instant.parse("2026-11-15T10:00:00Z")));
+
+            report(acme, admin, RANGE_FROM, RANGE_TO)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.from").value(RANGE_FROM))
+                    .andExpect(jsonPath("$.to").value(RANGE_TO))
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.page").value(0))
+                    .andExpect(jsonPath("$.size").value(20))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].totalSeconds").value(0))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].role").value("AGENT"))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].totalSeconds")
+                            .value(3600 + 7200 + 7200))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].days.length()").value(4))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].days[0].date")
+                            .value(RANGE_FROM))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].days[0].availableSeconds")
+                            .value(3600))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].days[3].availableSeconds")
+                            .value(0));
+        }
+
+        @Test
+        void anotherTenantsIntervalsNeverAppear() throws Exception {
+            User admin = newUser();
+            Organization acme = acmeWith(admin);
+            Organization other = organization("Other");
+            Membership foreign = join(other, newUser(), Roles.AGENT);
+            closed(foreign, "2026-11-14T08:00:00Z", "2026-11-14T09:00:00Z");
+
+            report(acme, admin, RANGE_FROM, RANGE_TO)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].totalSeconds").value(0));
+        }
+
+        private void closed(Membership seat, String start, String end) {
+            AvailabilityInterval interval = new AvailabilityInterval(seat, Instant.parse(start));
+            interval.close(Instant.parse(end));
+            intervals.saveAndFlush(interval);
+        }
+
+        @Test
+        void anAgentIsForbidden() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+
+            report(acme, agent, RANGE_FROM, RANGE_TO).andExpect(status().isForbidden());
+        }
+
+        @Test
+        void anAdminOfAnotherOrganizationGetsA404() throws Exception {
+            User outsider = newUser();
+            join(organization("Mine"), outsider, Roles.ADMIN);
+            Organization theirs = organization("Theirs");
+            join(theirs, newUser(), Roles.ADMIN);
+
+            report(theirs, outsider, RANGE_FROM, RANGE_TO).andExpect(status().isNotFound());
+        }
+
+        @Test
+        void aReversedRangeIsRejected() throws Exception {
+            User admin = newUser();
+            report(acmeWith(admin), admin, RANGE_TO, RANGE_FROM).andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void aRangeOver31DaysIsRejectedButExactly31IsAllowed() throws Exception {
+            User admin = newUser();
+            Organization acme = acmeWith(admin);
+
+            report(acme, admin, "2026-10-01", "2026-11-01").andExpect(status().isBadRequest());
+            report(acme, admin, "2026-10-01", "2026-10-31").andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].days.length()").value(31));
+        }
+
+        @Test
+        void aMissingOrMalformedDateIsRejected() throws Exception {
+            User admin = newUser();
+            Organization acme = acmeWith(admin);
+
+            report(acme, admin, null, RANGE_TO).andExpect(status().isBadRequest());
+            report(acme, admin, RANGE_FROM, null).andExpect(status().isBadRequest());
+            report(acme, admin, "13-11-2026", RANGE_TO).andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void anAnonymousCallerIsUnauthorized() throws Exception {
+            mvc.perform(get(path(organization("Acme"), "/report")).param("from", RANGE_FROM).param("to", RANGE_TO))
+                    .andExpect(status().isUnauthorized());
         }
     }
 }
