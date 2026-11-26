@@ -2,20 +2,19 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RealtimeClientOptions } from "@/lib/realtime";
+import type { RealtimeSubscriber } from "@/lib/realtime-hub";
 import PresenceConnection from "./presence-connection";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const stop = vi.fn();
-const startRealtimeClient = vi.fn<
-  (options: RealtimeClientOptions) => () => void
+const subscribeRealtime = vi.fn<
+  (orgId: string, subscriber: RealtimeSubscriber) => () => void
 >(() => stop);
-vi.mock("@/lib/realtime", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/realtime")>()),
-  startRealtimeClient: (options: RealtimeClientOptions) =>
-    startRealtimeClient(options),
+vi.mock("@/lib/realtime-hub", () => ({
+  subscribeRealtime: (orgId: string, subscriber: RealtimeSubscriber) =>
+    subscribeRealtime(orgId, subscriber),
 }));
 
 (
@@ -35,49 +34,32 @@ const mount = (orgId: string) => {
 beforeEach(() => {
   refresh.mockReset();
   stop.mockReset();
-  startRealtimeClient.mockClear();
+  subscribeRealtime.mockClear();
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
   container?.remove();
 });
 
 describe("PresenceConnection", () => {
-  it("renders nothing and fetches a ticket for its organization", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ ticket: "t1" }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
+  it("renders nothing and joins the shared socket of its organization", () => {
     mount("org-1");
     expect(container.innerHTML).toBe("");
-    expect(await startRealtimeClient.mock.calls[0][0].fetchTicket()).toBe("t1");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/organizations/org-1/realtime/tickets",
-      { method: "POST" },
-    );
+    expect(subscribeRealtime).toHaveBeenCalledTimes(1);
+    expect(subscribeRealtime.mock.calls[0][0]).toBe("org-1");
   });
 
-  it("never refreshes the page for events or reconnects", () => {
+  it("does not listen to events or reconnects, so it never refreshes the page for them", () => {
     mount("org-1");
-    const options = startRealtimeClient.mock.calls[0][0];
-    options.onEvent({
-      type: "inbox.refresh",
-      conversationId: "",
-      messageId: "",
-      channel: "",
-      direction: "",
-      newConversation: false,
-    });
-    options.onReconnect();
+    const subscriber = subscribeRealtime.mock.calls[0][1];
+    expect(subscriber.onEvent).toBeUndefined();
+    expect(subscriber.onReconnect).toBeUndefined();
     expect(refresh).not.toHaveBeenCalled();
   });
 
-  it("asks the server to renew an expired session and stops the socket on unmount", () => {
+  it("asks the server to renew an expired session and unsubscribes on unmount", () => {
     mount("org-1");
-    startRealtimeClient.mock.calls[0][0].onUnauthorized?.();
+    subscribeRealtime.mock.calls[0][1].onUnauthorized?.();
     expect(refresh).toHaveBeenCalledTimes(1);
     act(() => root.unmount());
     expect(stop).toHaveBeenCalledTimes(1);
