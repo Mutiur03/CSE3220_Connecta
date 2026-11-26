@@ -7,6 +7,7 @@ import com.connecta.backend.inbox.repository.ConversationRepository;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +21,7 @@ public class AutoAssignmentService {
     private final ConversationRepository conversations;
     private final ConversationAssignmentRepository history;
     private final AssignmentStrategyFactory strategies;
+    private final ApplicationEventPublisher publisher;
 
     /** Own transaction: it runs after the message committed and must not touch that one. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -31,6 +33,7 @@ public class AutoAssignmentService {
         }
         strategies.forOrganization(organizationId).choose(conversation).ifPresentOrElse(member -> {
             history.save(conversation.assignTo(member, null, AssignmentSource.AUTO_ROUND_ROBIN));
+            publisher.publishEvent(new AssignmentChangedEvent(organizationId, conversationId, member.getId()));
             log.debug("Conversation {} assigned to member {}", conversationId, member.getId());
         }, () -> log.debug("No available agent for conversation {}", conversationId));
     }

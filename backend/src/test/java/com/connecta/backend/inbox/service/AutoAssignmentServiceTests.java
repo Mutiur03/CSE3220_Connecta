@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 class AutoAssignmentServiceTests {
 
@@ -36,6 +37,7 @@ class AutoAssignmentServiceTests {
     private final ConversationAssignmentRepository history = mock(ConversationAssignmentRepository.class);
     private final AssignmentStrategy strategy = mock(AssignmentStrategy.class);
     private final AssignmentStrategyFactory factory = mock(AssignmentStrategyFactory.class);
+    private final ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
     private AutoAssignmentService service;
     private Conversation conversation;
 
@@ -44,7 +46,7 @@ class AutoAssignmentServiceTests {
         conversation = new Conversation(org, Channel.INSTAGRAM, "thread");
         when(conversations.findByIdAndOrganizationId(conversationId, orgId)).thenReturn(Optional.of(conversation));
         when(factory.forOrganization(orgId)).thenReturn(strategy);
-        service = new AutoAssignmentService(conversations, history, factory);
+        service = new AutoAssignmentService(conversations, history, factory, publisher);
     }
 
     @Nested
@@ -61,6 +63,7 @@ class AutoAssignmentServiceTests {
             verify(history).save(saved.capture());
             assertSame(AssignmentSource.AUTO_ROUND_ROBIN, saved.getValue().getSource());
             assertNull(saved.getValue().getAssignedBy());
+            verify(publisher).publishEvent(new AssignmentChangedEvent(orgId, conversationId, agent.getId()));
         }
 
         @Test
@@ -71,6 +74,7 @@ class AutoAssignmentServiceTests {
 
             assertNull(conversation.getAssignee());
             verify(history, never()).save(any());
+            verifyNoInteractions(publisher);
         }
     }
 
@@ -80,7 +84,7 @@ class AutoAssignmentServiceTests {
 
         service.assignIfUnassigned(orgId, conversationId);
 
-        verifyNoInteractions(strategy, history);
+        verifyNoInteractions(strategy, history, publisher);
     }
 
     @Test

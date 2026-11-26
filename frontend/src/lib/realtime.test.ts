@@ -73,7 +73,9 @@ describe("parseRealtimeEvent", () => {
 
   it("accepts a participant.updated frame that carries only the conversation", () => {
     expect(
-      parseRealtimeEvent('{"type":"participant.updated","conversationId":"c1"}'),
+      parseRealtimeEvent(
+        '{"type":"participant.updated","conversationId":"c1"}',
+      ),
     ).toMatchObject({ type: "participant.updated", conversationId: "c1" });
     expect(parseRealtimeEvent('{"type":"participant.updated"}')).toBeNull();
   });
@@ -107,6 +109,20 @@ describe("isRelevant", () => {
     const refresh = parseRealtimeEvent('{"type":"inbox.refresh"}')!;
     expect(isRelevant(refresh)).toBe(true);
     expect(isRelevant(refresh, "c2")).toBe(true);
+  });
+
+  it("an assignment change reaches the list and only its own thread, with a null assignee too", () => {
+    const assigned = parseRealtimeEvent(
+      '{"type":"conversation.assigned","conversationId":"c1","assigneeMembershipId":null}',
+    )!;
+    expect(assigned).toMatchObject({
+      type: "conversation.assigned",
+      conversationId: "c1",
+    });
+    expect(isRelevant(assigned)).toBe(true);
+    expect(isRelevant(assigned, "c1")).toBe(true);
+    expect(isRelevant(assigned, "c2")).toBe(false);
+    expect(parseRealtimeEvent('{"type":"conversation.assigned"}')).toBeNull();
   });
 });
 

@@ -16,6 +16,7 @@ import com.connecta.backend.user.domain.User;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,6 +41,7 @@ public class ConversationAssignmentService {
     private final MemberService members;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
+    private final ApplicationEventPublisher publisher;
 
     /** Assigns, reassigns or (null {@code membershipId}) unassigns. Asking for the current state is a 422. */
     @PreAuthorize("hasRole('" + Roles.ADMIN + "')")
@@ -55,7 +57,9 @@ public class ConversationAssignmentService {
             throw new AssigneeNotAvailableException();
         }
         history.save(conversation.assignTo(target, caller, AssignmentSource.MANUAL));
-        return ConversationAssigneeResponse.from(conversations.saveAndFlush(conversation));
+        ConversationAssigneeResponse result = ConversationAssigneeResponse.from(conversations.saveAndFlush(conversation));
+        publisher.publishEvent(new AssignmentChangedEvent(organizationId, conversationId, membershipId));
+        return result;
     }
 
     /** ADMIN of the organization. */
