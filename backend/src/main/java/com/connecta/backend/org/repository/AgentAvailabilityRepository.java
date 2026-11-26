@@ -1,7 +1,6 @@
 package com.connecta.backend.org.repository;
 
 import com.connecta.backend.org.domain.AgentAvailability;
-import com.connecta.backend.org.domain.AvailabilityStatus;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 import java.util.Collection;
@@ -20,15 +19,12 @@ public interface AgentAvailabilityRepository extends JpaRepository<AgentAvailabi
     /** A member's availability only inside the organization, so another tenant's member reads as absent. */
     Optional<AgentAvailability> findByMembershipIdAndOrganizationId(UUID membershipId, UUID organizationId);
 
-    /** The AVAILABLE rows of one user across all of their memberships. */
-    List<AgentAvailability> findByMembershipUserIdAndStatus(UUID userId, AvailabilityStatus status);
-
     /** The rows of these members inside the organization, so a page of members needs one query. */
     @EntityGraph(attributePaths = "membership")
     List<AgentAvailability> findByOrganizationIdAndMembershipIdIn(UUID organizationId, Collection<UUID> membershipIds);
 
     /**
-     * The one AVAILABLE member of the organization with an enabled account who waited longest (never
+     * The one assignable member of the organization with an enabled account (online or not) who waited longest (never
      * assigned first, then by id), row-locked so concurrent callers skip it instead of choosing it too.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -36,7 +32,7 @@ public interface AgentAvailabilityRepository extends JpaRepository<AgentAvailabi
     @Query("""
             select a from AgentAvailability a join a.membership m join m.user u
             where a.organization.id = :organizationId
-              and a.status = com.connecta.backend.org.domain.AvailabilityStatus.AVAILABLE
+              and a.assignable = true
               and u.enabled = true
             order by a.lastAssignedAt asc nulls first, a.id asc
             limit 1

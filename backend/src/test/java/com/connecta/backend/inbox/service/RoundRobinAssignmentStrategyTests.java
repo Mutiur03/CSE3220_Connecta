@@ -41,12 +41,13 @@ class RoundRobinAssignmentStrategyTests {
         strategy = new RoundRobinAssignmentStrategy(repository, clock);
     }
 
-    private AgentAvailability row(String name, AvailabilityStatus status, boolean enabled, Instant lastAssigned) {
+    private AgentAvailability row(String name, boolean assignable, boolean enabled, Instant lastAssigned) {
         User user = new User(name + "@example.com", "hash", name);
         if (!enabled) {
             user.disable();
         }
-        AgentAvailability row = new AgentAvailability(new Membership(org, user, null), status);
+        AgentAvailability row = new AgentAvailability(new Membership(org, user, null), AvailabilityStatus.AWAY);
+        row.changeAssignable(assignable);
         if (lastAssigned != null) {
             row.recordAssignmentAt(lastAssigned);
         }
@@ -56,7 +57,7 @@ class RoundRobinAssignmentStrategyTests {
     /** In-memory twin of the repository query: eligible rows, never-assigned first, then oldest. */
     private void fakeRepository(List<AgentAvailability> rows) {
         when(repository.lockNextAvailable(any())).thenAnswer(call -> rows.stream()
-                .filter(r -> r.getStatus() == AvailabilityStatus.AVAILABLE && r.getMembership().getUser().isEnabled())
+                .filter(r -> r.isAssignable() && r.getMembership().getUser().isEnabled())
                 .sorted(Comparator.comparing(AgentAvailability::getLastAssignedAt,
                         Comparator.nullsFirst(Comparator.naturalOrder())))
                 .limit(1).toList());
@@ -66,8 +67,17 @@ class RoundRobinAssignmentStrategyTests {
     class Choosing {
 
         @Test
+        void anAssignableMemberIsChosenWhileAway() {
+            AgentAvailability awayButAssignable = row("away", true, true, null);
+            assertEquals(AvailabilityStatus.AWAY, awayButAssignable.getStatus());
+            fakeRepository(List.of(awayButAssignable));
+
+            assertSame(awayButAssignable.getMembership(), strategy.choose(conversation).orElseThrow());
+        }
+
+        @Test
         void picksTheRowTheQueryReturnsAndRecordsTheTime() {
-            AgentAvailability first = row("a", AvailabilityStatus.AVAILABLE, true, null);
+            AgentAvailability first = row("a", true, true, null);
             when(repository.lockNextAvailable(any())).thenReturn(List.of(first));
 
             Optional<Membership> chosen = strategy.choose(conversation);
@@ -78,8 +88,8 @@ class RoundRobinAssignmentStrategyTests {
 
         @Test
         void neverAssignedComesBeforeAnOlderAssignment() {
-            AgentAvailability old = row("old", AvailabilityStatus.AVAILABLE, true, Instant.ofEpochSecond(5));
-            AgentAvailability fresh = row("fresh", AvailabilityStatus.AVAILABLE, true, null);
+            AgentAvailability old = row("old", true, true, Instant.ofEpochSecond(5));
+            AgentAvailability fresh = row("fresh", true, true, null);
             fakeRepository(List.of(old, fresh));
 
             assertSame(fresh.getMembership(), strategy.choose(conversation).orElseThrow());
@@ -87,19 +97,19 @@ class RoundRobinAssignmentStrategyTests {
 
         @Test
         void oldestAssignmentWins() {
-            AgentAvailability newer = row("newer", AvailabilityStatus.AVAILABLE, true, Instant.ofEpochSecond(50));
-            AgentAvailability older = row("older", AvailabilityStatus.AVAILABLE, true, Instant.ofEpochSecond(5));
+            AgentAvailability newer = row("newer", true, true, Instant.ofEpochSecond(50));
+            AgentAvailability older = row("older", true, true, Instant.ofEpochSecond(5));
             fakeRepository(List.of(newer, older));
 
             assertSame(older.getMembership(), strategy.choose(conversation).orElseThrow());
         }
 
         @Test
-        void skipsAwayAndDisabledMembers() {
-            AgentAvailability away = row("away", AvailabilityStatus.AWAY, true, null);
-            AgentAvailability disabled = row("off", AvailabilityStatus.AVAILABLE, false, null);
-            AgentAvailability ok = row("ok", AvailabilityStatus.AVAILABLE, true, Instant.ofEpochSecond(9));
-            fakeRepository(List.of(away, disabled, ok));
+        void skipsNonAssignableAndDisabledMembers() {
+            AgentAvailability notAssignable = row("away", false, true, null);
+            AgentAvailability disabled = row("off", true, false, null);
+            AgentAvailability ok = row("ok", true, true, Instant.ofEpochSecond(9));
+            fakeRepository(List.of(notAssignable, disabled, ok));
 
             assertSame(ok.getMembership(), strategy.choose(conversation).orElseThrow());
         }
@@ -112,8 +122,8 @@ class RoundRobinAssignmentStrategyTests {
         }
 
         @Test
-        void isEmptyWhenNobodyIsAvailable() {
-            fakeRepository(List.of(row("away", AvailabilityStatus.AWAY, true, null)));
+        void isEmptyWhenNobodyIsAssignable() {
+            fakeRepository(List.of(row("away", false, true, null)));
 
             assertTrue(strategy.choose(conversation).isEmpty());
         }
@@ -121,9 +131,9 @@ class RoundRobinAssignmentStrategyTests {
 
     @Test
     void rotatesFairlyAcrossThreeAgentsOverSixAssignments() {
-        List<AgentAvailability> rows = List.of(row("a", AvailabilityStatus.AVAILABLE, true, null),
-                row("b", AvailabilityStatus.AVAILABLE, true, null),
-                row("c", AvailabilityStatus.AVAILABLE, true, null));
+        List<AgentAvailability> rows = List.of(row("a", true, true, null),
+                row("b", true, true, null),
+                row("c", true, true, null));
         fakeRepository(rows);
 
         List<Membership> order = new ArrayList<>();

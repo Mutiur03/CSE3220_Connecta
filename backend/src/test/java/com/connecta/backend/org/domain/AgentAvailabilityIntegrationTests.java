@@ -72,6 +72,20 @@ class AgentAvailabilityIntegrationTests {
     }
 
     @Test
+    void assignableDefaultsToFalseAndIsStoredWhenSwitched() {
+        Membership member = newMember(newOrganization());
+        AgentAvailability row = persist(new AgentAvailability(member, AvailabilityStatus.AWAY));
+        assertEquals(false, row.isAssignable());
+
+        transactions.executeWithoutResult(status -> availability
+                .findByMembershipIdAndOrganizationId(member.getId(), member.getOrganization().getId())
+                .orElseThrow().changeAssignable(true));
+
+        assertTrue(availability.findByMembershipIdAndOrganizationId(member.getId(), member.getOrganization().getId())
+                .orElseThrow().isAssignable());
+    }
+
+    @Test
     void anotherOrganizationCannotReadTheRow() {
         Membership member = newMember(newOrganization());
         persist(new AgentAvailability(member, AvailabilityStatus.AWAY));

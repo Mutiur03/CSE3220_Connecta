@@ -13,15 +13,17 @@ import java.util.UUID;
  * {@code online} means connected now or inside the grace period after the last connection dropped.
  */
 public record AvailabilityResponse(UUID membershipId, UUID userId, String email, String name, String role,
-        AvailabilityStatus status, Instant updatedAt, long openConversations, boolean online) {
+        AvailabilityStatus status, boolean assignable, Instant updatedAt, long openConversations,
+        boolean online) {
 
-    /** {@code availability} may be null: a member without a row counts as AWAY. */
+    /** {@code availability} may be null: a member without a row counts as AWAY and not assignable. */
     public static AvailabilityResponse from(Membership membership, AgentAvailability availability,
             long openConversations, boolean online) {
         User user = membership.getUser();
         return new AvailabilityResponse(membership.getId(), user.getId(), user.getEmail(), user.getFullName(),
                 membership.getRole().getName(),
                 availability == null ? AvailabilityStatus.AWAY : availability.getStatus(),
+                availability != null && availability.isAssignable(),
                 availability == null ? null : availability.getUpdatedAt(), openConversations, online);
     }
 }

@@ -1,8 +1,10 @@
 package com.connecta.backend.org.controller;
 
 import com.connecta.backend.common.dto.PageResponse;
+import com.connecta.backend.org.dto.AssignableResponse;
 import com.connecta.backend.org.dto.AvailabilityReportResponse;
 import com.connecta.backend.org.dto.AvailabilityResponse;
+import com.connecta.backend.org.dto.SetAssignableRequest;
 import com.connecta.backend.org.dto.SetAvailabilityRequest;
 import com.connecta.backend.org.service.AgentAvailabilityService;
 import com.connecta.backend.org.service.AvailabilityReportService;
@@ -28,8 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Role rules (checked by AgentAvailabilityService through TenantAccessService). Reading or setting your
- * own status needs any membership of the organization (non-members get 404). Listing everyone's status
- * and the time report need ADMIN or above (AGENT gets 403).
+ * own status needs any membership of the organization (non-members get 404). Listing everyone's status,
+ * the time report and the assignable switch need ADMIN or above (AGENT gets 403).
  */
 @RestController
 @Tag(name = "Availability", description = "Whether a member takes new conversations")
@@ -73,6 +75,19 @@ public class AvailabilityController {
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "" + PageResponse.DEFAULT_SIZE) @Min(1) @Max(PageResponse.MAX_SIZE) int size) {
         return availability.list(jwt.getSubject(), organizationId, page, size);
+    }
+
+    @Operation(summary = "Let a member receive automatic assignments, or not (ADMIN of it)",
+            security = @SecurityRequirement(name = "bearerAuth"))
+    @ApiResponse(responseCode = "200", description = "The member's assignable switch as now stored")
+    @ApiResponse(responseCode = "400", description = "Missing or non-boolean assignable")
+    @ApiResponse(responseCode = "401", description = "Missing, invalid or expired access token")
+    @ApiResponse(responseCode = "403", description = "Caller is an AGENT")
+    @ApiResponse(responseCode = "404", description = "Not found, or the caller or the member is not in it")
+    @PutMapping("/api/organizations/{organizationId}/members/{membershipId}/assignable")
+    AssignableResponse setAssignable(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID organizationId,
+            @PathVariable UUID membershipId, @Valid @RequestBody SetAssignableRequest request) {
+        return availability.setAssignable(jwt.getSubject(), organizationId, membershipId, request.assignable());
     }
 
     @Operation(summary = "Seconds each member was available per UTC day, from to inclusive, max 31 days (ADMIN of it)",

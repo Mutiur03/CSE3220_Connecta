@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Whether one member takes new conversations, and when they last got one automatically. A member
- * without this row is treated as not available.
+ * without this row is treated as not available and not assignable.
  */
 @Entity
 @Table(name = "agent_availability")
@@ -46,6 +46,10 @@ public class AgentAvailability {
     @Column(nullable = false, length = 16)
     private AvailabilityStatus status;
 
+    /** Admin-controlled: only assignable members get automatic assignments, online or not. */
+    @Column(nullable = false)
+    private boolean assignable;
+
     /** Round-robin cursor: the next automatic assignment goes to the member who waited longest. */
     @Column(name = "last_assigned_at")
     private Instant lastAssignedAt;
@@ -61,6 +65,10 @@ public class AgentAvailability {
 
     public void changeStatus(AvailabilityStatus status) {
         this.status = status;
+    }
+
+    public void changeAssignable(boolean assignable) {
+        this.assignable = assignable;
     }
 
     public void recordAssignmentAt(Instant assignedAt) {

@@ -185,6 +185,89 @@ class AvailabilityControllerIntegrationTests {
     }
 
     @Nested
+    class SetAssignable {
+
+        private static final String ON = "{\"assignable\":true}";
+
+        private String url(Organization org, Membership member) {
+            return "/api/organizations/" + org.getId() + "/members/" + member.getId() + "/assignable";
+        }
+
+        @Test
+        void anAdminSwitchesAMemberAndTheListShowsIt() throws Exception {
+            User admin = newUser();
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+            Membership seat = join(acme, agent, Roles.AGENT);
+
+            mvc.perform(json(put(url(acme, seat)), ON).header(AUTH, bearer(admin)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.membershipId").value(seat.getId().toString()))
+                    .andExpect(jsonPath("$.assignable").value(true));
+            mvc.perform(get(path(acme, "")).header(AUTH, bearer(admin)).param("size", "10"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[?(@.membershipId=='" + seat.getId() + "')].assignable")
+                            .value(true));
+            mvc.perform(json(put(url(acme, seat)), "{\"assignable\":false}").header(AUTH, bearer(admin)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.assignable").value(false));
+        }
+
+        @Test
+        void anInvalidBodyIsRejected() throws Exception {
+            User admin = newUser();
+            Organization acme = organization("Acme");
+            Membership seat = join(acme, admin, Roles.ADMIN);
+
+            mvc.perform(json(put(url(acme, seat)), "{}").header(AUTH, bearer(admin)))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(json(put(url(acme, seat)), "{\"assignable\":\"yes\"}").header(AUTH, bearer(admin)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void anAgentIsForbidden() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            Membership seat = join(acme, agent, Roles.AGENT);
+
+            mvc.perform(json(put(url(acme, seat)), ON).header(AUTH, bearer(agent)))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void aMembershipOfAnotherOrganizationIsNotFound() throws Exception {
+            User admin = newUser();
+            Organization mine = organization("Mine");
+            join(mine, admin, Roles.ADMIN);
+            Membership foreign = join(organization("Theirs"), newUser(), Roles.AGENT);
+
+            mvc.perform(json(put(url(mine, foreign)), ON).header(AUTH, bearer(admin)))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void anAdminOfAnotherOrganizationGetsA404() throws Exception {
+            User outsider = newUser();
+            join(organization("Mine"), outsider, Roles.ADMIN);
+            Organization theirs = organization("Theirs");
+            Membership seat = join(theirs, newUser(), Roles.AGENT);
+
+            mvc.perform(json(put(url(theirs, seat)), ON).header(AUTH, bearer(outsider)))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void anAnonymousCallerIsUnauthorized() throws Exception {
+            Organization acme = organization("Acme");
+            Membership seat = join(acme, newUser(), Roles.AGENT);
+
+            mvc.perform(json(put(url(acme, seat)), ON)).andExpect(status().isUnauthorized());
+        }
+    }
+
+    @Nested
     class GetOwn {
 
         @Test
