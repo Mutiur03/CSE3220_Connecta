@@ -12,9 +12,11 @@ const roleLabel = (roles: string[]) =>
   roles.map((role) => ROLE_LABELS[role as OrgRole] ?? role).join(", ");
 
 function RowAction({ user, isSelf }: { user: AdminUser; isSelf: boolean }) {
-  if (isSelf) return <span className="text-secondary">You</span>;
+  // Labels and buttons share one width (w-24 / min-w-24 on the cell) so "You" sits centred over the buttons.
+  if (isSelf)
+    return <span className="w-24 text-center text-secondary">You</span>;
   if (user.roles.includes(OWNER_ROLE))
-    return <span className="text-secondary">Owner</span>;
+    return <span className="w-24 text-center text-secondary">Owner</span>;
   if (!user.enabled)
     return (
       <OrgActionButton
@@ -79,7 +81,7 @@ export default function UserTable({ users, callerUserId }: Props) {
                 </Badge>
               </td>
               <td className="px-4 py-2 align-middle">
-                <div className="flex justify-end">
+                <div className="flex justify-end [&>div>button]:min-w-24">
                   <RowAction user={user} isSelf={user.id === callerUserId} />
                 </div>
               </td>
