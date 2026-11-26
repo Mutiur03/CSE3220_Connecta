@@ -5,6 +5,8 @@ import {
   hasInboxFilters,
   inboxHref,
   inboxListQuery,
+  heldByOffline,
+  unassignedLabel,
   parseInboxFilters,
   participantLabel,
   UNKNOWN_PARTICIPANT,
@@ -194,5 +196,43 @@ describe("inbox tabs", () => {
     expect(apiStatus(undefined)).toBe("OPEN");
     expect(apiStatus("CLOSED")).toBe("CLOSED");
     expect(apiStatus("ALL")).toBeUndefined();
+  });
+});
+
+describe("assignee filter", () => {
+  it("parses me and none in any case and drops unknown values", () => {
+    expect(parseInboxFilters({ assignee: "ME" }).assignee).toBe("me");
+    expect(parseInboxFilters({ assignee: "none" }).assignee).toBe("none");
+    expect(
+      parseInboxFilters({ assignee: "everyone" }).assignee,
+    ).toBeUndefined();
+    expect(parseInboxFilters({ assignee: ["me", "none"] }).assignee).toBe("me");
+    expect(parseInboxFilters({}).assignee).toBeUndefined();
+  });
+
+  it("is kept in the query and the href, and left out when unset", () => {
+    expect(inboxListQuery({ assignee: "none", tab: "ALL" })).toBe(
+      "assignee=none&status=ALL",
+    );
+    expect(inboxHref("/inbox", { assignee: "me" }, 2)).toBe(
+      "/inbox?assignee=me&page=2",
+    );
+    expect(inboxHref("/inbox", { assignee: undefined })).toBe("/inbox");
+  });
+
+  it("formats the unassigned label with or without a count", () => {
+    expect(unassignedLabel(3)).toBe("Unassigned (3)");
+    expect(unassignedLabel(0)).toBe("Unassigned (0)");
+    expect(unassignedLabel(null)).toBe("Unassigned");
+  });
+
+  it("marks only open conversations held by an offline member", () => {
+    const offline = { online: false };
+    expect(heldByOffline({ status: "OPEN", assignee: offline })).toBe(true);
+    expect(heldByOffline({ status: "OPEN", assignee: { online: true } })).toBe(
+      false,
+    );
+    expect(heldByOffline({ status: "OPEN", assignee: null })).toBe(false);
+    expect(heldByOffline({ status: "CLOSED", assignee: offline })).toBe(false);
   });
 });

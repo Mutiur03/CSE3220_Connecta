@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   browserFileUrl,
+  countUnassigned,
   getConversation,
   listConversations,
   updateReadState,
@@ -188,6 +189,37 @@ describe("browserFileUrl", () => {
     const page = await listMessages("token", "org", "conv", 0, 20);
     expect(page.content[0].attachments[0].url).toBe(
       `http://localhost:8080/api/files/${FILE}`,
+    );
+  });
+
+  it("sends the assignee filter, reads a missing assignee as null and counts unassigned", async () => {
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            content: [{ id: "c1" }],
+            page: 0,
+            size: 1,
+            totalElements: 7,
+          }),
+          { headers: { "Content-Type": "application/json" } },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const page = await listConversations(
+      "tok",
+      "o1",
+      { assignee: "me" },
+      0,
+      20,
+    );
+    expect(fetchMock.mock.calls[0][0]).toMatch(
+      /\?assignee=me&size=20&status=OPEN$/,
+    );
+    expect(page.content[0].assignee).toBeNull();
+    await expect(countUnassigned("tok", "o1", { q: "ana" })).resolves.toBe(7);
+    expect(fetchMock.mock.calls[1][0]).toMatch(
+      /\?q=ana&assignee=none&size=1&status=OPEN$/,
     );
   });
 });
