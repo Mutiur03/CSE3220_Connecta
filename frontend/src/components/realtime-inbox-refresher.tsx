@@ -5,14 +5,12 @@ import { useEffect } from "react";
 import { apiBaseUrl } from "@/lib/api";
 import {
   coalesce,
+  fetchRealtimeTicket,
   isRelevant,
   REFRESH_DEBOUNCE_MS,
   startRealtimeClient,
-  TicketUnauthorizedError,
   type SocketLike,
 } from "@/lib/realtime";
-
-const UNAUTHORIZED = 401;
 
 /**
  * Renders nothing. Holds the organization's live socket and, on a relevant message event, asks the
@@ -33,17 +31,7 @@ export default function RealtimeInboxRefresher({
     const stop = startRealtimeClient({
       apiBase: apiBaseUrl(),
       createSocket: (url) => new WebSocket(url) as SocketLike,
-      fetchTicket: async () => {
-        const res = await fetch(
-          `/api/organizations/${orgId}/realtime/tickets`,
-          {
-            method: "POST",
-          },
-        );
-        if (res.status === UNAUTHORIZED) throw new TicketUnauthorizedError();
-        if (!res.ok) throw new Error(`ticket ${res.status}`);
-        return (await res.json()).ticket as string;
-      },
+      fetchTicket: () => fetchRealtimeTicket(orgId),
       // An expired session: a server re-render sends the page through the session refresh.
       onUnauthorized: () => router.refresh(),
       onEvent: (event) => {

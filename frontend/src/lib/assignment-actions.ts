@@ -1,27 +1,30 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { assignConversation, setOwnAvailability } from "./assignment-api";
-import { isAvailabilityStatus, UNASSIGNED } from "./assignment-view";
+import { assignConversation, setAssignable } from "./assignment-api";
+import { UNASSIGNED } from "./assignment-view";
 import { actionErrorMessage } from "./org-errors";
 import type { OrgActionState } from "./org-actions";
 import { isUuid } from "./org-validation";
 import { getAccessToken } from "./session";
 
-/** A member sets their own status. The inbox shows it and the team page counts it, so both refresh. */
-export async function setAvailabilityAction(
+/** An admin lets auto-assignment pick a member, or stops it. The team page and the assignee lists show it. */
+export async function setAssignableAction(
   orgId: string,
-  status: string,
+  membershipId: string,
+  _previous: OrgActionState,
+  formData: FormData,
 ): Promise<OrgActionState> {
-  if (!isAvailabilityStatus(status)) return { message: "Unknown status." };
-  const accessToken = await getAccessToken(`/organizations/${orgId}/inbox`);
+  if (!isUuid(membershipId)) return { message: "Unknown member." };
+  const assignable = formData.get("assignable") !== null;
+  const accessToken = await getAccessToken(`/organizations/${orgId}/team`);
   try {
-    await setOwnAvailability(accessToken, orgId, status);
+    await setAssignable(accessToken, orgId, membershipId, assignable);
   } catch (error) {
     return { message: actionErrorMessage(error) };
   }
   revalidatePath(`/organizations/${orgId}`, "layout");
-  return {};
+  return { notice: assignable ? "Assignable." : "Not assignable." };
 }
 
 /** Assigns, reassigns or (empty choice) unassigns. A 404 or 422 from the backend shows as the form alert. */

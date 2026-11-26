@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AssignmentRecord, MemberAvailability } from "./assignment-api";
 import {
+  assigneeBadgeLabel,
   historyLine,
-  isAvailabilityStatus,
+  holdsChatsOffline,
   memberOptionLabel,
-  otherStatus,
+  presenceLabel,
 } from "./assignment-view";
 
 const person = (name: string, membershipId: string | null = "m") => ({
@@ -64,20 +65,60 @@ describe("historyLine", () => {
   });
 });
 
-describe("status helpers", () => {
-  it("flips the status and validates it", () => {
-    expect(otherStatus("AVAILABLE")).toBe("AWAY");
-    expect(otherStatus("AWAY")).toBe("AVAILABLE");
-    expect(isAvailabilityStatus("AWAY")).toBe(true);
-    expect(isAvailabilityStatus("busy")).toBe(false);
+const member = (over: Partial<MemberAvailability>) =>
+  ({
+    membershipId: "m1",
+    name: "Mira Das",
+    online: true,
+    assignable: true,
+    openConversations: 3,
+    ...over,
+  }) as MemberAvailability;
+
+describe("presence helpers", () => {
+  it("labels a member Online or Offline, treating a missing flag as offline", () => {
+    expect(presenceLabel(member({ online: true }))).toBe("Online");
+    expect(presenceLabel(member({ online: false }))).toBe("Offline");
+    expect(presenceLabel(member({ online: undefined }))).toBe("Offline");
   });
 
-  it("labels a member option with status and load", () => {
-    const member = {
-      name: "Mira Das",
-      status: "AVAILABLE",
-      openConversations: 3,
-    } as MemberAvailability;
-    expect(memberOptionLabel(member)).toBe("Mira Das (Available, 3 open)");
+  it("flags only an offline member who holds open conversations", () => {
+    expect(holdsChatsOffline(member({ online: false }))).toBe(true);
+    expect(holdsChatsOffline(member({ online: true }))).toBe(false);
+    expect(
+      holdsChatsOffline(member({ online: false, openConversations: 0 })),
+    ).toBe(false);
+  });
+});
+
+describe("memberOptionLabel", () => {
+  it("shows presence and load", () => {
+    expect(memberOptionLabel(member({}))).toBe("Mira Das (Online, 3 open)");
+  });
+
+  it("marks a member auto-assignment skips", () => {
+    expect(
+      memberOptionLabel(member({ online: false, assignable: false })),
+    ).toBe("Mira Das (Offline, 3 open, not assignable)");
+  });
+});
+
+describe("assigneeBadgeLabel", () => {
+  const assignee = { membershipId: "m1", name: "Mira Das" };
+
+  it("adds offline when the team list says the assignee is offline", () => {
+    expect(assigneeBadgeLabel(assignee, [member({ online: false })])).toBe(
+      "Assigned to Mira Das · offline",
+    );
+  });
+
+  it("stays plain for an online assignee, an unknown one or no team list", () => {
+    expect(assigneeBadgeLabel(assignee, [member({})])).toBe(
+      "Assigned to Mira Das",
+    );
+    expect(assigneeBadgeLabel(assignee, [member({ membershipId: "x" })])).toBe(
+      "Assigned to Mira Das",
+    );
+    expect(assigneeBadgeLabel(assignee, null)).toBe("Assigned to Mira Das");
   });
 });
