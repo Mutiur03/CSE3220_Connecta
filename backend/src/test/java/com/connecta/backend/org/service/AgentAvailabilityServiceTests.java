@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.connecta.backend.common.dto.PageResponse;
+import com.connecta.backend.inbox.service.ConversationWorkloadService;
 import com.connecta.backend.org.domain.AgentAvailability;
 import com.connecta.backend.org.domain.AvailabilityStatus;
 import com.connecta.backend.org.domain.Membership;
@@ -25,6 +26,7 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,6 +53,9 @@ class AgentAvailabilityServiceTests {
     @Mock
     UserService users;
 
+    @Mock
+    ConversationWorkloadService workload;
+
     AgentAvailabilityService service;
 
     private final UUID organizationId = UUID.randomUUID();
@@ -62,8 +67,11 @@ class AgentAvailabilityServiceTests {
     void setUp() {
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
-        service = new AgentAvailabilityService(availabilities, memberships, tenants, new ActiveCaller(users));
+        service = new AgentAvailabilityService(availabilities, memberships, workload, tenants, new ActiveCaller(users));
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
+        lenient().when(workload.openCounts(eq(organizationId), anyCollection())).thenAnswer(call ->
+                ((java.util.Collection<UUID>) call.getArgument(1)).stream()
+                        .collect(java.util.stream.Collectors.toMap(id -> id, id -> 0L)));
         lenient().when(availabilities.saveAndFlush(any(AgentAvailability.class)))
                 .thenAnswer(call -> call.getArgument(0));
     }
@@ -190,6 +198,24 @@ class AgentAvailabilityServiceTests {
             assertEquals(2, page.totalElements());
             assertEquals(AvailabilityStatus.AVAILABLE, page.content().get(0).status());
             assertEquals(AvailabilityStatus.AWAY, page.content().get(1).status());
+        }
+
+        @Test
+        void eachMemberCarriesTheirOpenConversationCount() {
+            callerIs(Roles.ADMIN);
+            Membership busy = membership(TestUsers.user("a@example.com", Roles.AGENT), Roles.AGENT);
+            Membership idle = membership(TestUsers.user("b@example.com", Roles.AGENT), Roles.AGENT);
+            when(memberships.findByOrganizationId(eq(organizationId), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(busy, idle), PageRequest.of(0, 20), 2));
+            when(availabilities.findByOrganizationIdAndMembershipIdIn(eq(organizationId), anyCollection()))
+                    .thenReturn(List.of());
+            when(workload.openCounts(eq(organizationId), anyCollection()))
+                    .thenReturn(Map.of(busy.getId(), 3L, idle.getId(), 0L));
+
+            PageResponse<AvailabilityResponse> page = service.list(subject, organizationId, 0, 20);
+
+            assertEquals(3L, page.content().get(0).openConversations());
+            assertEquals(0L, page.content().get(1).openConversations());
         }
 
         @Test

@@ -18,6 +18,7 @@ import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.ConversationStatus;
 import com.connecta.backend.inbox.domain.AttachmentKind;
 import com.connecta.backend.inbox.domain.MessageDirection;
+import com.connecta.backend.inbox.dto.ConversationAssignmentResponse;
 import com.connecta.backend.inbox.dto.ConversationDetailResponse;
 import com.connecta.backend.inbox.dto.AttachmentResponse;
 import com.connecta.backend.inbox.dto.MessageResponse;
@@ -81,7 +82,8 @@ class ConversationDetailControllerIntegrationTests {
 
     private ConversationDetailResponse detail(ConversationStatus status) {
         return new ConversationDetailResponse(conversationId, orgId, Channel.MESSENGER, status, false,
-                List.of(new ParticipantResponse(UUID.randomUUID(), "psid", "Rina", "https://cdn.example/r.jpg")), now, now, now);
+                List.of(new ParticipantResponse(UUID.randomUUID(), "psid", "Rina", "https://cdn.example/r.jpg")),
+                new ConversationAssignmentResponse.Person(UUID.randomUUID(), UUID.randomUUID(), "Mira Das"), now, now, now);
     }
 
     @Nested
@@ -99,6 +101,8 @@ class ConversationDetailControllerIntegrationTests {
                     .andExpect(jsonPath("$.status").value("OPEN"))
                     .andExpect(jsonPath("$.participants[0].displayName").value("Rina"))
                     .andExpect(jsonPath("$.participants[0].avatarUrl").value("https://cdn.example/r.jpg"))
+                    .andExpect(jsonPath("$.assignee.name").value("Mira Das"))
+                    .andExpect(jsonPath("$.assignee.membershipId").exists())
                     .andExpect(jsonPath("$.lastMessageAt").exists());
         }
 

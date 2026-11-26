@@ -105,6 +105,20 @@ class ConversationDetailServiceTests {
         }
 
         @Test
+        void theAssigneeIsIncludedAndNullWhenUnassigned() {
+            callerHolds(Roles.AGENT);
+            threadExists();
+            assertEquals(null, service.get(subject, organizationId, thread.getId()).assignee());
+
+            User mira = TestUsers.user("mira@example.com", Roles.AGENT);
+            Membership seat = new Membership(organization, mira, new Role(Roles.AGENT));
+            TestUsers.set(seat, "id", UUID.randomUUID());
+            thread.assignTo(seat, null, com.connecta.backend.inbox.domain.AssignmentSource.MANUAL);
+
+            assertEquals(seat.getId(), service.get(subject, organizationId, thread.getId()).assignee().membershipId());
+        }
+
+        @Test
         void anAdminMayReadToo() {
             callerHolds(Roles.ADMIN);
             threadExists();

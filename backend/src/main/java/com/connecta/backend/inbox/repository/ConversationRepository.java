@@ -48,4 +48,13 @@ public interface ConversationRepository
               and m.sentAt = (select max(m2.sentAt) from Message m2 where m2.conversation = m.conversation)
             order by m.id""")
     List<Message> findLastMessages(@Param("conversationIds") Collection<UUID> conversationIds);
+
+    /** One row per member with open conversations: {membershipId, count}. A member with none has no row. */
+    @Query("""
+            select c.assignee.id, count(c) from Conversation c
+            where c.organization.id = :organizationId and c.status = com.connecta.backend.inbox.domain.ConversationStatus.OPEN
+              and c.assignee.id in :membershipIds
+            group by c.assignee.id""")
+    List<Object[]> countOpenByAssignee(@Param("organizationId") UUID organizationId,
+            @Param("membershipIds") Collection<UUID> membershipIds);
 }

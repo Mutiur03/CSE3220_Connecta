@@ -6,6 +6,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.connecta.backend.config.JwtProperties;
+import com.connecta.backend.inbox.domain.Channel;
+import com.connecta.backend.inbox.domain.Conversation;
+import com.connecta.backend.inbox.domain.ConversationStatus;
+import com.connecta.backend.inbox.domain.AssignmentSource;
+import com.connecta.backend.inbox.repository.ConversationRepository;
 import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.MembershipRepository;
@@ -79,6 +84,9 @@ class AvailabilityControllerIntegrationTests {
 
     @Autowired
     MembershipRepository memberships;
+
+    @Autowired
+    ConversationRepository conversations;
 
     private static String path(Organization organization, String suffix) {
         return "/api/organizations/" + organization.getId() + "/availability" + suffix;
@@ -210,6 +218,35 @@ class AvailabilityControllerIntegrationTests {
                     .andExpect(jsonPath("$.size").value(20))
                     .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].status").value("AVAILABLE"))
                     .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].status").value("AWAY"));
+        }
+
+        @Test
+        void eachMemberCountsOnlyTheirOpenConversationsInThisOrganization() throws Exception {
+            User admin = newUser();
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, admin, Roles.ADMIN);
+            Membership agentSeat = join(acme, agent, Roles.AGENT);
+            assignedConversation(acme, agentSeat, "t1", ConversationStatus.OPEN);
+            assignedConversation(acme, agentSeat, "t2", ConversationStatus.OPEN);
+            assignedConversation(acme, agentSeat, "t3", ConversationStatus.CLOSED);
+            Organization other = organization("Other");
+            assignedConversation(other, join(other, newUser(), Roles.AGENT), "t4", ConversationStatus.OPEN);
+
+            mvc.perform(get(path(acme, "")).header(AUTH, bearer(admin)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].openConversations")
+                            .value(2))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].openConversations")
+                            .value(0));
+        }
+
+        private void assignedConversation(Organization org, Membership member, String thread,
+                ConversationStatus status) {
+            Conversation conversation = new Conversation(org, Channel.MESSENGER, thread);
+            conversation.changeStatus(status);
+            conversation.assignTo(member, null, AssignmentSource.MANUAL);
+            conversations.saveAndFlush(conversation);
         }
 
         @Test

@@ -8,7 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/** One conversation with its customers, as the API returns it. Never exposes the entity itself. */
+/** One conversation with its customers and its assignee (null when unassigned), as the API returns it. Never exposes the entity itself. */
 public record ConversationDetailResponse(
         UUID id,
         UUID organizationId,
@@ -16,6 +16,7 @@ public record ConversationDetailResponse(
         ConversationStatus status,
         boolean unread,
         List<ParticipantResponse> participants,
+        ConversationAssignmentResponse.Person assignee,
         Instant lastMessageAt,
         Instant createdAt,
         Instant updatedAt) {
@@ -28,6 +29,7 @@ public record ConversationDetailResponse(
                 conversation.getStatus(),
                 conversation.isUnread(),
                 links.stream().map(link -> ParticipantResponse.from(link.getParticipant())).toList(),
+                ConversationAssignmentResponse.Person.of(conversation.getAssignee()),
                 conversation.getLastMessageAt(),
                 conversation.getCreatedAt(),
                 conversation.getUpdatedAt());
