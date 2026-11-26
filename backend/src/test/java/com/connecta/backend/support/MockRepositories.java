@@ -7,6 +7,7 @@ import com.connecta.backend.inbox.repository.ConversationRepository;
 import com.connecta.backend.inbox.repository.MessageAttachmentRepository;
 import com.connecta.backend.inbox.repository.MessageRepository;
 import com.connecta.backend.inbox.repository.ParticipantRepository;
+import com.connecta.backend.org.repository.AgentAvailabilityRepository;
 import com.connecta.backend.org.repository.InvitationRepository;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
@@ -49,6 +50,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         MetaConnectedAccountRepository.class, MetaWebhookEventRepository.class,
         MetaProcessedMessageRepository.class, MetaViewOnceMarkRepository.class, ParticipantRepository.class, ConversationRepository.class,
         ConversationParticipantRepository.class, MessageRepository.class, MessageAttachmentRepository.class,
-        StoredFileRepository.class})
+        StoredFileRepository.class, AgentAvailabilityRepository.class})
 public @interface MockRepositories {
 }
