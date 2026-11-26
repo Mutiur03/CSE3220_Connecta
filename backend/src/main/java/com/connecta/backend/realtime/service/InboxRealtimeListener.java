@@ -1,5 +1,6 @@
 package com.connecta.backend.realtime.service;
 
+import com.connecta.backend.inbox.service.AssignmentChangedEvent;
 import com.connecta.backend.inbox.service.AttachmentMirroredEvent;
 import com.connecta.backend.inbox.service.HistoryImportedEvent;
 import com.connecta.backend.inbox.service.MessageLookupService;
@@ -51,6 +52,17 @@ public class InboxRealtimeListener {
         try {
             registry.broadcast(event.organizationId(),
                     json.writeValueAsString(RealtimeEnvelope.conversationChanged(event.conversationId())));
+        } catch (RuntimeException e) {
+            log.warn("Realtime push failed for conversation {}", event.conversationId(), e);
+        }
+    }
+
+    /** Open inboxes and the thread show the new assignee without a reload. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onAssignmentChanged(AssignmentChangedEvent event) {
+        try {
+            registry.broadcast(event.organizationId(), json.writeValueAsString(
+                    RealtimeEnvelope.conversationAssigned(event.conversationId(), event.assigneeMembershipId())));
         } catch (RuntimeException e) {
             log.warn("Realtime push failed for conversation {}", event.conversationId(), e);
         }

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.connecta.backend.inbox.domain.Channel;
@@ -131,6 +132,44 @@ class InboxRealtimeListenerTests {
 
             assertThatCode(() -> listener().onAttachmentMirrored(
                     new com.connecta.backend.inbox.service.AttachmentMirroredEvent(orgId, conversationId)))
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    class OnAssignmentChanged {
+
+        private final UUID membershipId = UUID.randomUUID();
+
+        @Test
+        void broadcastsTheNewAssigneeOnlyToTheEventsOrganization() {
+            listener().onAssignmentChanged(
+                    new com.connecta.backend.inbox.service.AssignmentChangedEvent(orgId, conversationId, membershipId));
+
+            ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
+            verify(registry).broadcast(eq(orgId), json.capture());
+            verifyNoMoreInteractions(registry);
+            assertThat(json.getValue()).contains("\"type\":\"conversation.assigned\"",
+                    "\"conversationId\":\"" + conversationId + "\"",
+                    "\"assigneeMembershipId\":\"" + membershipId + "\"");
+        }
+
+        @Test
+        void anUnassignmentCarriesANullAssignee() {
+            listener().onAssignmentChanged(
+                    new com.connecta.backend.inbox.service.AssignmentChangedEvent(orgId, conversationId, null));
+
+            ArgumentCaptor<String> json = ArgumentCaptor.forClass(String.class);
+            verify(registry).broadcast(eq(orgId), json.capture());
+            assertThat(json.getValue()).contains("\"assigneeMembershipId\":null");
+        }
+
+        @Test
+        void aBroadcastFailureIsSwallowed() {
+            doThrow(new IllegalStateException("boom")).when(registry).broadcast(any(), any());
+
+            assertThatCode(() -> listener().onAssignmentChanged(
+                    new com.connecta.backend.inbox.service.AssignmentChangedEvent(orgId, conversationId, membershipId)))
                     .doesNotThrowAnyException();
         }
     }

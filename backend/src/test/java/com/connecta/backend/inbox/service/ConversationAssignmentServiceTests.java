@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.connecta.backend.common.dto.PageResponse;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -67,6 +69,9 @@ class ConversationAssignmentServiceTests {
     @Mock
     UserService users;
 
+    @Mock
+    ApplicationEventPublisher publisher;
+
     ConversationAssignmentService service;
 
     private final UUID organizationId = UUID.randomUUID();
@@ -90,7 +95,7 @@ class ConversationAssignmentServiceTests {
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
         service = new ConversationAssignmentService(conversations, history, members, tenants,
-                new ActiveCaller(users));
+                new ActiveCaller(users), publisher);
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
         lenient().when(conversations.saveAndFlush(any(Conversation.class))).thenAnswer(i -> i.getArgument(0));
     }
@@ -132,6 +137,7 @@ class ConversationAssignmentServiceTests {
             assertEquals(AssignmentSource.MANUAL, row.getSource());
             assertSame(caller, row.getAssignedBy());
             assertNull(row.getFromMember());
+            verify(publisher).publishEvent(new AssignmentChangedEvent(organizationId, thread.getId(), rina.getId()));
             assertSame(rina, row.getToMember());
         }
 
@@ -163,6 +169,7 @@ class ConversationAssignmentServiceTests {
             ConversationAssignment row = savedHistory();
             assertSame(rina, row.getFromMember());
             assertNull(row.getToMember());
+            verify(publisher).publishEvent(new AssignmentChangedEvent(organizationId, thread.getId(), null));
         }
 
         @Test
@@ -175,6 +182,7 @@ class ConversationAssignmentServiceTests {
             assertThrows(AssigneeNotAvailableException.class,
                     () -> service.assign(subject, organizationId, thread.getId(), rina.getId()));
             verify(history, never()).save(any());
+            verifyNoInteractions(publisher);
         }
 
         @Test
@@ -187,6 +195,7 @@ class ConversationAssignmentServiceTests {
             assertThrows(AssignmentUnchangedException.class,
                     () -> service.assign(subject, organizationId, thread.getId(), rina.getId()));
             verify(history, never()).save(any());
+            verifyNoInteractions(publisher);
         }
 
         @Test
