@@ -76,6 +76,11 @@ async function RailAccount() {
             <BuildingIcon />
           </RailLink>
         )}
+        {isSystemOwner(user.roles) && (
+          <RailLink href="/admin/users" label="Users">
+            <UsersIcon />
+          </RailLink>
+        )}
       </div>
       <RailOrgSection
         organizations={organizations.map(({ id, name }) => ({ id, name }))}

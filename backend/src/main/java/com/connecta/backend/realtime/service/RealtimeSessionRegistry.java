@@ -89,6 +89,12 @@ public class RealtimeSessionRegistry {
                 .forEach(e -> drop(e, status));
     }
 
+    /** Closes the user's sessions in every organization (the account was disabled). */
+    public void closeUser(UUID userId, CloseStatus status) {
+        List.copyOf(entries.values()).stream().filter(e -> e.userId().equals(userId))
+                .forEach(e -> drop(e, status));
+    }
+
     /** Closes every session of the organization (it was deleted). */
     public void closeOrganization(UUID organizationId, CloseStatus status) {
         List.copyOf(entries.values()).stream().filter(e -> e.organizationId().equals(organizationId))

@@ -24,6 +24,7 @@ import com.connecta.backend.support.MockRepositories;
 import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
+import com.connecta.backend.user.service.UserDisabledEvent;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
@@ -219,6 +220,16 @@ class InboxWebSocketIntegrationTests {
         connect(ticketFor(orgA), ORIGIN, new LinkedBlockingQueue<>(), closed);
 
         events.publishEvent(new MemberRemovedEvent(orgA, user.getId()));
+
+        assertThat(closed.get(5, TimeUnit.SECONDS).getCode()).isEqualTo(4003);
+    }
+
+    @Test
+    void aDisabledUserIsDisconnectedWithCode4003() throws Exception {
+        CompletableFuture<CloseStatus> closed = new CompletableFuture<>();
+        connect(ticketFor(orgA), ORIGIN, new LinkedBlockingQueue<>(), closed);
+
+        events.publishEvent(new UserDisabledEvent(user.getId()));
 
         assertThat(closed.get(5, TimeUnit.SECONDS).getCode()).isEqualTo(4003);
     }
