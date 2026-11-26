@@ -53,6 +53,8 @@ Backend configuration is one file, `application.yml`, with no profiles. What dif
 | `app.attachments.mirror-allowed-host-suffixes` | `APP_ATTACHMENTS_MIRRORALLOWEDHOSTSUFFIXES` | `fbcdn.net,cdninstagram.com,fbsbx.com,facebook.com` | The only hosts incoming media is downloaded from (https, default port, every redirect hop re-checked, private and loopback addresses refused). |
 | `app.attachments.mirror-max-age` | `APP_ATTACHMENTS_MIRRORMAXAGE` | `3d` | Attachments older than this are no longer retried. |
 | `app.attachments.mirror-retry-after` / `mirror-sweep-delay` / `mirror-batch-size` | `APP_ATTACHMENTS_MIRRORRETRYAFTER` / `..._MIRRORSWEEPDELAY` / `..._MIRRORBATCHSIZE` | `15m` / `5m` / 20 | Retry sweep: every `mirror-sweep-delay`, up to `mirror-batch-size` uncopied attachments, each at most once per `mirror-retry-after`. |
+| `app.presence.grace-period` | `PRESENCE_GRACE_PERIOD` | `60s` | How long a member's last realtime connection must stay gone before they count as offline and their online interval closes. |
+| `app.presence.heartbeat-interval` | `PRESENCE_HEARTBEAT_INTERVAL` | `30s` | How often the open interval of each connected member is stamped (`last_seen_at`); a restart loses at most this much per session. |
 | `app.attachments.mirror-timeout` / `mirror-pool-size` / `mirror-queue-capacity` | `APP_ATTACHMENTS_MIRRORTIMEOUT` / `..._MIRRORPOOLSIZE` / `..._MIRRORQUEUECAPACITY` | `20s` / 2 / 100 | Connect and read timeout of each download, and the bounded executor the copies run on (a full queue leaves the copy to the sweep). |
 
 Attachment storage ceiling: Render has no persistent disk, so sent files and copies of incoming media live in PostgreSQL (`stored_files.data`, `bytea`). Each sent file is at most 8 MB and each incoming copy at most 25 MB (`mirror-max-bytes`); a download is held in memory while it is stored, so the copy executor (2 threads) bounds that memory at about 50 MB. The files add up in the database plan's storage (the free Render PostgreSQL has 1 GB) and every read goes through the backend. Nothing expires files yet; deleting an organization deletes its files. Move them to object storage when volume grows.
@@ -72,6 +74,10 @@ flowchart LR
     Backend -->|JPA + Flyway| DB[(PostgreSQL)]
 ```
 Backend layers per feature: `controller` (REST controllers + exception handlers) -> `service` -> `repository` -> `domain`, with `dto` records at the edges. Design patterns are listed in [docs/design-patterns.md](docs/design-patterns.md).
+
+Assignment: an admin turns a member's `assignable` switch on (`agent_availability`, endpoint `PUT .../members/{membershipId}/assignable`). When a new inbound conversation is stored, `MessageReceivedEvent` reaches `AutoAssignmentListener`, which asks the `RoundRobinAssignmentStrategy` for the assignable, enabled member who waited longest and records the hand-over in `conversation_assignments`. An admin can reassign by hand. Both paths publish `AssignmentChangedEvent`, which the realtime layer pushes to the organization as `conversation.assigned`.
+
+Presence: a member counts as online while at least one realtime WebSocket of theirs is open. `RealtimeSessionRegistry` publishes connection opened and closed events, `PresenceService` opens an `availability_intervals` row on the first connection and closes it after the grace period once the last one drops, and `PresenceHeartbeatJob` stamps `last_seen_at` every 30 s. The availability list shows `online`, and the availability report sums the intervals per UTC day.
 
 ## Roles
 Roles are `OWNER > ADMIN > AGENT` (a higher role inherits the lower ones). They map to the course roles as `OWNER` = ADMIN, `ADMIN` = SELLER, `AGENT` = BUYER, giving three-tier role-based access. Default is deny: every path needs a valid access token unless it is on the public list in `SecurityConfig`.
@@ -238,6 +244,13 @@ erDiagram
         uuid membership_id FK "unique, on delete cascade"
         boolean assignable "admin switch for auto-assignment"
         timestamp last_assigned_at "nullable, round-robin cursor" }
+    MEMBERSHIPS ||--o{ AVAILABILITY_INTERVALS : "online stretches"
+    AVAILABILITY_INTERVALS { uuid id PK
+        uuid organization_id FK
+        uuid membership_id FK "on delete cascade, one open row per member"
+        timestamp started_at
+        timestamp ended_at "nullable while online"
+        timestamp last_seen_at "nullable, heartbeat" }
     CONVERSATIONS ||--o{ CONVERSATION_ASSIGNMENTS : "assignment history"
     MEMBERSHIPS |o--o{ CONVERSATION_ASSIGNMENTS : "from / to (SET NULL)"
     USERS |o--o{ CONVERSATION_ASSIGNMENTS : assigns
@@ -326,7 +339,7 @@ erDiagram
 | GET | `/api/organizations/{id}/members` | any member of it | 200 | List its members with their role (`page`, `size` max 100). No password data. |
 | PATCH | `/api/organizations/{id}/members/{membershipId}` | `ADMIN` of it | 200 | Change a member's role (`ADMIN` or `AGENT`). The last `ADMIN` cannot be demoted (`422`). |
 | DELETE | `/api/organizations/{id}/members/{membershipId}` | the member themselves, or `ADMIN` of it | 204 | Remove a member, or leave. The last `ADMIN` cannot leave (`422`). |
-| GET | `/api/organizations/{id}/availability` | `ADMIN` of it | 200 | Every member with their availability, `online` and `openConversations` (OPEN conversations assigned to them, one grouped query; `page`, `size` max 100). An `AGENT` gets `403`. |
+| GET | `/api/organizations/{id}/availability` | `ADMIN` of it | 200 | Every member with their availability (`page`, `size` max 100). Items: `membershipId`, `userId`, `email`, `name`, `role`, `assignable`, `updatedAt`, `openConversations` (OPEN conversations assigned to them, one grouped query), `online`. An `AGENT` gets `403`. |
 | PUT | `/api/organizations/{id}/members/{membershipId}/assignable` | `ADMIN` of it | 200 | Let a member receive automatic assignments, body `{"assignable":true\|false}`, returns `{membershipId, assignable}`. Creates the availability row on first use. Missing or non-boolean gives `400`; an `AGENT` gets `403`; an unknown or other organization's member gets `404`. Availability list items also carry `assignable`. |
 | GET | `/api/organizations/{id}/availability/report?from=&to=` | `ADMIN` of it | 200 | Seconds each member was online per UTC day. `from` and `to` are required inclusive `YYYY-MM-DD` dates, at most 31 days; reversed, over-long, missing or malformed gives `400`. Returns `{from, to, content: [{membershipId, userId, name, role, totalSeconds, days: [{date, availableSeconds}]}], page, size, totalElements}`; `days` has every date zero-filled, members by name (`page`, `size` max 100), open intervals count up to now, future days are 0. An `AGENT` gets `403`. |
 | GET | `/api/organizations/{id}/products` | any member | 200 | List products by name (`page`, `size` max 100). Optional filters, combined with AND: `q` (name or SKU contains, ignoring case), `categoryId` (must be this organization's, else `404`), `stockStatus` (`IN_STOCK`, `LOW_STOCK`, `OUT_OF_STOCK`, else `400`). Each product shows `sku`, `unitPrice`, `stockQuantity` (read only), `reorderLevel` and `stockStatus`. |
