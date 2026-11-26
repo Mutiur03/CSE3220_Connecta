@@ -117,16 +117,32 @@ class AgentAvailabilityServiceTests {
             Membership target = membership(TestUsers.user("t@example.com", Roles.AGENT), Roles.AGENT);
             when(memberships.findByIdAndOrganizationId(target.getId(), organizationId)).thenReturn(Optional.of(target));
             when(availabilities.findByMembershipIdAndOrganizationId(target.getId(), organizationId))
-                    .thenReturn(Optional.empty());
+                    .thenReturn(Optional.empty(), Optional.of(new AgentAvailability(target)));
 
             AssignableResponse response = service.setAssignable(subject, organizationId, target.getId(), true);
 
             assertEquals(new AssignableResponse(target.getId(), true), response);
+            verify(availabilities).insertIfAbsent(organizationId, target.getId());
             org.mockito.ArgumentCaptor<AgentAvailability> saved = org.mockito.ArgumentCaptor
                     .forClass(AgentAvailability.class);
             verify(availabilities).saveAndFlush(saved.capture());
             assertEquals(true, saved.getValue().isAssignable());
             assertNull(saved.getValue().getLastAssignedAt());
+        }
+
+        @Test
+        void aRowCreatedByAConcurrentFirstSwitchIsReusedWithoutError() {
+            callerIs(Roles.ADMIN);
+            Membership target = membership(TestUsers.user("t@example.com", Roles.AGENT), Roles.AGENT);
+            AgentAvailability winner = new AgentAvailability(target);
+            when(memberships.findByIdAndOrganizationId(target.getId(), organizationId)).thenReturn(Optional.of(target));
+            when(availabilities.findByMembershipIdAndOrganizationId(target.getId(), organizationId))
+                    .thenReturn(Optional.empty(), Optional.of(winner));
+
+            AssignableResponse response = service.setAssignable(subject, organizationId, target.getId(), true);
+
+            assertEquals(new AssignableResponse(target.getId(), true), response);
+            assertEquals(true, winner.isAssignable());
         }
 
         @Test
