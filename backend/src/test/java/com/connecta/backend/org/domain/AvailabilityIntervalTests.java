@@ -26,6 +26,30 @@ class AvailabilityIntervalTests {
     }
 
     @Test
+    void aNewIntervalWasLastSeenAtItsStart() {
+        assertEquals(START, new AvailabilityInterval(member, START).getLastSeenAt());
+    }
+
+    @Test
+    void touchMovesLastSeenForward() {
+        AvailabilityInterval interval = new AvailabilityInterval(member, START);
+
+        interval.touch(START.plusSeconds(30));
+
+        assertEquals(START.plusSeconds(30), interval.getLastSeenAt());
+    }
+
+    @Test
+    void touchNeverMovesLastSeenBackwards() {
+        AvailabilityInterval interval = new AvailabilityInterval(member, START);
+        interval.touch(START.plusSeconds(30));
+
+        interval.touch(START.plusSeconds(10));
+
+        assertEquals(START.plusSeconds(30), interval.getLastSeenAt());
+    }
+
+    @Test
     void closeRejectsAnEarlierEnd() {
         AvailabilityInterval interval = new AvailabilityInterval(member, START);
 

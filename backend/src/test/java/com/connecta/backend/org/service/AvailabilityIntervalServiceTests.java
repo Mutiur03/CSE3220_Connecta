@@ -137,10 +137,23 @@ class AvailabilityIntervalServiceTests {
     class CloseAllStale {
 
         @Test
-        void endsEveryOpenIntervalAtItsOwnStart() {
+        void endsEveryOpenIntervalAtItsLastSighting() {
             service.closeAllStale();
 
-            verify(intervals).closeAllOpenAtStart();
+            verify(intervals).closeAllOpenAtLastSeen();
+        }
+    }
+
+    @Nested
+    class Heartbeat {
+
+        @Test
+        void stampsTheGivenMembersWithTheCurrentTimeInOneCall() {
+            List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID());
+
+            service.heartbeat(ids);
+
+            verify(intervals).touchOpen(ids, TestClock.NOW);
         }
     }
 }

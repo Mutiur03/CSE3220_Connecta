@@ -40,10 +40,22 @@ public class AvailabilityInterval {
     @Column(name = "ended_at")
     private Instant endedAt;
 
+    /** Last moment the member was known to be connected; where a restart closes a still-open interval. */
+    @Column(name = "last_seen_at")
+    private Instant lastSeenAt;
+
     public AvailabilityInterval(Membership membership, Instant startedAt) {
         this.organization = membership.getOrganization();
         this.membership = membership;
         this.startedAt = startedAt;
+        this.lastSeenAt = startedAt;
+    }
+
+    /** Records a sighting; an earlier time than the one already known is ignored. */
+    public void touch(Instant seenAt) {
+        if (lastSeenAt == null || seenAt.isAfter(lastSeenAt)) {
+            lastSeenAt = seenAt;
+        }
     }
 
     public void close(Instant endedAt) {

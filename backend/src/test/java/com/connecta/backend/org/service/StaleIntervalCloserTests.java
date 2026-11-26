@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class StaleIntervalCloserTests {
 
     @Test
-    void onStartupEveryLeftOverOpenIntervalIsClosed() {
+    void onStartupEveryLeftOverOpenIntervalIsClosedAtItsLastSighting() {
         AvailabilityIntervalService intervals = mock(AvailabilityIntervalService.class);
 
         new StaleIntervalCloser(intervals).onReady();
