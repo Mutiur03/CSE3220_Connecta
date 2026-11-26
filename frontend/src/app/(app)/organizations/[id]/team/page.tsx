@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import OrgPagination from "@/components/org-pagination";
+import AvailabilityRangeForm from "@/components/availability-range-form";
+import AvailabilityTimeTable from "@/components/availability-time-table";
 import TeamWorkloadTable from "@/components/team-workload-table";
 import { Alert } from "@/components/ui/alert";
 import { listAvailability } from "@/lib/assignment-api";
+import { getAvailabilityReport } from "@/lib/availability-report-api";
+import { isoDate, parseRange } from "@/lib/availability-report-view";
+import { section } from "@/lib/inventory-view";
+import { MAX_PAGE_SIZE } from "@/lib/org-api";
 import {
   ORG_PAGE_SIZE,
   pageCount,
@@ -54,11 +60,23 @@ export default async function TeamPage({
     );
   }
 
-  const page = parsePageParam((await searchParams).page);
+  const query = await searchParams;
+  const page = parsePageParam(query.page);
+  const now = new Date();
+  const range = parseRange(query.from, query.to, now);
   const { accessToken } = await loadSession(id);
-  const members = await notFoundOnMissing(
-    listAvailability(accessToken, id, page, ORG_PAGE_SIZE),
-  );
+  const [members, report] = await Promise.all([
+    notFoundOnMissing(listAvailability(accessToken, id, page, ORG_PAGE_SIZE)),
+    section(
+      getAvailabilityReport(
+        accessToken,
+        id,
+        range.from,
+        range.to,
+        MAX_PAGE_SIZE,
+      ),
+    ),
+  ]);
   const count = pageCount(members.totalElements, members.size);
   const link = (target: number) =>
     pageHref(`/organizations/${id}/team`, {}, "page", target);
@@ -66,7 +84,7 @@ export default async function TeamPage({
   return (
     <>
       {header}
-      <TeamWorkloadTable members={members.content} now={new Date()} />
+      <TeamWorkloadTable members={members.content} now={now} />
       <OrgPagination
         label="Team pages"
         page={page}
@@ -74,6 +92,40 @@ export default async function TeamPage({
         previousHref={page > 0 ? link(page - 1) : undefined}
         nextHref={page + 1 < count ? link(page + 1) : undefined}
       />
+      <section aria-labelledby="time-heading" className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 id="time-heading" className="text-lg font-medium">
+            Time available
+          </h2>
+          <p className="text-secondary">
+            How long each member was set to Available, per day. Days run on UTC.
+          </p>
+        </div>
+        <AvailabilityRangeForm
+          action={`/organizations/${id}/team`}
+          range={range}
+          today={now}
+        />
+        {report.ok ? (
+          <>
+            <AvailabilityTimeTable
+              members={report.value.content}
+              dates={report.value.content[0]?.days.map((day) => day.date) ?? []}
+              today={isoDate(now)}
+            />
+            {report.value.totalElements > report.value.content.length && (
+              <p className="text-caption text-secondary">
+                Showing the first {report.value.content.length} of{" "}
+                {report.value.totalElements} members.
+              </p>
+            )}
+          </>
+        ) : (
+          <Alert tone="danger">
+            Could not load the time available. Reload the page to try again.
+          </Alert>
+        )}
+      </section>
     </>
   );
 }
