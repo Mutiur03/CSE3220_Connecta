@@ -16,6 +16,8 @@ type Props = {
   members: MemberAvailability[];
   /** The current assignee's membership id, or null. */
   currentId: string | null;
+  /** Base for the element ids; two instances on one page (pane and header) need different ones. */
+  idPrefix?: string;
 };
 
 /**
@@ -26,6 +28,7 @@ export default function AssignConversationForm({
   action,
   members,
   currentId,
+  idPrefix = "assignee",
 }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const saved = currentId ?? UNASSIGNED;
@@ -35,20 +38,20 @@ export default function AssignConversationForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-2">
-      <label htmlFor="assignee" className="sr-only">
+      <label htmlFor={idPrefix} className="sr-only">
         Assignee
       </label>
       {/* Uncontrolled: React resets the form after the action, and a controlled select would fall back to its
           first option. The key remounts it with the new saved assignee as its default. */}
       <Select
         key={saved}
-        id="assignee"
+        id={idPrefix}
         name="membershipId"
         defaultValue={saved}
         onChange={(event) => event.currentTarget.form?.requestSubmit()}
         aria-busy={pending}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? "assignee-error" : "assignee-status"}
+        aria-describedby={error ? `${idPrefix}-error` : `${idPrefix}-status`}
       >
         <option value={UNASSIGNED}>Unassigned</option>
         {members.map((member) => (
@@ -58,13 +61,13 @@ export default function AssignConversationForm({
         ))}
       </Select>
       {error && (
-        <p id="assignee-error" className="text-sm text-danger">
+        <p id={`${idPrefix}-error`} className="text-sm text-danger">
           {error}
         </p>
       )}
       {alert && <Alert tone="danger">{alert}</Alert>}
       <p
-        id="assignee-status"
+        id={`${idPrefix}-status`}
         role="status"
         className="min-h-4 text-caption text-secondary"
       >
