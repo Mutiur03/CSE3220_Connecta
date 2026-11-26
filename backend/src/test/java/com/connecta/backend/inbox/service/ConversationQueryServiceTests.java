@@ -25,6 +25,7 @@ import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.service.ActiveCaller;
 import com.connecta.backend.org.service.NotAMemberException;
+import com.connecta.backend.org.service.PresenceService;
 import com.connecta.backend.org.service.TenantAccessService;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
@@ -63,19 +64,22 @@ class ConversationQueryServiceTests {
     @Mock
     UserService users;
 
+    @Mock
+    PresenceService presence;
+
     ConversationQueryService service;
 
     private final UUID organizationId = UUID.randomUUID();
     private final Organization organization = organization();
     private final User caller = TestUsers.user("caller@example.com", Roles.AGENT);
     private final String subject = caller.getId().toString();
-    private final ConversationFilter noFilter = new ConversationFilter(null, null, null);
+    private final ConversationFilter noFilter = new ConversationFilter(null, null, null, null);
 
     @BeforeEach
     void setUp() {
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
-        service = new ConversationQueryService(conversations, links, tenants, new ActiveCaller(users));
+        service = new ConversationQueryService(conversations, links, tenants, new ActiveCaller(users), presence);
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
     }
 
@@ -243,7 +247,7 @@ class ConversationQueryServiceTests {
             pageOf();
 
             service.list(subject, organizationId, new ConversationFilter(Channel.INSTAGRAM, " ann ",
-                    ConversationStatus.OPEN), 0, 20);
+                    ConversationStatus.OPEN, null), 0, 20);
 
             verify(conversations).findAll(any(Specification.class), any(Pageable.class));
         }
@@ -253,9 +257,73 @@ class ConversationQueryServiceTests {
             callerIs(Roles.AGENT);
             pageOf();
 
-            service.list(subject, organizationId, new ConversationFilter(null, "   ", null), 0, 20);
+            service.list(subject, organizationId, new ConversationFilter(null, "   ", null, null), 0, 20);
 
             verify(conversations).findAll(any(Specification.class), any(Pageable.class));
+        }
+    }
+
+    @Nested
+    class Assignees {
+
+        private Conversation assignedTo(User user) {
+            Conversation conversation = conversation(Channel.MESSENGER);
+            Membership member = new Membership(organization, user, new Role(Roles.AGENT));
+            TestUsers.set(member, "id", UUID.randomUUID());
+            conversation.assignTo(member, null, com.connecta.backend.inbox.domain.AssignmentSource.MANUAL);
+            return conversation;
+        }
+
+        private ConversationSummaryResponse.Assignee assigneeOfOnlyRow() {
+            when(links.findWithParticipantByConversationIdIn(anyCollection())).thenReturn(List.of());
+            when(conversations.findLastMessages(anyCollection())).thenReturn(List.of());
+            return service.list(subject, organizationId, noFilter, 0, 20).content().get(0).assignee();
+        }
+
+        @Test
+        void anOnlineAssigneeIsReportedOnline() {
+            callerIs(Roles.AGENT);
+            User holder = TestUsers.user("holder@example.com", Roles.AGENT);
+            pageOf(assignedTo(holder));
+            when(presence.isOnline(organizationId, holder.getId())).thenReturn(true);
+
+            ConversationSummaryResponse.Assignee assignee = assigneeOfOnlyRow();
+
+            assertEquals(holder.getId(), assignee.userId());
+            assertEquals(holder.getFullName(), assignee.name());
+            org.junit.jupiter.api.Assertions.assertTrue(assignee.online());
+        }
+
+        @Test
+        void anOfflineAssigneeIsReportedOffline() {
+            callerIs(Roles.AGENT);
+            User holder = TestUsers.user("holder@example.com", Roles.AGENT);
+            pageOf(assignedTo(holder));
+            when(presence.isOnline(organizationId, holder.getId())).thenReturn(false);
+
+            org.junit.jupiter.api.Assertions.assertFalse(assigneeOfOnlyRow().online());
+        }
+
+        @Test
+        void anUnassignedConversationHasNoAssigneeAndAsksNoPresence() {
+            callerIs(Roles.AGENT);
+            pageOf(conversation(Channel.MESSENGER));
+
+            assertNull(assigneeOfOnlyRow());
+            verify(presence, never()).isOnline(any(), any());
+        }
+
+        @Test
+        void meAndNoneFiltersAreAccepted() {
+            callerIs(Roles.AGENT);
+            pageOf();
+
+            service.list(subject, organizationId, new ConversationFilter(null, null, null, AssigneeScope.ME), 0, 20);
+            service.list(subject, organizationId, new ConversationFilter(null, null, null, AssigneeScope.NONE), 0,
+                    20);
+
+            verify(conversations, org.mockito.Mockito.times(2)).findAll(any(Specification.class),
+                    any(Pageable.class));
         }
     }
 }
