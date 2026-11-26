@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const revalidatePath = vi.hoisted(() => vi.fn());
 const api = vi.hoisted(() => ({
   assignConversation: vi.fn(),
-  setOwnAvailability: vi.fn(),
+  setAssignable: vi.fn(),
 }));
 const session = vi.hoisted(() => ({ getAccessToken: vi.fn() }));
 
@@ -14,7 +14,7 @@ vi.mock("./assignment-api", () => api);
 import { ApiError } from "./api";
 import {
   assignConversationAction,
-  setAvailabilityAction,
+  setAssignableAction,
 } from "./assignment-actions";
 
 const ORG = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
@@ -74,27 +74,43 @@ describe("assignConversationAction", () => {
   });
 });
 
-describe("setAvailabilityAction", () => {
-  it("rejects an unknown status", async () => {
-    expect((await setAvailabilityAction(ORG, "BUSY")).message).toBeDefined();
-    expect(api.setOwnAvailability).not.toHaveBeenCalled();
+describe("setAssignableAction", () => {
+  const switchForm = (on: boolean) => {
+    const data = new FormData();
+    if (on) data.set("assignable", "on");
+    return data;
+  };
+
+  it("rejects a malformed member id without calling the API", async () => {
+    const state = await setAssignableAction(ORG, "x", {}, switchForm(true));
+    expect(state.message).toBeDefined();
+    expect(api.setAssignable).not.toHaveBeenCalled();
   });
 
-  it("saves the status and refreshes", async () => {
-    api.setOwnAvailability.mockResolvedValue({});
-    expect(await setAvailabilityAction(ORG, "AVAILABLE")).toEqual({});
-    expect(api.setOwnAvailability).toHaveBeenCalledWith(
-      "access",
-      ORG,
-      "AVAILABLE",
-    );
+  it("saves true when the box is checked and refreshes the organization", async () => {
+    api.setAssignable.mockResolvedValue({});
+    const state = await setAssignableAction(ORG, MEMBER, {}, switchForm(true));
+    expect(api.setAssignable).toHaveBeenCalledWith("access", ORG, MEMBER, true);
+    expect(state.notice).toBe("Assignable.");
     expect(revalidatePath).toHaveBeenCalled();
   });
 
-  it("returns the failure message", async () => {
-    api.setOwnAvailability.mockRejectedValue(new ApiError(404, "Not found."));
-    expect((await setAvailabilityAction(ORG, "AWAY")).message).toBe(
-      "Not found.",
+  it("saves false when the box is unchecked", async () => {
+    api.setAssignable.mockResolvedValue({});
+    const state = await setAssignableAction(ORG, MEMBER, {}, switchForm(false));
+    expect(api.setAssignable).toHaveBeenCalledWith(
+      "access",
+      ORG,
+      MEMBER,
+      false,
     );
+    expect(state.notice).toBe("Not assignable.");
+  });
+
+  it("returns the failure message and does not refresh", async () => {
+    api.setAssignable.mockRejectedValue(new ApiError(404, "Not found."));
+    const state = await setAssignableAction(ORG, MEMBER, {}, switchForm(true));
+    expect(state.message).toBe("Not found.");
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

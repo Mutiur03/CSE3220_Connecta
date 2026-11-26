@@ -126,6 +126,16 @@ export function coalesce(fn: () => void, ms: number) {
 /** Thrown by `fetchTicket` when the ticket route answered 401 (an expired session). */
 export class TicketUnauthorizedError extends Error {}
 
+/** A single-use socket ticket for the signed-in member; the Next route proxies the backend call. */
+export async function fetchRealtimeTicket(orgId: string): Promise<string> {
+  const res = await fetch(`/api/organizations/${orgId}/realtime/tickets`, {
+    method: "POST",
+  });
+  if (res.status === 401) throw new TicketUnauthorizedError();
+  if (!res.ok) throw new Error(`ticket ${res.status}`);
+  return (await res.json()).ticket as string;
+}
+
 /** Calls `onShown` each time the tab becomes visible; returns the unsubscribe. */
 function onTabShown(onShown: () => void): () => void {
   if (typeof document === "undefined") return () => {};

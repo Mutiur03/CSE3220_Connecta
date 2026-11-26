@@ -1,27 +1,32 @@
-import type {
-  AssignmentRecord,
-  AvailabilityStatus,
-  MemberAvailability,
-} from "./assignment-api";
+import type { AssignmentRecord, MemberAvailability } from "./assignment-api";
 
-export const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {
-  AVAILABLE: "Available",
-  AWAY: "Away",
-};
+/** "Online" or "Offline". A member the backend did not flag counts as offline. */
+export const presenceLabel = (member: Pick<MemberAvailability, "online">) =>
+  member.online === true ? "Online" : "Offline";
 
-export const otherStatus = (status: AvailabilityStatus): AvailabilityStatus =>
-  status === "AVAILABLE" ? "AWAY" : "AVAILABLE";
-
-export const isAvailabilityStatus = (
-  value: unknown,
-): value is AvailabilityStatus => value === "AVAILABLE" || value === "AWAY";
+/** An offline member who still holds open conversations: those chats wait for someone who is not here. */
+export const holdsChatsOffline = (
+  member: Pick<MemberAvailability, "online" | "openConversations">,
+) => member.online !== true && member.openConversations > 0;
 
 /** The value of the assign select that means "no assignee". */
 export const UNASSIGNED = "";
 
-/** "Mira Das (Available, 3 open)": enough to pick the least loaded available agent. */
+/** "Mira Das (Online, 3 open)", plus "not assignable" when auto-assignment skips them. */
 export function memberOptionLabel(member: MemberAvailability): string {
-  return `${member.name} (${AVAILABILITY_LABELS[member.status]}, ${member.openConversations} open)`;
+  const parts = [presenceLabel(member), `${member.openConversations} open`];
+  if (member.assignable !== true) parts.push("not assignable");
+  return `${member.name} (${parts.join(", ")})`;
+}
+
+/** The thread badge: "Assigned to Mira Das", with " · offline" when the admin's team list says they are away. */
+export function assigneeBadgeLabel(
+  assignee: { membershipId: string; name: string },
+  team: MemberAvailability[] | null,
+): string {
+  const member = team?.find((m) => m.membershipId === assignee.membershipId);
+  const offline = member !== undefined && member.online !== true;
+  return `Assigned to ${assignee.name}${offline ? " · offline" : ""}`;
 }
 
 /** One history line: who moved the conversation where, and how. */

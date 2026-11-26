@@ -1,15 +1,11 @@
 import type { Page } from "@/lib/org-api";
 import type { Conversation } from "@/lib/inbox-api";
-import type { MemberAvailability } from "@/lib/assignment-api";
-import { setAvailabilityAction } from "@/lib/assignment-actions";
-import { otherStatus } from "@/lib/assignment-view";
 import {
   hasInboxFilters,
   inboxHref,
   type InboxFilters,
 } from "@/lib/inbox-view";
 import { pageCount, pageRange } from "@/lib/org-pagination";
-import AvailabilityToggle from "./availability-toggle";
 import ConversationList from "./conversation-list";
 import InboxFilterBar from "./inbox-filter-bar";
 import InboxKeyboard from "./inbox-keyboard";
@@ -22,8 +18,6 @@ type Props = {
   filters: InboxFilters;
   page: number;
   conversations: Page<Conversation>;
-  /** The signed-in member's own status; null when it could not be loaded. */
-  availability: MemberAvailability | null;
   /** The open conversation, if any. */
   selectedId?: string;
   /** h1 on the inbox itself; h2 beside a thread, where the contact name is the page heading. */
@@ -65,7 +59,6 @@ export default function InboxListPane({
   filters,
   page,
   conversations,
-  availability,
   selectedId,
   headingLevel,
   now,
@@ -101,17 +94,6 @@ export default function InboxListPane({
             <InboxKeyboard />
           </div>
         </div>
-        {availability && (
-          <AvailabilityToggle
-            action={setAvailabilityAction.bind(
-              null,
-              orgId,
-              otherStatus(availability.status),
-            )}
-            status={availability.status}
-            next={otherStatus(availability.status)}
-          />
-        )}
         <InboxStatusTabs listPath={listPath} filters={filters} />
         {(conversations.totalElements > 0 || filtered) && (
           <InboxFilterBar listPath={listPath} filters={filters} />

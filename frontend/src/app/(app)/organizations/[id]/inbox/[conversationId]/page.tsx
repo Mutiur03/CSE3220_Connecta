@@ -13,6 +13,7 @@ import RealtimeInboxRefresher from "@/components/realtime-inbox-refresher";
 import ReplyComposer from "@/components/reply-composer";
 import { Badge } from "@/components/ui/badge";
 import { assignConversationAction } from "@/lib/assignment-actions";
+import { assigneeBadgeLabel } from "@/lib/assignment-view";
 import { listAssignments, listAvailability } from "@/lib/assignment-api";
 import { MAX_PAGE_SIZE } from "@/lib/org-api";
 import { section } from "@/lib/inventory-view";
@@ -153,7 +154,10 @@ export default async function ConversationPage({
               </Badge>
               <Badge>
                 {conversation.assignee
-                  ? `Assigned to ${conversation.assignee.name}`
+                  ? assigneeBadgeLabel(
+                      conversation.assignee,
+                      team?.[0].ok ? team[0].value.content : null,
+                    )
                   : "Unassigned"}
               </Badge>
             </p>

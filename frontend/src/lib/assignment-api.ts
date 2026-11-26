@@ -1,18 +1,17 @@
 import { request } from "./api";
 import type { Page } from "./org-api";
 
-export type AvailabilityStatus = "AVAILABLE" | "AWAY";
-
-/** One member with their availability and how many open conversations they hold. */
+/** One member with whether auto-assignment may pick them, whether they are online, and their open load. */
 export type MemberAvailability = {
   membershipId: string;
   userId: string;
   email: string;
   name: string;
   role: "ADMIN" | "AGENT";
-  status: AvailabilityStatus;
-  /** ISO instant, null until the member first set a status. */
-  updatedAt: string | null;
+  /** Auto-assignment picks only assignable members, online or not. */
+  assignable: boolean;
+  /** Holds a live connection to the organization (or dropped one a moment ago). */
+  online: boolean;
   openConversations: number;
 };
 
@@ -58,21 +57,17 @@ export const listAvailability = (
     { accessToken },
   );
 
-export const getOwnAvailability = (accessToken: string, orgId: string) =>
-  request<MemberAvailability>(`${orgPath(orgId)}/availability/me`, {
-    accessToken,
-  });
-
-export const setOwnAvailability = (
+/** Admin only: lets auto-assignment pick this member, or stops it. */
+export const setAssignable = (
   accessToken: string,
   orgId: string,
-  status: AvailabilityStatus,
+  membershipId: string,
+  assignable: boolean,
 ) =>
-  request<MemberAvailability>(`${orgPath(orgId)}/availability/me`, {
-    method: "PUT",
-    body: { status },
-    accessToken,
-  });
+  request<{ membershipId: string; assignable: boolean }>(
+    `${orgPath(orgId)}/members/${encodeURIComponent(membershipId)}/assignable`,
+    { method: "PUT", body: { assignable }, accessToken },
+  );
 
 /** Hands the conversation to a member; null unassigns (admin only). */
 export const assignConversation = (

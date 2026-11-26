@@ -44,8 +44,9 @@ export default async function TeamPage({
       </Link>
       <h1 className="text-display font-medium">Team workload</h1>
       <p className="text-secondary">
-        Who is taking new conversations and how many open ones each member
-        holds. Members switch their own status from the inbox.
+        Who is online, who auto-assignment may pick, and how many open
+        conversations each member holds. Online status follows whoever has
+        Connecta open.
       </p>
     </header>
   );
@@ -84,7 +85,7 @@ export default async function TeamPage({
   return (
     <>
       {header}
-      <TeamWorkloadTable members={members.content} now={now} />
+      <TeamWorkloadTable orgId={id} members={members.content} />
       <OrgPagination
         label="Team pages"
         page={page}

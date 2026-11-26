@@ -12,8 +12,8 @@ const member = (id: string, name: string): MemberAvailability => ({
   email: `${id}@acme.test`,
   name,
   role: "AGENT",
-  status: "AVAILABLE",
-  updatedAt: null,
+  assignable: true,
+  online: false,
   openConversations: 0,
 });
 
