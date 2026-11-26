@@ -4,6 +4,7 @@ import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.inbox.domain.Conversation;
 import com.connecta.backend.inbox.domain.ConversationParticipant;
 import com.connecta.backend.inbox.domain.ConversationStatus;
+import jakarta.persistence.criteria.JoinType;
 import java.util.UUID;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -25,6 +26,24 @@ public final class ConversationSpecifications {
 
     public static Specification<Conversation> withStatus(ConversationStatus status) {
         return (root, query, cb) -> cb.equal(root.get("status"), status);
+    }
+
+    public static Specification<Conversation> assignedTo(UUID membershipId) {
+        return (root, query, cb) -> cb.equal(root.get("assignee").get("id"), membershipId);
+    }
+
+    public static Specification<Conversation> unassigned() {
+        return (root, query, cb) -> cb.isNull(root.get("assignee"));
+    }
+
+    /** Loads each row's assignee and their user in the page query itself (skipped for the count query). */
+    public static Specification<Conversation> fetchingAssignee() {
+        return (root, query, cb) -> {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("assignee", JoinType.LEFT).fetch("user", JoinType.LEFT);
+            }
+            return null;
+        };
     }
 
     /** Some customer of the conversation has a display name containing the text, ignoring case. */

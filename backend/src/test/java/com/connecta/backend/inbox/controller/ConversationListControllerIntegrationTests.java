@@ -19,6 +19,8 @@ import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.domain.Organization;
 import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.repository.OrganizationRepository;
+import com.connecta.backend.org.service.PresenceService;
+import com.connecta.backend.inbox.domain.AssignmentSource;
 import com.connecta.backend.support.RandomJwtSecret;
 import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestTokens;
@@ -100,6 +102,9 @@ class ConversationListControllerIntegrationTests {
     @Autowired
     MessageRepository messages;
 
+    @Autowired
+    PresenceService presence;
+
     private static String path(Organization organization) {
         return "/api/organizations/" + organization.getId() + "/conversations";
     }
@@ -118,8 +123,8 @@ class ConversationListControllerIntegrationTests {
         return organizations.saveAndFlush(new Organization(name, "org-" + UUID.randomUUID()));
     }
 
-    private void join(Organization organization, User user, String roleName) {
-        memberships.saveAndFlush(new Membership(organization, user, role(roleName)));
+    private Membership join(Organization organization, User user, String roleName) {
+        return memberships.saveAndFlush(new Membership(organization, user, role(roleName)));
     }
 
     /** A conversation with one customer and one inbound message, last active at the given time. */
@@ -267,6 +272,111 @@ class ConversationListControllerIntegrationTests {
                     .andExpect(jsonPath("$.content.length()").value(1))
                     .andExpect(jsonPath("$.size").value(1))
                     .andExpect(jsonPath("$.totalElements").value(2));
+        }
+    }
+
+    @Nested
+    class Assignees {
+
+        private Conversation assign(Conversation conversation, Membership member) {
+            conversation.assignTo(member, null, AssignmentSource.MANUAL);
+            return conversations.saveAndFlush(conversation);
+        }
+
+        @Test
+        void eachRowCarriesItsAssigneeWithPresenceAndNullWhenUnassigned() throws Exception {
+            User agent = newUser();
+            User holder = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+            Membership holderMembership = join(acme, holder, Roles.AGENT);
+            Conversation held = conversation(acme, Channel.MESSENGER, "Bob", "Hi", TestClock.NOW);
+            assign(held, holderMembership);
+            conversation(acme, Channel.INSTAGRAM, "Ann", "Yo", TestClock.NOW.minusSeconds(60));
+
+            mvc.perform(get(path(acme)).header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].assignee.membershipId").value(holderMembership.getId().toString()))
+                    .andExpect(jsonPath("$.content[0].assignee.userId").value(holder.getId().toString()))
+                    .andExpect(jsonPath("$.content[0].assignee.name").value("Test User"))
+                    .andExpect(jsonPath("$.content[0].assignee.online").value(false))
+                    .andExpect(jsonPath("$.content[1].assignee").doesNotExist());
+
+            presence.connected(acme.getId(), holder.getId());
+            try {
+                mvc.perform(get(path(acme)).header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                        .andExpect(jsonPath("$.content[0].assignee.online").value(true));
+            } finally {
+                presence.disconnected(acme.getId(), holder.getId());
+            }
+        }
+
+        @Test
+        void noneKeepsOnlyUnassignedAndCountsThemInTotalElements() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            Membership me = join(acme, agent, Roles.AGENT);
+            assign(conversation(acme, Channel.MESSENGER, "Bob", "Hi", TestClock.NOW), me);
+            conversation(acme, Channel.INSTAGRAM, "Ann", "Yo", TestClock.NOW.minusSeconds(60));
+            conversation(acme, Channel.INSTAGRAM, "Cy", "Yo", TestClock.NOW.minusSeconds(90));
+
+            mvc.perform(get(path(acme)).param("assignee", "none").param("size", "1")
+                            .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.content.length()").value(1))
+                    .andExpect(jsonPath("$.content[0].participantName").value("Ann"));
+        }
+
+        @Test
+        void meKeepsOnlyTheCallersConversationsAndCombinesWithOtherFilters() throws Exception {
+            User agent = newUser();
+            User other = newUser();
+            Organization acme = organization("Acme");
+            Membership me = join(acme, agent, Roles.AGENT);
+            Membership them = join(acme, other, Roles.AGENT);
+            assign(conversation(acme, Channel.MESSENGER, "Bob", "Hi", TestClock.NOW), me);
+            assign(conversation(acme, Channel.INSTAGRAM, "Ann", "Yo", TestClock.NOW.minusSeconds(60)), me);
+            assign(conversation(acme, Channel.MESSENGER, "Cy", "Yo", TestClock.NOW.minusSeconds(90)), them);
+            conversation(acme, Channel.MESSENGER, "Di", "Yo", TestClock.NOW.minusSeconds(120));
+
+            mvc.perform(get(path(acme)).param("assignee", "me")
+                            .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(jsonPath("$.totalElements").value(2));
+            mvc.perform(get(path(acme)).param("assignee", "me").param("channel", "INSTAGRAM")
+                            .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].participantName").value("Ann"));
+        }
+
+        @Test
+        void anotherTenantsConversationsNeverAppearUnderAnyAssigneeFilter() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            Organization rival = organization("Rival");
+            join(acme, agent, Roles.AGENT);
+            conversation(rival, Channel.MESSENGER, "Eve", "Hi", TestClock.NOW);
+
+            mvc.perform(get(path(acme)).param("assignee", "none")
+                            .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(jsonPath("$.totalElements").value(0));
+        }
+
+        @Test
+        void anUnknownAssigneeValueIsABadRequest() throws Exception {
+            User agent = newUser();
+            Organization acme = organization("Acme");
+            join(acme, agent, Roles.AGENT);
+
+            mvc.perform(get(path(acme)).param("assignee", "everyone")
+                            .header(AUTH, TestTokens.bearer(jwtProperties, agent)))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void withoutATokenTheAssigneeFilterIsUnauthorized() throws Exception {
+            mvc.perform(get(path(organization("Acme"))).param("assignee", "me"))
+                    .andExpect(status().isUnauthorized());
         }
     }
 
