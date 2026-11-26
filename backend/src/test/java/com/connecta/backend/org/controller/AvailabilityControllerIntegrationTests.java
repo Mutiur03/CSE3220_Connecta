@@ -129,61 +129,6 @@ class AvailabilityControllerIntegrationTests {
         return TestTokens.bearer(jwtProperties, user);
     }
 
-    private static String statusBody(String status) {
-        return "{\"status\":\"" + status + "\"}";
-    }
-
-    @Nested
-    class SetOwn {
-
-        @Test
-        void anAgentSetsTheirOwnStatusAndItIsKept() throws Exception {
-            User agent = newUser();
-            Organization acme = organization("Acme");
-            join(acme, agent, Roles.AGENT);
-
-            mvc.perform(json(put(path(acme, "/me")), statusBody("AVAILABLE")).header(AUTH, bearer(agent)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("AVAILABLE"))
-                    .andExpect(jsonPath("$.userId").value(agent.getId().toString()))
-                    .andExpect(jsonPath("$.updatedAt").exists());
-            mvc.perform(json(put(path(acme, "/me")), statusBody("AWAY")).header(AUTH, bearer(agent)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("AWAY"));
-            mvc.perform(get(path(acme, "/me")).header(AUTH, bearer(agent)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("AWAY"));
-        }
-
-        @Test
-        void anUnknownStatusIsRejected() throws Exception {
-            User agent = newUser();
-            Organization acme = organization("Acme");
-            join(acme, agent, Roles.AGENT);
-
-            mvc.perform(json(put(path(acme, "/me")), statusBody("BUSY")).header(AUTH, bearer(agent)))
-                    .andExpect(status().isBadRequest());
-            mvc.perform(json(put(path(acme, "/me")), "{}").header(AUTH, bearer(agent)))
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
-        void aNonMemberGetsA404() throws Exception {
-            User outsider = newUser();
-            join(organization("Mine"), outsider, Roles.ADMIN);
-            Organization theirs = organization("Theirs");
-
-            mvc.perform(json(put(path(theirs, "/me")), statusBody("AVAILABLE")).header(AUTH, bearer(outsider)))
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        void anAnonymousCallerIsUnauthorized() throws Exception {
-            mvc.perform(json(put(path(organization("Acme"), "/me")), statusBody("AVAILABLE")))
-                    .andExpect(status().isUnauthorized());
-        }
-    }
-
     @Nested
     class SetAssignable {
 
@@ -268,50 +213,23 @@ class AvailabilityControllerIntegrationTests {
     }
 
     @Nested
-    class GetOwn {
-
-        @Test
-        void aMemberWhoNeverSetItIsAway() throws Exception {
-            User agent = newUser();
-            Organization acme = organization("Acme");
-            join(acme, agent, Roles.AGENT);
-
-            mvc.perform(get(path(acme, "/me")).header(AUTH, bearer(agent)))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.status").value("AWAY"))
-                    .andExpect(jsonPath("$.role").value("AGENT"));
-        }
-
-        @Test
-        void aNonMemberGetsA404() throws Exception {
-            User outsider = newUser();
-            join(organization("Mine"), outsider, Roles.ADMIN);
-
-            mvc.perform(get(path(organization("Theirs"), "/me")).header(AUTH, bearer(outsider)))
-                    .andExpect(status().isNotFound());
-        }
-    }
-
-    @Nested
     class ListAll {
 
         @Test
-        void anAdminSeesEveryMemberAndMissingRowsAreAway() throws Exception {
+        void anAdminSeesEveryMemberAndMissingRowsAreNotAssignable() throws Exception {
             User admin = newUser();
             User agent = newUser();
             Organization acme = organization("Acme");
             join(acme, admin, Roles.ADMIN);
             join(acme, agent, Roles.AGENT);
-            mvc.perform(json(put(path(acme, "/me")), statusBody("AVAILABLE")).header(AUTH, bearer(agent)))
-                    .andExpect(status().isOk());
-
             mvc.perform(get(path(acme, "")).header(AUTH, bearer(admin)))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.totalElements").value(2))
                     .andExpect(jsonPath("$.page").value(0))
                     .andExpect(jsonPath("$.size").value(20))
-                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].status").value("AVAILABLE"))
-                    .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].status").value("AWAY"));
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].assignable").value(false))
+                    .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].assignable").value(false))
+                    .andExpect(jsonPath("$.content[0].status").doesNotExist());
         }
 
         @Test
@@ -327,8 +245,6 @@ class AvailabilityControllerIntegrationTests {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[?(@.userId=='" + agent.getId() + "')].online").value(true))
                     .andExpect(jsonPath("$.content[?(@.userId=='" + admin.getId() + "')].online").value(false));
-            mvc.perform(get(path(acme, "/me")).header(AUTH, bearer(agent)))
-                    .andExpect(jsonPath("$.online").value(true));
             assertTrue(intervals.findByMembershipUserIdAndEndedAtIsNull(agent.getId()).size() == 1);
         }
 
