@@ -19,6 +19,8 @@ springdoc:
     enabled: true
 
 app:
+  metrics:
+    scrape-token: test-scrape-token
   # Incoming media is never downloaded in tests: no real host is allowed, and the sweep waits an hour.
   attachments:
     mirror-allowed-host-suffixes: media.test.invalid

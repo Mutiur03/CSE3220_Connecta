@@ -3,7 +3,7 @@
 #   sudo DEPLOY_USER=deploy DEPLOY_PUBKEY="ssh-ed25519 AAAA... github-actions" bash vps-bootstrap.sh
 # What it does: installs Docker + compose plugin, creates a non-root deploy user (in the docker group, key-only
 # login), enables the ufw firewall for 22/80/443, turns on unattended security upgrades, optionally installs
-# fail2ban (INSTALL_FAIL2BAN=1, default on), and creates /opt/connecta owned by the deploy user.
+# fail2ban (INSTALL_FAIL2BAN=1, default on), creates /opt/connecta owned by the deploy user, and installs a daily backup cron job (/etc/cron.d/connecta-backup).
 # It does NOT write the .env file, set DNS, or log in to GHCR: see docs/deployment.md.
 # Careful: the deploy user is in the docker group, which is root-equivalent. Treat its SSH key as a root key.
 set -euo pipefail
@@ -70,6 +70,14 @@ create_layout() {
   install -d -m 750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR"
 }
 
+# Daily database backup at 02:30 server time as the deploy user. The script is copied by the deploy workflow;
+# until it exists the job fails (see backup.log), which is the reminder to deploy once.
+setup_backup_cron() {
+  printf '30 2 * * * %s /bin/bash %s/backup-postgres.sh >> %s/backup.log 2>&1\n' \
+    "$DEPLOY_USER" "$APP_DIR" "$APP_DIR" > /etc/cron.d/connecta-backup
+  chmod 644 /etc/cron.d/connecta-backup
+}
+
 apt-get update -y
 install_docker
 create_deploy_user
@@ -77,6 +85,7 @@ setup_firewall
 setup_updates
 setup_fail2ban
 create_layout
+setup_backup_cron
 
 echo "Bootstrap done. Next: put .env in $APP_DIR (chmod 600), point DNS, add the GitHub secrets (docs/deployment.md)."
 echo "Check that you can still log in as $DEPLOY_USER over SSH before you close this session."

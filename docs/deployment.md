@@ -12,15 +12,16 @@ app -> postgres :5432, minio :9000   (compose network "connecta"; only Caddy pub
 ```
 
 Files: `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.production.example`, `scripts/vps-bootstrap.sh`,
-`scripts/deploy-remote.sh`, `.github/workflows/deploy.yml`.
+`scripts/deploy-remote.sh`, `.github/workflows/deploy.yml`, plus `deploy/docker-compose.monitoring.yml`,
+`scripts/backup-postgres.sh` and `scripts/restore-postgres.sh`. Running the server afterwards (logs, monitoring, backups, restore
+drill, secrets, disk, runbook): [operations.md](operations.md).
 
 ## What is manual (nothing here is done by CI)
 - Renting the VPS, the domain and DNS records.
 - Running the bootstrap script once and writing the `.env` file on the server.
 - Adding the GitHub secrets and variables below.
 - Registering the Meta webhook and OAuth redirect URLs with the production hostnames.
-- Backups of PostgreSQL and MinIO (not automated yet, see "Backups").
-- Prometheus and Grafana come later (DEVOPS-02).
+- Optional monitoring (`MONITORING_ENABLED=true`) and an off-server copy of the backups, see [operations.md](operations.md).
 
 Not verified yet: the whole chain was written without a real VPS. Expect to fix small things on the first real deploy.
 
@@ -110,8 +111,5 @@ Logs rotate (3 files of 10 MB per container). `/actuator/*` is not reachable fro
 - Behind Caddy the backend trusts `X-Forwarded-*` (`forward-headers-strategy: framework`), so sessions record the client IP.
 
 ## Backups
-Not automated. Minimum until then, run from cron on the server and copy the file off the machine:
-```bash
-docker exec connecta-postgres pg_dump -U connecta connecta | gzip > /opt/connecta/backup-$(date +%F).sql.gz
-```
-The MinIO volume `minio-data` holds product images; the Caddy volume `caddy-data` holds the certificates.
+`vps-bootstrap.sh` installs a daily cron job that runs `scripts/backup-postgres.sh` (copied here by the deploy workflow). Retention,
+off-server copy, MinIO and the restore drill are in [operations.md](operations.md).

@@ -139,8 +139,11 @@ jobs:
           } > ~/.ssh/config
       - name: Copy deploy files
         run: |
-          scp deploy/docker-compose.prod.yml deploy/Caddyfile scripts/deploy-remote.sh "vps:$VPS_DIR/"
-          ssh vps "chmod +x '$VPS_DIR/deploy-remote.sh'"
+          scp deploy/docker-compose.prod.yml deploy/docker-compose.monitoring.yml deploy/Caddyfile             scripts/deploy-remote.sh scripts/backup-postgres.sh scripts/restore-postgres.sh "vps:$VPS_DIR/"
+          ssh vps "mkdir -p '$VPS_DIR/prometheus' '$VPS_DIR/grafana/provisioning' && chmod +x '$VPS_DIR'/*.sh"
+          scp ops/prometheus/prometheus.prod.yml ops/prometheus/alerts.yml "vps:$VPS_DIR/prometheus/"
+          scp ops/grafana/connecta-dashboard.json "vps:$VPS_DIR/grafana/"
+          scp -r ops/grafana/provisioning/. "vps:$VPS_DIR/grafana/provisioning/"
       - name: Log the server in to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
