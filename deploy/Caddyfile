@@ -1,0 +1,51 @@
+# Caddy gets and renews the HTTPS certificates itself. Hostnames and the e-mail come from the container
+# environment (docker-compose.prod.yml). DNS for all three names must point at this server before the first start.
+{
+	email {$ACME_EMAIL}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		-Server
+	}
+}
+
+# Web app. No Content-Security-Policy here on purpose: Next.js emits inline scripts, add one with nonces later.
+{$APP_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	# Same ceiling as spring.servlet.multipart.max-request-size (9MB).
+	request_body {
+		max_size 9MB
+	}
+	reverse_proxy frontend:3000
+}
+
+# Backend: REST API, the /ws/inbox WebSocket (proxied as is) and the Meta webhook (/api/meta/webhooks, must be
+# public HTTPS). Actuator and metrics stay internal: the Docker healthcheck and Prometheus use the compose network.
+{$API_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	request_body {
+		max_size 9MB
+	}
+	@internal path /actuator /actuator/*
+	respond @internal 404
+	reverse_proxy app:8080
+}
+
+# Product images: only reads of the public bucket, rewritten to /<bucket>/<key> on MinIO.
+{$FILES_DOMAIN} {
+	import security_headers
+	@read method GET HEAD
+	handle @read {
+		rewrite * /{$S3_BUCKET}{uri}
+		header Cache-Control "public, max-age=86400"
+		reverse_proxy minio:9000
+	}
+	respond 405
+}
