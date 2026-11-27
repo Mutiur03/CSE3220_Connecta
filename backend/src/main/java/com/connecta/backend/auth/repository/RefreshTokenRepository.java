@@ -18,6 +18,22 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     /** True when the session has another token issued at or after this one: it was rotated away. */
     boolean existsBySessionIdAndCreatedAtGreaterThanEqualAndIdNot(UUID sessionId, Instant createdAt, UUID id);
 
+    /**
+     * Compare-and-set on one token: revokes it only if nobody has yet. Returns 1 for the single caller that
+     * wins a rotation race and 0 for every other concurrent caller, so a token is never rotated twice.
+     */
+    @Modifying
+    @Query("update RefreshToken t set t.revokedAt = :now where t.id = :id and t.revokedAt is null")
+    int claim(@Param("id") UUID id, @Param("now") Instant now);
+
+    /**
+     * Revokes every token of the session that is still live. Unlike the other bulk updates it keeps the
+     * persistence context, because a rotation goes on to use the loaded user.
+     */
+    @Modifying
+    @Query("update RefreshToken t set t.revokedAt = :now where t.sessionId = :sessionId and t.revokedAt is null")
+    int revokeLiveOfSession(@Param("sessionId") UUID sessionId, @Param("now") Instant now);
+
     @Modifying(clearAutomatically = true)
     @Query("update RefreshToken t set t.revokedAt = :now where t.user.id = :userId and t.revokedAt is null")
     int revokeAllForUser(@Param("userId") UUID userId, @Param("now") Instant now);
