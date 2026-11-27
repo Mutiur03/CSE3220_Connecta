@@ -64,7 +64,8 @@ public class AttachmentMirrorService {
             Optional<AttachmentType> type = AttachmentType.resolve(media.contentType(), candidate.kind(),
                     media.bytes());
             if (type.isEmpty()) {
-                log.info("Attachment {} not copied: unsupported type", candidate.attachmentId());
+                log.info("Attachment {} not copied: unsupported type (declared {}, kind {}, {} bytes)",
+                        candidate.attachmentId(), media.contentType(), candidate.kind(), media.bytes().length);
                 return false;
             }
             return store.saveCopy(candidate, media.bytes(), type.get().contentType());
