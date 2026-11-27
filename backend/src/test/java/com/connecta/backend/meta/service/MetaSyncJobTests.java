@@ -10,6 +10,10 @@ import static org.mockito.Mockito.when;
 
 import com.connecta.backend.config.MetaSyncProperties;
 import com.connecta.backend.inbox.domain.Channel;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,7 +25,10 @@ import org.junit.jupiter.api.Test;
 class MetaSyncJobTests {
 
     private static final MetaSyncProperties ON = MetaSyncProperties.defaults();
-    private static final MetaSyncProperties OFF = new MetaSyncProperties(false, null, 0, 0);
+    private static final MetaSyncProperties OFF = new MetaSyncProperties(false, null, 0, 0, null, null);
+    private static final Instant NOW = Instant.parse("2026-11-28T12:00:00Z");
+    /** What an account that never synced is read with: a first window back. */
+    private static final HistoryBounds FIRST_RUN = ON.bounds(ON.since(null, NOW));
 
     private final HistoryImportService imports = mock(HistoryImportService.class);
     private final HistoryAccountStore store = mock(HistoryAccountStore.class);
@@ -30,7 +37,7 @@ class MetaSyncJobTests {
     private final PendingHistoryImport otherPage = new PendingHistoryImport(Channel.MESSENGER, UUID.randomUUID());
 
     private MetaSyncJob job(MetaSyncProperties properties, Executor executor) {
-        return new MetaSyncJob(imports, store, properties, executor);
+        return new MetaSyncJob(imports, store, properties, executor, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private static Optional<HistoryImportResult> stored(int inserted) {
@@ -47,34 +54,48 @@ class MetaSyncJobTests {
 
             job(ON, Runnable::run).sync();
 
-            verify(imports).syncRecent(Channel.MESSENGER, page.accountId(), ON.bounds());
-            verify(imports).syncRecent(Channel.INSTAGRAM, instagram.accountId(), ON.bounds());
+            verify(imports).syncRecent(Channel.MESSENGER, page.accountId(), FIRST_RUN);
+            verify(imports).syncRecent(Channel.INSTAGRAM, instagram.accountId(), FIRST_RUN);
+        }
+
+        @Test
+        void anAccountSyncedBeforeIsReadFromItsLastSyncMinusTheOverlap() {
+            Instant lastSyncedAt = NOW.minus(Duration.ofHours(3));
+            when(store.connected()).thenReturn(List.of(page, instagram));
+            when(store.lastSyncedAt(Channel.MESSENGER, page.accountId())).thenReturn(Optional.of(lastSyncedAt));
+            when(imports.syncRecent(any(), any(), any())).thenReturn(stored(1));
+
+            job(ON, Runnable::run).sync();
+
+            verify(imports).syncRecent(Channel.MESSENGER, page.accountId(),
+                    ON.bounds(lastSyncedAt.minus(Duration.ofMinutes(15))));
+            verify(imports).syncRecent(Channel.INSTAGRAM, instagram.accountId(), FIRST_RUN);
         }
 
         @Test
         void oneFailingAccountNeverStopsTheOthers() {
             when(store.connected()).thenReturn(List.of(page, instagram, otherPage));
-            when(imports.syncRecent(Channel.MESSENGER, page.accountId(), ON.bounds()))
+            when(imports.syncRecent(Channel.MESSENGER, page.accountId(), FIRST_RUN))
                     .thenThrow(new HistoryFetchException("down"));
-            when(imports.syncRecent(Channel.INSTAGRAM, instagram.accountId(), ON.bounds()))
+            when(imports.syncRecent(Channel.INSTAGRAM, instagram.accountId(), FIRST_RUN))
                     .thenThrow(new IllegalStateException("token"));
-            when(imports.syncRecent(Channel.MESSENGER, otherPage.accountId(), ON.bounds())).thenReturn(stored(2));
+            when(imports.syncRecent(Channel.MESSENGER, otherPage.accountId(), FIRST_RUN)).thenReturn(stored(2));
 
             assertDoesNotThrow(() -> job(ON, Runnable::run).sync());
 
-            verify(imports).syncRecent(Channel.MESSENGER, otherPage.accountId(), ON.bounds());
+            verify(imports).syncRecent(Channel.MESSENGER, otherPage.accountId(), FIRST_RUN);
         }
 
         @Test
         void anAccountBeingImportedIsSkippedAndTheRestContinue() {
             when(store.connected()).thenReturn(List.of(page, instagram));
-            when(imports.syncRecent(Channel.MESSENGER, page.accountId(), ON.bounds()))
+            when(imports.syncRecent(Channel.MESSENGER, page.accountId(), FIRST_RUN))
                     .thenThrow(new HistoryImportInProgressException());
-            when(imports.syncRecent(Channel.INSTAGRAM, instagram.accountId(), ON.bounds())).thenReturn(stored(0));
+            when(imports.syncRecent(Channel.INSTAGRAM, instagram.accountId(), FIRST_RUN)).thenReturn(stored(0));
 
             assertDoesNotThrow(() -> job(ON, Runnable::run).sync());
 
-            verify(imports).syncRecent(Channel.INSTAGRAM, instagram.accountId(), ON.bounds());
+            verify(imports).syncRecent(Channel.INSTAGRAM, instagram.accountId(), FIRST_RUN);
         }
 
         @Test
@@ -105,7 +126,7 @@ class MetaSyncJobTests {
 
             job(ON, Runnable::run).onStartup();
 
-            verify(imports).syncRecent(Channel.MESSENGER, page.accountId(), ON.bounds());
+            verify(imports).syncRecent(Channel.MESSENGER, page.accountId(), FIRST_RUN);
         }
 
         @Test

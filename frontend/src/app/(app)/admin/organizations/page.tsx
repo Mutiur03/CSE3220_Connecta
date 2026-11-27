@@ -10,7 +10,7 @@ import {
   pageHref,
   parsePageParam,
 } from "@/lib/org-pagination";
-import { formatDate } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { getAccessToken, getCurrentUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "All organizations" };
@@ -73,12 +73,11 @@ async function AllOrganizations({
                 {organization.memberCount}{" "}
                 {organization.memberCount === 1 ? "member" : "members"}
               </span>
-              <time
-                dateTime={organization.createdAt}
+              <LocalTime
+                iso={organization.createdAt}
+                kind="date"
                 className="hidden text-sm text-secondary sm:block"
-              >
-                {formatDate(organization.createdAt)}
-              </time>
+              />
             </li>
           ))}
         </ul>

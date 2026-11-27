@@ -1,5 +1,5 @@
 import type { StockMovement } from "@/lib/stock-api";
-import { formatDateTime } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import { STOCK_MOVEMENT_LABELS } from "@/lib/stock-validation";
 import { tableClass } from "./org-styles";
 import { TableScroll } from "./ui/table-scroll";
@@ -78,9 +78,7 @@ export default function ProductMovementTable({
                 {movement.createdBy?.fullName ?? "Removed user"}
               </td>
               <td className="figure px-4 py-2 align-middle text-caption whitespace-nowrap text-secondary">
-                <time dateTime={movement.createdAt}>
-                  {formatDateTime(movement.createdAt)}
-                </time>
+                <LocalTime iso={movement.createdAt} kind="dateTime" />
               </td>
             </tr>
           ))}

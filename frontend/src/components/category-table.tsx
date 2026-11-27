@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { deleteCategory } from "@/lib/category-actions";
 import type { Category } from "@/lib/category-api";
-import { formatDate } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import { buttonClasses } from "./ui/classes";
 import OrgActionButton from "./org-action-button";
 
@@ -35,7 +35,7 @@ export default function CategoryTable({ orgId, categories, canManage }: Props) {
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-3">
             <span className="figure text-caption text-secondary">
-              Updated {formatDate(category.updatedAt)}
+              Updated <LocalTime iso={category.updatedAt} kind="date" />
             </span>
             {canManage && (
               <div className="flex items-center gap-2">

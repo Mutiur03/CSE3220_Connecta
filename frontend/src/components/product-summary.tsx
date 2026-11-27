@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Product } from "@/lib/product-api";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import { buttonClasses } from "./ui/classes";
 import { StockStatusBadge } from "./stock-status-badge";
 
@@ -41,12 +42,11 @@ export default function ProductSummary({ orgId, product, canManage }: Props) {
     {
       label: "Last updated",
       value: (
-        <time
-          dateTime={product.updatedAt}
+        <LocalTime
+          iso={product.updatedAt}
+          kind="date"
           className="figure text-caption text-secondary"
-        >
-          {formatDate(product.updatedAt)}
-        </time>
+        />
       ),
     },
   ];
