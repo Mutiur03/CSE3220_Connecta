@@ -145,8 +145,11 @@ Container logs are capped (30 MB per container). Backups in `BACKUP_DIR` are the
 ## Backups and restore drill
 Database: `scripts/backup-postgres.sh` runs `pg_dump -Fc` inside `connecta-postgres`, writes
 `$BACKUP_DIR/<db>-<UTC timestamp>.dump` (mode 700 directory), deletes dumps older than `BACKUP_RETENTION_DAYS` (default 14) and exits
-non-zero on any failure. `vps-bootstrap.sh` installs `/etc/cron.d/connecta-backup` (daily 02:30, log in `/opt/connecta/backup.log`);
-a systemd timer works equally well. Off-server copy (a backup on the same disk is not a backup): set `BACKUP_RSYNC_TARGET`
+non-zero on any failure. Install the schedule yourself (the deploy workflow only copies the script), as the deploy user with `crontab -e`:
+```
+30 2 * * * /bin/bash /opt/connecta/backup-postgres.sh >> /opt/connecta/backup.log 2>&1
+```
+A systemd timer works equally well. Off-server copy (a backup on the same disk is not a backup): set `BACKUP_RSYNC_TARGET`
 (`user@host:/dir`) or `BACKUP_MC_TARGET` (an `mc` alias path such as `offsite/connecta-backups`; install the `mc` client and run
 `mc alias set offsite ...` as the deploy user first). If the off-server copy fails the script exits non-zero after the local dump exists.
 
