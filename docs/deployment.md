@@ -103,5 +103,6 @@ Logs rotate (3 files of 10 MB per container). `/actuator/*` is not reachable fro
 
 ## 7. Meta and other manual settings
 - Webhook callback URL: `https://<API_DOMAIN>/api/meta/webhooks`, verify token = `META_WEBHOOK_VERIFY_TOKEN`.
+  To feed production and a local instance at the same time, use the Cloudflare Worker in [`ops/cf-webhook-fanout`](../ops/cf-webhook-fanout/README.md) as the callback URL instead.
 - OAuth redirect URI: `https://<API_DOMAIN>/api/meta/oauth/callback`.
 - Behind Caddy the backend trusts `X-Forwarded-*` (`forward-headers-strategy: framework`), so sessions record the client IP.
