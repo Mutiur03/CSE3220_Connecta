@@ -1,6 +1,7 @@
 package com.connecta.backend.product.repository;
 
 import com.connecta.backend.product.domain.ProductImage;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,9 @@ import org.springframework.data.repository.query.Param;
 public interface ProductImageRepository extends JpaRepository<ProductImage, UUID> {
 
     List<ProductImage> findByProductIdAndOrganizationIdOrderByPositionAscIdAsc(UUID productId, UUID organizationId);
+
+    List<ProductImage> findByProductIdInAndOrganizationIdOrderByPositionAscIdAsc(
+            Collection<UUID> productIds, UUID organizationId);
 
     Optional<ProductImage> findByIdAndProductIdAndOrganizationId(UUID id, UUID productId, UUID organizationId);
 
