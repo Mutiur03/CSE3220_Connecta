@@ -148,7 +148,10 @@ export default async function ConversationPage({
             <h1 className="truncate text-title font-semibold">
               {participantsLabel(conversation.participants)}
             </h1>
-            <p aria-live="polite" className="flex items-center gap-2">
+            <p
+              aria-live="polite"
+              className="flex flex-wrap items-center gap-x-2 gap-y-1"
+            >
               <Badge>{INBOX_CHANNEL_LABELS[conversation.channel]}</Badge>
               <Badge tone={closed ? "neutral" : "accent"}>
                 {closed ? "Closed" : "Open"}
