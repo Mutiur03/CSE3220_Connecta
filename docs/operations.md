@@ -94,9 +94,8 @@ Host metrics come from node-exporter (CPU, memory, disk). It runs on the compose
 container's, not the host's.
 
 ## Deploy and roll back
-Deploy: merge to `main` (see deployment.md section 4) or on request with `gh workflow run deploy.yml --ref <branch>`.
-Roll back: run the workflow on an older commit whose images are in GHCR. There is no automatic rollback; check
-`docker compose ps` and the logs after a deploy.
+Deploy: merge to `main` (see deployment.md section 4).
+Roll back: merge a revert into `main`. There is no automatic rollback; check `docker compose ps` and the logs after a deploy.
 
 Flyway caveat: migrations only go forward. A rollback starts the old image against the already migrated database. That works only if
 the new migration was additive (new nullable column, new table). A migration that dropped or renamed something cannot be rolled back
@@ -139,7 +138,7 @@ Container logs are capped (30 MB per container). Never `docker volume prune` whi
 1. `$DC ps` and `$DC logs --tail 200 app`.
 2. Database down or still starting: `docker inspect -f '{{.State.Health.Status}}' connecta-postgres`.
 3. Flyway failure on start shows as a migration error in the log. Do not edit the failed migration; roll back the image
-   (deploy an older commit with the workflow) if the schema is unchanged, otherwise fix forward.
+   (merge a revert into `main`) if the schema is unchanged, otherwise fix forward.
 4. Out of memory: `docker stats --no-stream`, `dmesg | grep -i oom`.
 5. `$DC restart app` as a last step, not the first.
 

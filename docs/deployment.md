@@ -12,7 +12,7 @@ app -> postgres :5432, minio :9000   (compose network "connecta"; only Caddy pub
 ```
 
 Files: `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.production.example`,
-`.github/workflows/deploy.yml` and the optional `deploy/docker-compose.monitoring.yml`.
+`.github/workflows/ci.yml` and the optional `deploy/docker-compose.monitoring.yml`.
 Running the server afterwards (logs, monitoring, secrets, disk, runbook): [operations.md](operations.md).
 
 ## What is manual (nothing here is done by CI)
@@ -76,8 +76,8 @@ Also set Settings -> Actions -> General -> Workflow permissions to "Read and wri
 The images are private by default in GHCR; the workflow logs the server in with the run's token for each deploy.
 
 ## 4. Deploy
-Merge to `main` (the release PR). `deploy.yml` then:
-1. runs the backend and frontend tests;
+Merge to `main` (the release PR). The `deploy` jobs of `ci.yml` then run, only after the backend and frontend tests pass:
+1. the backend and frontend tests (the same jobs every PR runs);
 2. builds `connecta-backend` and `connecta-frontend`, tags them with the commit SHA and `latest`, and pushes to
    `ghcr.io/<owner>/` (Docker layer cache in the Actions cache);
 3. over SSH, in `/opt/connecta` on the server: `docker compose pull` and `docker compose up -d` for that commit's tag. Nothing
@@ -87,22 +87,11 @@ The server must be able to pull the images: make the two GHCR packages public, o
 
 First deploy: the database starts empty. Open `https://<APP_DOMAIN>/setup` to create the owner account.
 
-## Deploy on request
-`deploy.yml` also has `workflow_dispatch`, so any branch can be deployed without merging:
-```bash
-gh workflow run deploy.yml --ref <branch>
-```
-It runs the same tests, builds images tagged with that commit's SHA and deploys that tag (the `latest` tag is only moved on `main`).
-A deploy of a branch replaces what `main` deployed; deploy `main` again to go back.
-
 ## 5. Roll back
 There is no automatic rollback. Flyway migrations are not reverted: write migrations so the previous image still works
 with the new schema (additive changes first).
 
-To any older commit whose images exist in GHCR, run the workflow on it:
-```bash
-gh workflow run deploy.yml --ref <older-branch-or-tag>
-```
+To go back to an older version, merge a revert of the bad change into `main`; the push deploys it like any other.
 
 ## 6. Logs and status
 ```bash

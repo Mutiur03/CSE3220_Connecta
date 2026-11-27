@@ -58,4 +58,4 @@ E2E_ORG_ID=...       # organization id from /organizations/<id>
 
 The organization needs one conversation and one product. The backend URL is whatever the frontend
 is already configured with. List the specs without running them: `pnpm exec playwright test --list`.
-CI (`.github/workflows/frontend.yml`) runs lint, `pnpm test` and build only, not e2e.
+CI (`.github/workflows/ci.yml`) runs lint, `pnpm test` and build only, not e2e.

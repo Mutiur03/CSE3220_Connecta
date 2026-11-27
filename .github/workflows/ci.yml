@@ -1,15 +1,16 @@
-name: deploy
+name: ci
+# Every PR and every push to develop/main runs the tests (PRs also check commit messages and the compose file).
+# Only a push to main goes on to build the images and deploy to the VPS.
 on:
+  pull_request:
   push:
-    branches: [main]
-  workflow_dispatch: # deploy on request from any ref: gh workflow run deploy.yml --ref <branch>
-# One deploy at a time; a newer push waits instead of cancelling a running deploy.
-concurrency:
-  group: deploy
-  cancel-in-progress: false
+    branches: [main, develop]
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -17,9 +18,25 @@ jobs:
           distribution: temurin
           java-version: 17
           cache: maven
-          cache-dependency-path: backend/pom.xml
       - run: ./mvnw -B test
-        working-directory: backend
+      # Docker-backed tests use @Testcontainers(disabledWithoutDocker = true): without Docker they skip
+      # silently. Locally that is fine; in CI a skipped test means the guarantee was not checked.
+      - name: Fail if any test was skipped
+        run: |
+          skipped=$(grep -ho '<testsuite [^>]*' target/surefire-reports/TEST-*.xml | grep -o ' skipped="[0-9]*"' | grep -o '[0-9]*' | awk '{n+=$1} END{print n+0}')
+          echo "skipped tests: $skipped"
+          if [ "$skipped" -gt 0 ]; then
+            echo "::error::$skipped test(s) were skipped (Docker unavailable?). CI must run every test."
+            exit 1
+          fi
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
           package_json_file: frontend/package.json
@@ -29,17 +46,41 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-        working-directory: frontend
       - run: pnpm lint
-        working-directory: frontend
       - run: pnpm test
-        working-directory: frontend
-      - run: pnpm build
-        working-directory: frontend
+      - run: pnpm build # also type-checks
+
+  # Pull requests only. Backstop for the local commit-msg hook (hooks can be skipped): checks message format.
+  commitlint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      HUSKY: 0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+
+  # Pull requests only. docker-compose.yml must stay valid with the documented example settings.
+  compose:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp backend/.env.example backend/.env
+      - run: docker compose config --quiet
 
   # The VPS does not exist until the secrets are added. Without them the image build and the deploy are skipped
   # (green, with a notice) so CI stays usable. Secrets cannot be read in `if`, so this job turns them into an output.
   gate:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       ready: ${{ steps.check.outputs.ready }}
@@ -64,7 +105,7 @@ jobs:
           fi
 
   images:
-    needs: [test, gate]
+    needs: [backend, frontend, gate]
     if: needs.gate.outputs.ready == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -89,7 +130,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/connecta-backend:${{ github.sha }}
-            ${{ github.ref == 'refs/heads/main' && format('ghcr.io/{0}/connecta-backend:latest', steps.owner.outputs.owner) || '' }}
+            ghcr.io/${{ steps.owner.outputs.owner }}/connecta-backend:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
       - name: Build and push frontend
@@ -102,13 +143,17 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/connecta-frontend:${{ github.sha }}
-            ${{ github.ref == 'refs/heads/main' && format('ghcr.io/{0}/connecta-frontend:latest', steps.owner.outputs.owner) || '' }}
+            ghcr.io/${{ steps.owner.outputs.owner }}/connecta-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
   deploy:
     needs: images
     runs-on: ubuntu-latest
+    # One deploy at a time; a newer push waits instead of cancelling a running deploy.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}
