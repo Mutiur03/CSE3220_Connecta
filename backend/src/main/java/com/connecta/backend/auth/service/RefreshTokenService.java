@@ -91,7 +91,7 @@ public class RefreshTokenService {
         }
         stored.revoke(now);
         // Heals sessions that already hold orphan tokens from an earlier race.
-        tokens.revokeSession(user.getId(), stored.getSessionId(), now);
+        tokens.revokeLiveOfSession(stored.getSessionId(), now);
         return issue(user, stored.getSessionId(), client);
     }
 

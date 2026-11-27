@@ -133,7 +133,7 @@ class RefreshTokenServiceTests {
                     () -> service.rotate("old-raw", ClientInfo.UNKNOWN));
 
             verify(tokens, never()).save(any(RefreshToken.class));
-            verify(tokens, never()).revokeSession(any(), any(), any());
+            verify(tokens, never()).revokeLiveOfSession(any(), any());
         }
 
         @Test
@@ -144,8 +144,7 @@ class RefreshTokenServiceTests {
 
             service.rotate("old-raw", ClientInfo.UNKNOWN);
 
-            verify(tokens).revokeSession(any(), org.mockito.ArgumentMatchers.eq(SESSION),
-                    org.mockito.ArgumentMatchers.eq(NOW));
+            verify(tokens).revokeLiveOfSession(SESSION, NOW);
         }
 
         @Test
