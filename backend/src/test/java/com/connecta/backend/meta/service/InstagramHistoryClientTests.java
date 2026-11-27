@@ -170,13 +170,43 @@ class InstagramHistoryClientTests {
         }
 
         @Test
-        void noLookupIsSentOnceTheGraphRequestCapIsReached() {
+        void lookupsStopWhenTheirOwnBudgetIsSpent() {
             connect(new HistoryImportProperties(true, 50, 50, 1000, 5, null, 1, 1, 1));
             conversations(TWO_LABEL_ONLY);
+            shares("m2", withSuccess(SHARES, MediaType.APPLICATION_JSON));
 
             List<NormalizedMessage> messages = messages();
 
-            assertEquals("[Attachment]", messages.get(1).text());
+            assertEquals("[Shared post]", messages.get(1).text());
+            assertEquals("[Attachment]", messages.get(0).text());
+            server.verify();
+        }
+
+        @Test
+        void lookupsDoNotUseUpThePagingBudgetSoTheNextPageOfConversationsIsStillRead() {
+            connect(new HistoryImportProperties(true, 50, 50, 1000, 5, null, 1, 1, 2));
+            conversations("""
+                    {"data":[{"id":"t","participants":{"data":[{"id":"ig-1","username":"shop"},
+                       {"id":"igsid-9","username":"rina_k"}]},
+                     "messages":{"data":[
+                       {"id":"m2","message":"","from":{"id":"igsid-9"},"created_time":"2026-11-20T10:01:00+0000"},
+                       {"id":"m1","from":{"id":"igsid-9"},"created_time":"2026-11-20T10:00:00+0000"}]}}],
+                     "paging":{"next":"https://graph.instagram.com/v27.0/ig-1/conversations?after=p2"}}
+                    """);
+            shares("m2", withSuccess(SHARES, MediaType.APPLICATION_JSON));
+            shares("m1", withSuccess("{\"id\":\"m1\"}", MediaType.APPLICATION_JSON));
+            conversations("""
+                    {"data":[{"id":"t2","participants":{"data":[{"id":"ig-1","username":"shop"},
+                       {"id":"igsid-10","username":"karim"}]},
+                     "messages":{"data":[
+                       {"id":"m3","message":"Hello","from":{"id":"igsid-10"},"created_time":"2026-11-20T11:00:00+0000"}]}}]}
+                    """);
+
+            List<HistoryConversation> all = new ArrayList<>();
+            client.conversations("ig-1", "ig-token").forEachRemaining(all::add);
+
+            assertEquals(2, all.size());
+            assertEquals("igsid-10", all.get(1).peerId());
             server.verify();
         }
     }
