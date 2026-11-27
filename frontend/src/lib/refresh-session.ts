@@ -28,6 +28,27 @@ export function refreshOnce(
   return call;
 }
 
+// A request needs time to reach the backend and render. A token that dies in that window gets a 401 in the
+// middle of a render, and a redirect there leaves the page blank. So refresh while this much life is left.
+const EXPIRY_MARGIN_MS = 5_000;
+
+/**
+ * True when the access token's `exp` is within the margin. Only reads the claim (the backend validates
+ * the signature); a token that cannot be read counts as fresh, as before, and the backend decides.
+ */
+export function isExpiringSoon(accessToken: string, now = Date.now()): boolean {
+  try {
+    const payload = accessToken
+      .split(".")[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const { exp } = JSON.parse(atob(payload)) as { exp?: unknown };
+    return typeof exp === "number" && exp * 1000 - now < EXPIRY_MARGIN_MS;
+  } catch {
+    return false;
+  }
+}
+
 /** Puts a rotated token pair on a response as the two httpOnly session cookies. */
 export function setSessionCookiesOn(response: NextResponse, tokens: Tokens) {
   const secure = process.env.NODE_ENV === "production";
