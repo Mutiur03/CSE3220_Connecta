@@ -5,6 +5,7 @@ import {
   useId,
   useRef,
   useState,
+  useSyncExternalStore,
   useTransition,
   type FormEvent,
 } from "react";
@@ -39,6 +40,8 @@ type Props = {
 
 const TRIGGER =
   "grid size-8 shrink-0 place-items-center rounded-control text-secondary transition-colors duration-150 ease-out hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none pointer-coarse:size-11 [&_svg]:size-4.5";
+
+const subscribeNever = () => () => {};
 
 type Chosen = { candidate: ShareCandidate; preview: ShareProductPreview };
 
@@ -270,6 +273,13 @@ export default function ProductShareDialog({
     </dialog>
   );
 
+  // False on the server and during hydration, true after: the portal target only exists in the browser.
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+
   return (
     <>
       <button
@@ -283,9 +293,7 @@ export default function ProductShareDialog({
       >
         <PackageIcon />
       </button>
-      {typeof document === "undefined"
-        ? null
-        : createPortal(dialog, document.body)}
+      {mounted && createPortal(dialog, document.body)}
     </>
   );
 }
