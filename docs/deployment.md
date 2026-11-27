@@ -40,7 +40,7 @@ DNS must resolve before the first start, otherwise Caddy cannot get certificates
 
 ## 2. Server prerequisites (done by you)
 - Ubuntu 22.04 or 24.04 with Docker and the compose plugin (`docker compose version` works).
-- The deploy runs as `root` (`VPS_USER=root`), with the GitHub Actions public key in `/root/.ssh/authorized_keys`. Make a key pair used
+- The deploy runs as `root` (secret `SSH_USER=root`), with the GitHub Actions public key in `/root/.ssh/authorized_keys`. Make a key pair used
   only for this on your machine: `ssh-keygen -t ed25519 -f connecta-deploy -C github-actions`. The key has full control of the server:
   keep SSH key-only (`PermitRootLogin prohibit-password`) and pin the host key with the `VPS_KNOWN_HOSTS` secret.
 - Ports 22, 80 and 443 (tcp, and 443 udp for HTTP/3) open in the firewall. Nothing else needs to be public.
@@ -61,9 +61,9 @@ Settings -> Secrets and variables -> Actions.
 
 | Kind | Name | Value |
 |---|---|---|
-| Secret | `VPS_HOST` | server address or hostname |
-| Secret | `VPS_USER` | `root` |
-| Secret | `VPS_SSH_KEY` | contents of the private key `connecta-deploy` |
+| Secret | `SSH_HOST` | server address or hostname |
+| Secret | `SSH_USER` | `root` |
+| Secret | `SSH_PRIVATE_KEY` | contents of the private key `connecta-deploy` |
 | Secret (optional) | `VPS_PORT` | SSH port if not 22 |
 | Secret (optional) | `VPS_KNOWN_HOSTS` | output of `ssh-keyscan -p <port> <host>`; without it the workflow trusts the key it sees on each run |
 | Variable | `NEXT_PUBLIC_API_URL` | `https://api.example.com` (baked into the frontend image at build time) |
@@ -103,5 +103,6 @@ Logs rotate (3 files of 10 MB per container). `/actuator/*` is not reachable fro
 
 ## 7. Meta and other manual settings
 - Webhook callback URL: `https://<API_DOMAIN>/api/meta/webhooks`, verify token = `META_WEBHOOK_VERIFY_TOKEN`.
+  To feed production and a local instance at the same time, use the Cloudflare Worker in [`ops/cf-webhook-fanout`](../ops/cf-webhook-fanout/README.md) as the callback URL instead.
 - OAuth redirect URI: `https://<API_DOMAIN>/api/meta/oauth/callback`.
 - Behind Caddy the backend trusts `X-Forwarded-*` (`forward-headers-strategy: framework`), so sessions record the client IP.

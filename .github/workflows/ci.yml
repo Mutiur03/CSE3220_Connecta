@@ -87,15 +87,15 @@ jobs:
     steps:
       - id: check
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.SSH_HOST }}
+          VPS_USER: ${{ secrets.SSH_USER }}
+          VPS_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
         run: |
           missing=""
-          [ -n "$VPS_HOST" ] || missing="$missing secret:VPS_HOST"
-          [ -n "$VPS_USER" ] || missing="$missing secret:VPS_USER"
-          [ -n "$VPS_SSH_KEY" ] || missing="$missing secret:VPS_SSH_KEY"
+          [ -n "$VPS_HOST" ] || missing="$missing secret:SSH_HOST"
+          [ -n "$VPS_USER" ] || missing="$missing secret:SSH_USER"
+          [ -n "$VPS_SSH_KEY" ] || missing="$missing secret:SSH_PRIVATE_KEY"
           [ -n "$NEXT_PUBLIC_API_URL" ] || missing="$missing variable:NEXT_PUBLIC_API_URL"
           if [ -n "$missing" ]; then
             echo "::notice::Deploy skipped, not configured yet. Missing:$missing. See docs/deployment.md."
@@ -155,15 +155,15 @@ jobs:
       group: deploy
       cancel-in-progress: false
     env:
-      VPS_HOST: ${{ secrets.VPS_HOST }}
-      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_HOST: ${{ secrets.SSH_HOST }}
+      VPS_USER: ${{ secrets.SSH_USER }}
       VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
       VPS_DIR: ${{ vars.VPS_DIR || '/opt/connecta' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up SSH
         env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           install -m 700 -d ~/.ssh
