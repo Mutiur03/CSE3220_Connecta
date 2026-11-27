@@ -10,3 +10,19 @@ routes = [{ pattern = "hooks.torongo.dev", custom_domain = true }]
 PROD_URL = "https://api.connecta.torongo.dev"
 # DEV_URL (your tunnel) is not committed: pass it at deploy time, see README.md. Empty = production only.
 DEV_URL = ""
+
+# Cloudflare logs and traces, every request kept (the Worker's own events are the only way to see what Meta sent).
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+persist = true
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 1
+persist = true
