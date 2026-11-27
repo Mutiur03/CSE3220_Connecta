@@ -117,6 +117,13 @@ class MessengerCustomerProfileClientTests {
         }
 
         @Test
+        void aGraphErrorWithoutAJsonBodyStillGivesAnEmptyProfile() {
+            server.expect(requestTo(URL)).andRespond(withBadRequest().contentType(MediaType.TEXT_PLAIN).body("nope"));
+
+            assertEquals(Optional.empty(), client.fetchProfile(customer(pageRowId)));
+        }
+
+        @Test
         void aServerErrorIsEmpty() {
             server.expect(requestTo(URL)).andRespond(withServerError());
 

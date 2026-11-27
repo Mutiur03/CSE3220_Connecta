@@ -4,6 +4,8 @@ import com.connecta.backend.inbox.domain.Participant;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
@@ -17,11 +19,22 @@ import org.springframework.web.client.RestClientResponseException;
 @Slf4j
 abstract class GraphCustomerProfileClient implements CustomerProfileClient {
 
+    private static final Pattern ERROR_CODE = Pattern.compile("\"code\"\\s*:\\s*(\\d+)");
+    private static final Pattern ERROR_SUBCODE = Pattern.compile("\"error_subcode\"\\s*:\\s*(\\d+)");
+    private static final String NOT_GIVEN = "none";
+
+    /** Only the numeric Graph error code, never the message: it can name the customer. */
+    private static String errorField(RestClientResponseException e, Pattern field) {
+        Matcher match = field.matcher(e.getResponseBodyAsString());
+        return match.find() ? match.group(1) : NOT_GIVEN;
+    }
+
     protected Optional<GraphProfile> get(RestClient.RequestHeadersSpec<?> request) {
         try {
             return Optional.ofNullable(request.accept(MediaType.APPLICATION_JSON).retrieve().body(GraphProfile.class));
         } catch (RestClientResponseException e) {
-            log.info("Meta profile lookup rejected on {}: status {}", channel(), e.getStatusCode().value());
+            log.info("Meta profile lookup rejected on {}: status {}, Graph error code {} subcode {}", channel(),
+                    e.getStatusCode().value(), errorField(e, ERROR_CODE), errorField(e, ERROR_SUBCODE));
         } catch (RestClientException e) {
             log.info("Meta profile lookup failed on {}: {}", channel(), e.getClass().getSimpleName());
         }
