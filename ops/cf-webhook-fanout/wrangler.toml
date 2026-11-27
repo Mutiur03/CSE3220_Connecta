@@ -1,0 +1,12 @@
+name = "connecta-webhook-fanout"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = false
+
+# Public hostname Meta calls (one level under the zone, so Cloudflare's free certificate covers it).
+routes = [{ pattern = "hooks.torongo.dev", custom_domain = true }]
+
+[vars]
+PROD_URL = "https://api.connecta.torongo.dev"
+# DEV_URL (your tunnel) is not committed: pass it at deploy time, see README.md. Empty = production only.
+DEV_URL = ""
