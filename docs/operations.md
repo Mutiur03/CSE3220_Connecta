@@ -147,6 +147,6 @@ There is no automated PostgreSQL backup or restore tooling in this setup (a deli
 provider if you need recovery.
 
 MinIO (product images, volume `minio-data`) is not covered by `pg_dump`. Copy it with the mc client, for example
-`docker run --rm --network connecta_connecta -v /opt/connecta/backups/minio:/out --entrypoint sh quay.io/minio/mc:RELEASE.2024-11-21T17-21-54Z -c 'mc alias set l http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" && mc mirror l/$S3_BUCKET /out'`
+`docker run --rm --network connecta_connecta -v /opt/connecta/backups/minio:/out --entrypoint sh pgsty/mc:RELEASE.2026-11-12T00-00-00Z -c 'mc alias set l http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" && mc mirror l/$S3_BUCKET /out'`
 (pass the three variables with `--env-file .env`; the network name is `<compose project>_connecta`, check `docker network ls`),
 or snapshot the VPS. Also keep a copy of `.env` somewhere safe: without `META_TOKEN_KEY` the Meta connections are lost.
