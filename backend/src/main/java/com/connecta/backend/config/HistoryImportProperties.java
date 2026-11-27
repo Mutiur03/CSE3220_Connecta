@@ -4,13 +4,14 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Settings of the Messenger and Instagram history import (app.meta.history-import.*). The import runs until Meta
- * has no more history: a blank or non-positive count cap means "no cap". Only {@code maxGraphPages} always
- * bounds an import, as a guard against a paging loop that never ends.
+ * Settings of the Messenger and Instagram history import (app.meta.history-import.*). The import reads every
+ * conversation Meta has, and keeps the newest {@code messagesPerConversation} (50 by default) of each. A blank or
+ * non-positive conversation or total-message cap means "no cap". {@code maxGraphPages} always bounds an import, as
+ * a guard against a paging loop that never ends.
  *
  * @param enabled false turns the automatic import off (on connect and at startup); null means on
  * @param maxConversations optional cap on conversations read in one import; unset means all of them
- * @param messagesPerConversation optional cap on the newest messages read from one conversation; unset means all
+ * @param messagesPerConversation most recent messages kept from one conversation (default 50)
  * @param maxMessages optional cap on messages handled (stored or skipped) in one import; unset means all
  * @param pageSize conversations asked of Meta per request
  * @param requestTimeout connect and read timeout of each Meta request
@@ -26,6 +27,7 @@ public record HistoryImportProperties(Boolean enabled, int maxConversations, int
 
     /** The value of a count cap that is not set: effectively no limit. */
     public static final int UNLIMITED = Integer.MAX_VALUE;
+    static final int DEFAULT_MESSAGES_PER_CONVERSATION = 50;
     static final int DEFAULT_PAGE_SIZE = 5;
     static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(15);
     static final int DEFAULT_WORKER_THREADS = 2;
@@ -35,7 +37,8 @@ public record HistoryImportProperties(Boolean enabled, int maxConversations, int
     public HistoryImportProperties {
         enabled = enabled == null || enabled;
         maxConversations = maxConversations > 0 ? maxConversations : UNLIMITED;
-        messagesPerConversation = messagesPerConversation > 0 ? messagesPerConversation : UNLIMITED;
+        messagesPerConversation = messagesPerConversation > 0 ? messagesPerConversation
+                : DEFAULT_MESSAGES_PER_CONVERSATION;
         maxMessages = maxMessages > 0 ? maxMessages : UNLIMITED;
         pageSize = pageSize > 0 ? pageSize : DEFAULT_PAGE_SIZE;
         requestTimeout = requestTimeout != null && !requestTimeout.isZero() && !requestTimeout.isNegative()

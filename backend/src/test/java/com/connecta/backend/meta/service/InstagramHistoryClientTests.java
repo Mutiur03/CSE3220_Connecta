@@ -63,10 +63,11 @@ class InstagramHistoryClientTests {
     }
 
     @Test
-    void theFirstRequestKeepsASmallMessagePageEvenWhenNoCapIsConfigured() {
+    void theFirstRequestKeepsASmallMessagePageEvenWhenALargeCapIsConfigured() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        InstagramHistoryClient client = new InstagramHistoryClient(META, HistoryImportProperties.defaults(), builder);
+        InstagramHistoryClient client = new InstagramHistoryClient(META,
+                new HistoryImportProperties(true, 0, 500, 0, 5, null, 1, 1, 1), builder);
         server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://graph.instagram.com/v27.0/ig-1/conversations")))
                 .andExpect(request -> {
                     String query = java.net.URLDecoder.decode(request.getURI().getRawQuery(),

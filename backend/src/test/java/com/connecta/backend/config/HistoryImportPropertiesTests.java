@@ -10,12 +10,12 @@ import org.junit.jupiter.api.Test;
 class HistoryImportPropertiesTests {
 
     @Test
-    void missingOrNonPositiveCountCapsMeanNoCapAndOtherValuesFallBackToDefaults() {
+    void missingOrNonPositiveValuesMeanNoCapOnConversationsAndMessagesAndFiftyPerConversation() {
         HistoryImportProperties p = new HistoryImportProperties(null, 0, -1, 0, 0, Duration.ZERO, 0, -5, 0);
 
         assertTrue(p.enabled());
         assertEquals(HistoryImportProperties.UNLIMITED, p.maxConversations());
-        assertEquals(HistoryImportProperties.UNLIMITED, p.messagesPerConversation());
+        assertEquals(50, p.messagesPerConversation());
         assertEquals(HistoryImportProperties.UNLIMITED, p.maxMessages());
         assertEquals(5, p.pageSize());
         assertEquals(Duration.ofSeconds(15), p.requestTimeout());

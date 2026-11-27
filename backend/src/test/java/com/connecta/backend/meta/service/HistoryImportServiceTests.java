@@ -220,7 +220,7 @@ class HistoryImportServiceTests {
         }
 
         @Test
-        void withNoCapsConfiguredEveryConversationIsImportedAndNothingIsTruncated() {
+        void byDefaultEveryConversationIsImportedAndNothingIsTruncated() {
             history(IntStream.range(0, 120)
                     .mapToObj(i -> conversation("c" + i, null, false, "m" + i))
                     .toArray(HistoryConversation[]::new));

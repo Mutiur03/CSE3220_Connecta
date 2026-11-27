@@ -153,10 +153,12 @@ app:
       # Most customers looked up after one history import, so past conversations get pictures too.
       import-refresh-limit: 20
     # Past conversations are imported automatically when a Page or Instagram account is connected, and at startup
-    # for connections never imported. It runs until Meta has no more history. Optional caps, unset by default:
-    # max-conversations, messages-per-conversation, max-messages (a hit cap marks the import truncated, not failed).
+    # for connections never imported. It reads every conversation Meta has and keeps the newest 50 messages of
+    # each. Optional caps, unset by default: max-conversations and max-messages (a hit cap marks the import
+    # truncated, not failed).
     history-import:
       enabled: true
+      messages-per-conversation: 50
       page-size: 5
       request-timeout: 15s
       worker-threads: 2
