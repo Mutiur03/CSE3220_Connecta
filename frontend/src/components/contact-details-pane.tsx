@@ -1,5 +1,5 @@
 import type { ConversationDetail } from "@/lib/inbox-api";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import { INBOX_CHANNEL_LABELS, participantLabel } from "@/lib/inbox-view";
 import Avatar from "./avatar";
 
@@ -31,21 +31,13 @@ export default function ContactDetailsPane({
     },
     {
       term: "First contact",
-      value: (
-        <time dateTime={conversation.createdAt}>
-          {formatDate(conversation.createdAt)}
-        </time>
-      ),
+      value: <LocalTime iso={conversation.createdAt} kind="date" />,
     },
   ];
   if (conversation.lastMessageAt) {
     facts.push({
       term: "Last message",
-      value: (
-        <time dateTime={conversation.lastMessageAt}>
-          {formatDateTime(conversation.lastMessageAt)}
-        </time>
-      ),
+      value: <LocalTime iso={conversation.lastMessageAt} kind="dateTime" />,
     });
   }
   if (others.length > 0) {

@@ -11,6 +11,7 @@ import MetaPagePicker from "@/components/meta-page-picker";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import type { BadgeTone } from "@/components/ui/classes";
+import { LocalTime } from "@/components/local-time";
 import { formatDate } from "@/lib/format";
 import { section, type Section } from "@/lib/inventory-view";
 import {
@@ -356,7 +357,7 @@ function InstagramSection({
                   )}
                 </span>
                 <span className="figure shrink-0 text-caption text-secondary">
-                  {formatDate(account.connectedAt)}
+                  <LocalTime iso={account.connectedAt} kind="date" />
                 </span>
               </li>
             ))}

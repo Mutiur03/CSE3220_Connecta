@@ -1,6 +1,7 @@
 import { createInvitation, revokeInvitation } from "@/lib/org-actions";
 import type { Invitation } from "@/lib/org-api";
-import { formatDate, invitationStatusLabel } from "@/lib/format";
+import { invitationStatusLabel } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import { invitationBadgeTone } from "@/lib/invitation-view";
 import { ROLE_LABELS, type OrgRole } from "@/lib/org-permissions";
 import { MailIcon } from "./icons";
@@ -44,7 +45,11 @@ function InvitationRow({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-12 sm:ml-auto sm:grid sm:grid-cols-[9.5rem_8rem_6.5rem] sm:gap-x-3 sm:pl-0">
         <span className="figure text-caption text-secondary sm:justify-self-end">
           {/* Only an open invitation has an expiry worth reading. */}
-          {pending && `Expires ${formatDate(invitation.expiresAt)}`}
+          {pending && (
+            <>
+              Expires <LocalTime iso={invitation.expiresAt} kind="date" />
+            </>
+          )}
         </span>
         <span className="flex justify-center">
           <Badge tone={invitationBadgeTone(status)} dot={pending}>

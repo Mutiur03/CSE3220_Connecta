@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatDate,
   formatDateTime,
   formatRelative,
+  formatTime,
   invitationStatusLabel,
 } from "./format";
 
@@ -44,5 +46,22 @@ describe("formatRelative", () => {
 
   it("falls back to a date after a week", () => {
     expect(formatRelative("2026-11-01T12:00:00Z", now)).toBe("Nov 1, 2026");
+  });
+});
+
+describe("the clock formatters and a time zone", () => {
+  const moment = "2026-11-27T22:03:00Z";
+
+  it("shows the clock in the zone it is given", () => {
+    expect(formatTime(moment, "UTC")).toMatch(/^10:03\sPM$/);
+    expect(formatTime(moment, "Asia/Dhaka")).toMatch(/^4:03\sAM$/);
+  });
+
+  it("moves the day with the zone, so a late evening in UTC is already tomorrow in Dhaka", () => {
+    expect(formatDate(moment, "UTC")).toBe("Nov 27, 2026");
+    expect(formatDate(moment, "Asia/Dhaka")).toBe("Nov 28, 2026");
+    expect(formatDateTime(moment, "Asia/Dhaka")).toMatch(
+      /Nov 28, 2026.*4:03\sAM/,
+    );
   });
 });

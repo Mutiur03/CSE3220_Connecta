@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Conversation } from "@/lib/inbox-api";
-import { formatDateTime, formatRelative } from "@/lib/format";
+import { formatRelative } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import {
   INBOX_CHANNEL_LABELS,
   heldByOffline,
@@ -95,13 +96,13 @@ export default function ConversationList({
                     </span>
                   )}
                   {conversation.lastMessageAt && (
-                    <time
-                      dateTime={conversation.lastMessageAt}
-                      title={formatDateTime(conversation.lastMessageAt)}
+                    <LocalTime
+                      iso={conversation.lastMessageAt}
+                      titleKind="dateTime"
                       className="figure shrink-0 text-caption text-secondary"
                     >
                       {formatRelative(conversation.lastMessageAt, now)}
-                    </time>
+                    </LocalTime>
                   )}
                 </span>
                 <span className="flex items-baseline gap-2">
