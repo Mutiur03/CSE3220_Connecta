@@ -52,7 +52,7 @@ token also works). Caddy answers 404 for `/actuator`, so the endpoint is not pub
 
 Grafana access, safest default: it listens on `127.0.0.1:3001` of the server only. Open an SSH tunnel and browse locally:
 ```bash
-ssh -L 3001:127.0.0.1:3001 deploy@<host>     # then http://localhost:3001, user GRAFANA_ADMIN_USER
+ssh -L 3001:127.0.0.1:3001 root@<host>     # then http://localhost:3001, user GRAFANA_ADMIN_USER
 ```
 Optional public access (not enabled): add a site block to `deploy/Caddyfile`, set `GRAFANA_DOMAIN` in the caddy service
 environment, point DNS at the server, and put basic auth in front of Grafana's own login:

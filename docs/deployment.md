@@ -20,7 +20,7 @@ Running the server afterwards (logs, monitoring, secrets, disk, runbook): [opera
 - Preparing the server (prerequisites below) and writing the `.env` file on it.
 - Adding the GitHub secrets and variables below.
 - Registering the Meta webhook and OAuth redirect URLs with the production hostnames.
-- Putting `docker-compose.prod.yml`, `Caddyfile` and `.env` on the server. The workflow never copies or changes anything there.
+- Writing `/opt/connecta/.env` on the server. It is the only file you put there; the deploy copies the compose file and Caddyfile.
 - Optional monitoring, see [operations.md](operations.md). Database backups are not part of this setup.
 
 Not verified yet: the whole chain was written without a real VPS. Expect to fix small things on the first real deploy.
@@ -40,17 +40,17 @@ DNS must resolve before the first start, otherwise Caddy cannot get certificates
 
 ## 2. Server prerequisites (done by you)
 - Ubuntu 22.04 or 24.04 with Docker and the compose plugin (`docker compose version` works).
-- A non-root deploy user in the `docker` group (root-equivalent: treat its key like a root key), with the GitHub Actions public key in
-  `~/.ssh/authorized_keys`. Make the key pair on your machine: `ssh-keygen -t ed25519 -f connecta-deploy -C github-actions`.
+- The deploy runs as `root` (`VPS_USER=root`), with the GitHub Actions public key in `/root/.ssh/authorized_keys`. Make a key pair used
+  only for this on your machine: `ssh-keygen -t ed25519 -f connecta-deploy -C github-actions`. The key has full control of the server:
+  keep SSH key-only (`PermitRootLogin prohibit-password`) and pin the host key with the `VPS_KNOWN_HOSTS` secret.
 - Ports 22, 80 and 443 (tcp, and 443 udp for HTTP/3) open in the firewall. Nothing else needs to be public.
-- `/opt/connecta` (or your `VPS_DIR`) exists and is writable by the deploy user.
-- Confirm `ssh -i connecta-deploy deploy@<host>` works.
+- Confirm `ssh -i connecta-deploy root@<host>` works. The deploy creates `/opt/connecta` (or your `VPS_DIR`) itself.
 
-Then put the files on the server as the deploy user (the workflow does not do this, and you repeat it only when they change):
+Then put the env file on the server (the only file you place by hand; repeat it only when a setting changes):
    ```bash
-   scp deploy/docker-compose.prod.yml deploy/Caddyfile deploy@<host>:/opt/connecta/
-   scp deploy/.env.production.example deploy@<host>:/opt/connecta/.env
-   ssh deploy@<host> "chmod 600 /opt/connecta/.env && nano /opt/connecta/.env"
+   ssh root@<host> "mkdir -p /opt/connecta"
+   scp deploy/.env.production.example root@<host>:/opt/connecta/.env
+   ssh root@<host> "chmod 600 /opt/connecta/.env && nano /opt/connecta/.env"
    ```
    Replace every `CHANGE` value and the three domains. Generate secrets with `openssl rand -base64 48` (JWT_SECRET),
    `openssl rand -base64 32` (META_TOKEN_KEY) and `openssl rand -base64 24` (database and MinIO passwords).
@@ -62,7 +62,7 @@ Settings -> Secrets and variables -> Actions.
 | Kind | Name | Value |
 |---|---|---|
 | Secret | `VPS_HOST` | server address or hostname |
-| Secret | `VPS_USER` | `deploy` |
+| Secret | `VPS_USER` | `root` |
 | Secret | `VPS_SSH_KEY` | contents of the private key `connecta-deploy` |
 | Secret (optional) | `VPS_PORT` | SSH port if not 22 |
 | Secret (optional) | `VPS_KNOWN_HOSTS` | output of `ssh-keyscan -p <port> <host>`; without it the workflow trusts the key it sees on each run |
@@ -80,10 +80,9 @@ Merge to `main` (the release PR). The `deploy` jobs of `ci.yml` then run, only a
 1. the backend and frontend tests (the same jobs every PR runs);
 2. builds `connecta-backend` and `connecta-frontend`, tags them with the commit SHA and `latest`, and pushes to
    `ghcr.io/<owner>/` (Docker layer cache in the Actions cache);
-3. over SSH, in `/opt/connecta` on the server: `docker compose pull` and `docker compose up -d` for that commit's tag. Nothing
-   else is changed on the server. Flyway migrations run when the backend starts; check with `docker compose ps` and the logs.
-
-The server must be able to pull the images: make the two GHCR packages public, or run `docker login ghcr.io` once on the server.
+3. over SSH, in `/opt/connecta` on the server: copies `docker-compose.prod.yml` and `Caddyfile` from that commit, logs the server
+   in to GHCR with the run's token, then `docker compose pull` and `docker compose up -d` for that commit's tag. Nothing else is
+   changed on the server. Flyway migrations run when the backend starts; check with `docker compose ps` and the logs.
 
 First deploy: the database starts empty. Open `https://<APP_DOMAIN>/setup` to create the owner account.
 
