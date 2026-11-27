@@ -160,6 +160,7 @@ jobs:
       VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
       VPS_DIR: ${{ vars.VPS_DIR || '/opt/connecta' }}
     steps:
+      - uses: actions/checkout@v4
       - name: Set up SSH
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
@@ -182,9 +183,15 @@ jobs:
             echo "  IdentityFile ~/.ssh/id_deploy"
             echo "  IdentitiesOnly yes"
           } > ~/.ssh/config
-      # The server already has docker-compose.prod.yml and .env (set up by hand). This only pulls the new tag and restarts.
+      # The only thing set up by hand on the server is /opt/connecta/.env. The compose file and Caddyfile come from this
+      # commit, the images from GHCR; then pull and restart.
       - name: Deploy
         env:
           TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          ssh vps "mkdir -p '$VPS_DIR'"
+          scp deploy/docker-compose.prod.yml deploy/Caddyfile "vps:$VPS_DIR/"
+          printf '%s' "$GHCR_TOKEN" | ssh vps "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
           ssh vps "cd '$VPS_DIR' && export IMAGE_TAG='$TAG' && docker compose --env-file .env -f docker-compose.prod.yml pull && docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans"
