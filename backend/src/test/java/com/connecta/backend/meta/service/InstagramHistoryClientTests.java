@@ -15,6 +15,7 @@ import com.connecta.backend.inbox.domain.Channel;
 import com.connecta.backend.meta.domain.WebhookObject;
 import com.connecta.backend.meta.service.NormalizedMessage.Direction;
 import java.net.SocketTimeoutException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
@@ -207,6 +208,112 @@ class InstagramHistoryClientTests {
 
             assertEquals(2, all.size());
             assertEquals("igsid-10", all.get(1).peerId());
+            server.verify();
+        }
+    }
+
+    @Nested
+    class Since {
+
+        private static final String GRAPH = "https://graph.instagram.com/v27.0/";
+        private static final String NEXT_PAGE = GRAPH + "ig-1/conversations?after=p2";
+        private static final Instant SINCE = Instant.parse("2026-11-20T10:00:00Z");
+        private static final String NEW = "2026-11-20T11:00:00+0000";
+        private static final String NEWER = "2026-11-20T10:30:00+0000";
+        private static final String OLD = "2026-11-20T09:00:00+0000";
+
+        private MockRestServiceServer server;
+        private InstagramHistoryClient client;
+
+        private void connect() {
+            RestClient.Builder builder = RestClient.builder();
+            server = MockRestServiceServer.bindTo(builder).build();
+            client = new InstagramHistoryClient(META, HistoryImportProperties.defaults(), builder);
+        }
+
+        private void page(String body) {
+            server.expect(requestTo(org.hamcrest.Matchers.startsWith(GRAPH + "ig-1/conversations")))
+                    .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+        }
+
+        private static String message(String text, String at) {
+            return "{\"id\":\"" + text + "\",\"message\":\"" + text
+                    + "\",\"from\":{\"id\":\"igsid-9\"},\"created_time\":\"" + at + "\"}";
+        }
+
+        private static String conversation(String id, String messagesPaging, String... messages) {
+            return "{\"id\":\"" + id + "\",\"participants\":{\"data\":[{\"id\":\"ig-1\",\"username\":\"shop\"},"
+                    + "{\"id\":\"igsid-" + id + "\",\"username\":\"user-" + id + "\"}]},"
+                    + "\"messages\":{\"data\":[" + String.join(",", messages) + "]" + messagesPaging + "}}";
+        }
+
+        private static String list(String next, String... conversations) {
+            String paging = next == null ? "" : ",\"paging\":{\"next\":\"" + next + "\"}";
+            return "{\"data\":[" + String.join(",", conversations) + "]" + paging + "}";
+        }
+
+        private List<HistoryConversation> read() {
+            List<HistoryConversation> all = new ArrayList<>();
+            client.conversations("ig-1", "ig-token", new HistoryBounds(1000, 200, 200_000, SINCE))
+                    .forEachRemaining(all::add);
+            return all;
+        }
+
+        @Test
+        void theReadStopsAtTheFirstConversationOlderThanSinceAndAsksForNoMorePages() {
+            connect();
+            page(list(NEXT_PAGE,
+                    conversation("c1", "", message("c1-new", NEW)),
+                    conversation("c2", "", message("c2-old", OLD)),
+                    conversation("c3", "", message("c3-new", NEW))));
+
+            List<HistoryConversation> all = read();
+
+            assertEquals(1, all.size());
+            assertEquals("igsid-c1", all.get(0).peerId());
+            server.verify();
+        }
+
+        @Test
+        void furtherPagesAreReadWhileEveryConversationIsNewerThanSince() {
+            connect();
+            page(list(NEXT_PAGE,
+                    conversation("c1", "", message("c1-new", NEW)),
+                    conversation("c2", "", message("c2-new", NEWER))));
+            page(list(null,
+                    conversation("c3", "", message("c3-new", NEW)),
+                    conversation("c4", "", message("c4-old", OLD))));
+
+            List<HistoryConversation> all = read();
+
+            assertEquals(3, all.size());
+            assertEquals("igsid-c3", all.get(2).peerId());
+            server.verify();
+        }
+
+        @Test
+        void messagesOlderThanSinceAreLeftOutOfAChangedConversation() {
+            connect();
+            page(list(null, conversation("c1", "",
+                    message("m3", NEW), message("m2", NEWER), message("m1", OLD))));
+
+            List<HistoryConversation> all = read();
+
+            assertEquals(1, all.size());
+            assertEquals(List.of("m2", "m3"), all.get(0).messages().stream().map(NormalizedMessage::text).toList());
+            server.verify();
+        }
+
+        @Test
+        void aConversationsMessagePagingStopsOnceAPageReachesTheMessagesFromBeforeSince() {
+            connect();
+            String messagesNext = ",\"paging\":{\"next\":\"" + GRAPH + "c1/messages?after=m\"}";
+            page(list(null, conversation("c1", messagesNext, message("m2", NEW), message("m1", OLD))));
+
+            List<HistoryConversation> all = read();
+
+            assertEquals(List.of("m2"), all.get(0).messages().stream().map(NormalizedMessage::text).toList());
+            assertEquals(false, all.get(0).moreMessages());
             server.verify();
         }
     }

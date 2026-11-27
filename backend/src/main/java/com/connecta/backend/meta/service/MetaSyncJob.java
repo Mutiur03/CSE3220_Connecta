@@ -2,6 +2,8 @@ package com.connecta.backend.meta.service;
 
 import com.connecta.backend.config.MetaSyncConfig;
 import com.connecta.backend.config.MetaSyncProperties;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -14,7 +16,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Safety net behind the webhook: at startup (this closes a downtime gap) and then every app.meta.sync.interval,
- * reads the newest messages of every connected Page and Instagram account and stores what is missing, reusing
+ * reads what changed since the last successful sync on every connected Page and Instagram account and stores what
+ * is missing (a quiet account costs one request, a long gap is read in full), reusing
  * {@link HistoryImportService}. The batch runs on its own executor so it never holds the scheduler thread, one
  * failing account never stops the others, and an account being imported is skipped. Logs counts and error
  * classes only, never tokens or message text.
@@ -27,13 +30,15 @@ class MetaSyncJob {
     private final HistoryAccountStore store;
     private final MetaSyncProperties properties;
     private final Executor executor;
+    private final Clock clock;
 
     MetaSyncJob(HistoryImportService imports, HistoryAccountStore store, MetaSyncProperties properties,
-            @Qualifier(MetaSyncConfig.EXECUTOR) Executor executor) {
+            @Qualifier(MetaSyncConfig.EXECUTOR) Executor executor, Clock clock) {
         this.imports = imports;
         this.store = store;
         this.properties = properties;
         this.executor = executor;
+        this.clock = clock;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -66,7 +71,7 @@ class MetaSyncJob {
         int failed = 0;
         for (PendingHistoryImport account : accounts) {
             try {
-                stored += imports.syncRecent(account.channel(), account.accountId(), properties.bounds())
+                stored += imports.syncRecent(account.channel(), account.accountId(), boundsFor(account))
                         .map(HistoryImportResult::messagesInserted).orElse(0);
             } catch (HistoryImportInProgressException e) {
                 log.debug("Message sync skipped for {} account {}: import running", account.channel(),
@@ -78,5 +83,11 @@ class MetaSyncJob {
             }
         }
         log.info("Message sync: {} accounts, {} stored, {} failed", accounts.size(), stored, failed);
+    }
+
+    /** Everything since this account's last good sync, so a long gap is read in full and a quiet one costs a request. */
+    private HistoryBounds boundsFor(PendingHistoryImport account) {
+        Instant lastSyncedAt = store.lastSyncedAt(account.channel(), account.accountId()).orElse(null);
+        return properties.bounds(properties.since(lastSyncedAt, clock.instant()));
     }
 }

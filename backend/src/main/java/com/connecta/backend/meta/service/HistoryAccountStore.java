@@ -43,6 +43,15 @@ class HistoryAccountStore {
         }
     }
 
+    /** When the last successful sync of this account finished, or empty if it never ran. */
+    @Transactional(readOnly = true)
+    Optional<Instant> lastSyncedAt(Channel channel, UUID accountId) {
+        return switch (channel) {
+            case MESSENGER -> pages.findById(accountId).map(MetaConnectedPage::getLastSyncedAt);
+            case INSTAGRAM -> accounts.findById(accountId).map(MetaConnectedAccount::getLastSyncedAt);
+        };
+    }
+
     @Transactional
     void markSynced(Channel channel, UUID accountId, Instant at) {
         switch (channel) {

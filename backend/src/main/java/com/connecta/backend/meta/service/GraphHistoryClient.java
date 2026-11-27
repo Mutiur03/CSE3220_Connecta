@@ -54,6 +54,8 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             + "created_time,attachments{mime_type,name,file_url,image_data{url},video_data{url}}}";
     private static final String FIELDS_WITHOUT_ATTACHMENTS =
             "participants,messages.limit(%d){id,message,from,created_time}";
+    /** Messages asked for inside each conversation of the list; the rest follow by paging (a bigger page makes Graph fail). */
+    private static final int EMBEDDED_MESSAGES = 50;
     private static final int INVALID_FIELD_CODE = 100;
     private static final String URL = "url";
     private static final DateTimeFormatter GRAPH_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
@@ -118,6 +120,8 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         private final String token;
         private final Deque<HistoryConversation> buffer = new ArrayDeque<>();
         private boolean started;
+        /** Set when a conversation older than {@code bounds.since()} is met: the list is newest first, so no more. */
+        private boolean caughtUp;
         private URI nextUrl;
         private int fetchedMessages;
         /** Conversation and message pages fetched; bounded by {@code max-graph-pages}. */
@@ -153,9 +157,13 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             JsonNode page = started ? fetch(nextRequest()) : fetchFirstPage();
             started = true;
             for (JsonNode conversation : page.path("data")) {
+                if (olderThanSince(conversation)) {
+                    caughtUp = true;
+                    break;
+                }
                 parse(conversation, accountId, this).ifPresent(buffer::add);
             }
-            URI next = nextLink(page);
+            URI next = caughtUp ? null : nextLink(page);
             if (next != null && !mayFollow(next)) {
                 markLastTruncated();
                 next = null;
@@ -201,7 +209,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private RestClient.RequestHeadersSpec<?> firstRequest(String fieldList) {
-            String fields = fieldList.formatted(bounds.messagesPerConversation());
+            String fields = fieldList.formatted(Math.min(bounds.messagesPerConversation(), EMBEDDED_MESSAGES));
             return graph.get().uri("/{id}/conversations?platform={platform}&fields={fields}&limit={limit}",
                     accountId, platform(), fields, limits.pageSize());
         }
@@ -277,6 +285,10 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                 page.path("data").forEach(messages::add);
                 fetchedMessages += page.path("data").size();
                 next = nextLink(page);
+                if (next != null && olderThanSince(lastOf(page))) {
+                    next = null;
+                    break;
+                }
                 if (next != null && (!withinLimits(messages.size()) || !mayFollow(next))) {
                     break;
                 }
@@ -284,7 +296,27 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             } while (next != null);
             int keep = bounds.messagesPerConversation();
             truncation.more = next != null || messages.size() > keep;
-            return messages.size() > keep ? messages.subList(0, keep) : messages;
+            List<JsonNode> kept = messages.size() > keep ? messages.subList(0, keep) : messages;
+            return bounds.since() == null ? kept : kept.stream().filter(m -> !olderThanSince(m)).toList();
+        }
+
+        private JsonNode lastOf(JsonNode page) {
+            JsonNode data = page.path("data");
+            return data.isEmpty() ? data : data.get(data.size() - 1);
+        }
+
+        /**
+         * True when {@code bounds.since()} is set and this conversation's newest message (the first of its
+         * embedded page), or this message itself, is older than it. Unknown times never count as older.
+         */
+        private boolean olderThanSince(JsonNode node) {
+            Instant since = bounds.since();
+            if (since == null) {
+                return false;
+            }
+            JsonNode message = node.has("messages") ? node.path("messages").path("data").path(0) : node;
+            Instant at = parseTime(message.path("created_time").asText(""));
+            return at != null && at.isBefore(since);
         }
 
         private boolean withinLimits(int conversationMessages) {
