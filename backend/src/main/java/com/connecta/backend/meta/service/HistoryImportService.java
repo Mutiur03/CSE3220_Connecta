@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Service;
  * instance. A second instance would only repeat work, since storing is idempotent.
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class HistoryImportService {
 
@@ -93,6 +95,10 @@ public class HistoryImportService {
             if (tally.changed() > 0) {
                 publisher.publishEvent(new HistoryImportedEvent(source.organizationId()));
             }
+        }
+        if (tally.limitReached) {
+            log.warn("Message sync of {} account {} stopped at its safety ceiling; older changes may be missing",
+                    source.channel(), source.accountId());
         }
         store.markSynced(source.channel(), source.accountId(), clock.instant());
         return tally.result();

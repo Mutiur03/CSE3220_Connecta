@@ -170,8 +170,12 @@ app:
     sync:
       enabled: true
       interval: 10m
-      max-conversations: 10
-      messages-per-conversation: 10
+      # Each run reads what changed since the last successful one (minus overlap), newest first, and stops at the
+      # first conversation or message older than that. The two counts are safety ceilings per run, not the amount read.
+      max-conversations: 1000
+      messages-per-conversation: 200
+      overlap: 15m
+      first-window: 1d
     # A view-once photo arrives as the sender's echo (no media) and the receiver's normal image event, with the
     # same timestamp. hide=false keeps the received photo permanently (default); true stores only the note
     # "[Disappearing photo]" and never downloads the file. Marks of echoes expire after mark-ttl.
