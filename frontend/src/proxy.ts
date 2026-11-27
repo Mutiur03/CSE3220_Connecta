@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ApiError, type Tokens } from "@/lib/api";
 import { clientHeadersFrom } from "@/lib/client-headers";
-import { refreshOnce, setSessionCookiesOn } from "@/lib/refresh-session";
+import {
+  isExpiringSoon,
+  refreshOnce,
+  setSessionCookiesOn,
+} from "@/lib/refresh-session";
 import {
   AUTH_PATHS,
   signedInLoginTarget,
@@ -60,8 +64,9 @@ export async function proxy(request: NextRequest) {
 }
 
 /**
- * Rotates the session before the page renders when the access cookie has expired but the refresh
- * cookie is still there, so the page never needs the /session/refresh redirect. The new tokens go on
+ * Rotates the session before the page renders when the access cookie is gone or about to expire (see
+ * isExpiringSoon) but the refresh cookie is still there, so the page never needs the /session/refresh
+ * redirect. Concurrent requests share one backend call (refreshOnce). The new tokens go on
  * the request too, so this same render (and any server action) already sees them.
  * A rejected refresh token (401) ends the session; a concurrent rotation (409) or a backend outage
  * leaves the cookies alone, and getCurrentUser falls back to /session/refresh.
@@ -70,7 +75,10 @@ async function refreshIfExpired(
   request: NextRequest,
 ): Promise<Tokens | typeof REJECTED | undefined> {
   const refreshToken = request.cookies.get(REFRESH_COOKIE)?.value;
-  if (!refreshToken || request.cookies.has(ACCESS_COOKIE)) return undefined;
+  const accessToken = request.cookies.get(ACCESS_COOKIE)?.value;
+  if (!refreshToken || (accessToken && !isExpiringSoon(accessToken))) {
+    return undefined;
+  }
   try {
     const tokens = await refreshOnce(
       refreshToken,
