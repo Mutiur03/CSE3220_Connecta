@@ -17,6 +17,13 @@ import com.connecta.backend.auth.repository.RefreshTokenRepository;
 import com.connecta.backend.support.RandomJwtSecret;
 import com.connecta.backend.support.TestClock;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -61,6 +68,16 @@ class RefreshTokenServiceIntegrationTests extends SharedPostgres {
 
     private boolean isRevoked(String rawToken) {
         return tokens.findByTokenHash(RefreshTokenService.hash(rawToken)).orElseThrow().isRevoked();
+    }
+
+    private UUID sessionOf(String rawToken) {
+        return tokens.findByTokenHash(RefreshTokenService.hash(rawToken)).orElseThrow().getSessionId();
+    }
+
+    private int liveTokensOf(UUID sessionId) {
+        return jdbc.queryForObject(
+                "select count(*) from refresh_tokens where session_id = ? and revoked_at is null",
+                Integer.class, sessionId);
     }
 
     @Test
@@ -114,6 +131,55 @@ class RefreshTokenServiceIntegrationTests extends SharedPostgres {
 
         assertThrows(InvalidTokenException.class, () -> auth.refresh(second.refreshToken(), ClientInfo.UNKNOWN));
         assertThrows(SessionNotFoundException.class, () -> sessionService.revoke(userId, sessionId));
+    }
+
+    @Test
+    void concurrentRotationsOfOneTokenLeaveExactlyOneLiveToken() throws Exception {
+        TokenResponse first = registerAndLogin("burst@example.com");
+        UUID session = sessionOf(first.refreshToken());
+        int callers = 8;
+        CountDownLatch start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(callers);
+        try {
+            List<Future<Boolean>> outcomes = new ArrayList<>();
+            for (int i = 0; i < callers; i++) {
+                outcomes.add(pool.submit(() -> {
+                    start.await();
+                    try {
+                        auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN);
+                        return true;
+                    } catch (InvalidTokenException lostTheRace) {
+                        return false;
+                    }
+                }));
+            }
+            start.countDown();
+            int winners = 0;
+            for (Future<Boolean> outcome : outcomes) {
+                if (outcome.get(30, TimeUnit.SECONDS)) {
+                    winners++;
+                }
+            }
+            assertEquals(1, winners);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertEquals(1, liveTokensOf(session));
+    }
+
+    @Test
+    void aRotationRevokesAnOrphanLiveTokenLeftOverFromAnEarlierRace() {
+        TokenResponse first = registerAndLogin("orphan@example.com");
+        UUID session = sessionOf(first.refreshToken());
+        jdbc.update("insert into refresh_tokens (id, user_id, token_hash, expires_at, created_at, session_id, last_used_at)"
+                + " select gen_random_uuid(), user_id, repeat('a', 64), expires_at, created_at, session_id, last_used_at"
+                + " from refresh_tokens where token_hash = ?", RefreshTokenService.hash(first.refreshToken()));
+        assertEquals(2, liveTokensOf(session));
+
+        auth.refresh(first.refreshToken(), ClientInfo.UNKNOWN);
+
+        assertEquals(1, liveTokensOf(session));
     }
 
     @Test

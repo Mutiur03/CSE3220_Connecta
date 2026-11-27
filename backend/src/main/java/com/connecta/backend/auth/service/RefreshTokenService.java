@@ -84,7 +84,14 @@ public class RefreshTokenService {
             stored.revoke(now);
             throw new InvalidTokenException();
         }
+        // Atomic: of several requests carrying this token at once, exactly one gets past here. The others
+        // would each have issued a successor, leaving extra live tokens that show up as duplicate devices.
+        if (tokens.claim(stored.getId(), now) == 0) {
+            throw new RefreshTokenJustRotatedException();
+        }
         stored.revoke(now);
+        // Heals sessions that already hold orphan tokens from an earlier race.
+        tokens.revokeSession(user.getId(), stored.getSessionId(), now);
         return issue(user, stored.getSessionId(), client);
     }
 

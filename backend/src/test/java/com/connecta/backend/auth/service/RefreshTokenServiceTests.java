@@ -93,6 +93,7 @@ class RefreshTokenServiceTests {
         void rotateRevokesTheOldTokenAndIssuesANewOne() {
             RefreshToken old = stored("old-raw", NOW.plusSeconds(3600));
             when(tokens.findByTokenHash(RefreshTokenService.hash("old-raw"))).thenReturn(Optional.of(old));
+            when(tokens.claim(any(), any())).thenReturn(1);
 
             RefreshTokenService.Issued issued = service.rotate("old-raw", ClientInfo.UNKNOWN);
 
@@ -106,6 +107,7 @@ class RefreshTokenServiceTests {
         void rotateContinuesTheSessionAndRecordsTheClient() {
             RefreshToken old = stored("old-raw", NOW.plusSeconds(3600));
             when(tokens.findByTokenHash(RefreshTokenService.hash("old-raw"))).thenReturn(Optional.of(old));
+            when(tokens.claim(any(), any())).thenReturn(1);
 
             when(ipLocator.locate("203.0.113.9")).thenReturn(Optional.of("Dhaka, Bangladesh"));
 
@@ -119,6 +121,31 @@ class RefreshTokenServiceTests {
             assertEquals("203.0.113.9", saved.getValue().getIp());
             assertEquals("Dhaka, Bangladesh", saved.getValue().getLocation());
             assertEquals(NOW, saved.getValue().getLastUsedAt());
+        }
+
+        @Test
+        void aRequestThatLosesTheRaceIsRejectedAsJustRotatedAndIssuesNothing() {
+            RefreshToken old = stored("old-raw", NOW.plusSeconds(3600));
+            when(tokens.findByTokenHash(RefreshTokenService.hash("old-raw"))).thenReturn(Optional.of(old));
+            when(tokens.claim(any(), any())).thenReturn(0);
+
+            assertThrows(RefreshTokenJustRotatedException.class,
+                    () -> service.rotate("old-raw", ClientInfo.UNKNOWN));
+
+            verify(tokens, never()).save(any(RefreshToken.class));
+            verify(tokens, never()).revokeSession(any(), any(), any());
+        }
+
+        @Test
+        void aWonRotationRevokesTheOtherLiveTokensOfTheSession() {
+            RefreshToken old = stored("old-raw", NOW.plusSeconds(3600));
+            when(tokens.findByTokenHash(RefreshTokenService.hash("old-raw"))).thenReturn(Optional.of(old));
+            when(tokens.claim(any(), any())).thenReturn(1);
+
+            service.rotate("old-raw", ClientInfo.UNKNOWN);
+
+            verify(tokens).revokeSession(any(), org.mockito.ArgumentMatchers.eq(SESSION),
+                    org.mockito.ArgumentMatchers.eq(NOW));
         }
 
         @Test
