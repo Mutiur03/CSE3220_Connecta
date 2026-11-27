@@ -1,4 +1,4 @@
-# Production stack for the VPS. Images come from GHCR (built by .github/workflows/deploy.yml); the server only pulls.
+# Production stack for the VPS. Images come from GHCR (built by .github/workflows/ci.yml); the server only pulls.
 # Every setting comes from the env file next to this file (copy .env.production.example to .env, never commit it).
 # Run by hand:  docker compose --env-file .env -f docker-compose.prod.yml up -d
 # Only Caddy publishes ports (80, 443). Every other service is reachable only on the "connecta" network.
@@ -50,7 +50,7 @@ services:
     restart: unless-stopped
     environment:
       # Server-side calls reach the backend over the compose network; the browser uses NEXT_PUBLIC_API_URL, which
-      # is baked into the image at build time (CI build arg, see deploy.yml), not read from here.
+      # is baked into the image at build time (CI build arg, see ci.yml), not read from here.
       API_URL: http://app:8080
     depends_on:
       app:

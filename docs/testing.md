@@ -2,7 +2,7 @@
 
 All backend tests run through Surefire with `./mvnw test` (Windows: `.\mvnw.cmd test`). There is no
 separate unit/integration phase: both kinds live in `backend/src/test/java`, mirroring the production
-packages, and CI runs the same command (`.github/workflows/backend.yml`). Database-backed tests use
+packages, and CI runs the same command (`.github/workflows/ci.yml`). Database-backed tests use
 Testcontainers PostgreSQL, so Docker must be running.
 
 ## Unit vs integration
