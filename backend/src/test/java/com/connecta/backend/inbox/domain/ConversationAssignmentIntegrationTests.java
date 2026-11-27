@@ -1,5 +1,6 @@
 package com.connecta.backend.inbox.domain;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,37 +24,21 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Real PostgreSQL: the conversation assignee and conversation_assignments match the entities, history is
  * kept when a member leaves, and members of another organization cannot be assigned. Skipped without Docker.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.open-in-view=false"})
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class ConversationAssignmentIntegrationTests {
+class ConversationAssignmentIntegrationTests extends SharedPostgres {
 
     private static final PageRequest NEWEST_FIRST = PageRequest.of(0, 20, Sort.by("createdAt").descending());
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @Autowired
     EntityManager entities;

@@ -1,5 +1,6 @@
 package com.connecta.backend.org.repository;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.connecta.backend.org.domain.AvailabilityInterval;
@@ -18,35 +19,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Real PostgreSQL: the heartbeat bulk update and the startup close at last_seen_at. Skipped without Docker. */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.open-in-view=false"})
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class AvailabilityIntervalHeartbeatIntegrationTests {
+class AvailabilityIntervalHeartbeatIntegrationTests extends SharedPostgres {
 
     private static final Instant START = Instant.parse("2026-11-15T10:00:00Z");
     private static final Instant SEEN = START.plusSeconds(30);
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @Autowired
     EntityManager entities;

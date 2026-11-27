@@ -1,5 +1,6 @@
 package com.connecta.backend.product.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.connecta.backend.common.dto.PageResponse;
@@ -27,37 +28,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * The product list must not issue one extra statement per product (the category is fetched with the page). Hibernate
  * Statistics count the prepared statements of each list call on real PostgreSQL; the count must match for a small
  * and a full page of the same products.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.open-in-view=false"})
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class ProductServiceIntegrationTests {
+class ProductServiceIntegrationTests extends SharedPostgres {
 
     private static final int PRODUCTS = 10;
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @Autowired
     ProductService service;

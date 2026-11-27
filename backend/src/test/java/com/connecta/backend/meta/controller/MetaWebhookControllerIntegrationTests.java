@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.controller;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -22,20 +23,14 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Meta's webhook endpoints against real PostgreSQL. The subscription check (GET) and the signed delivery (POST) are
  * both public, so the tests cover the checks themselves: wrong token, missing or bad signature, malformed body,
  * and that only verified events are stored. Skipped without Docker.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -43,22 +38,12 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureMockMvc
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class MetaWebhookControllerIntegrationTests {
+class MetaWebhookControllerIntegrationTests extends SharedPostgres {
 
     private static final String PATH = "/api/meta/webhooks";
     private static final String SIGNATURE = "X-Hub-Signature-256";
     private static final String PAGE_BODY = "{\"object\":\"page\",\"entry\":[{\"id\":\"42\"}]}";
     private static final String INSTAGRAM_BODY = "{\"object\":\"instagram\",\"entry\":[{\"id\":\"43\"}]}";
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;

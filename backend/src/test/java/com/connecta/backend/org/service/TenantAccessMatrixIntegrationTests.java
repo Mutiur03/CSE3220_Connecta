@@ -1,5 +1,6 @@
 package com.connecta.backend.org.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -60,15 +61,10 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * The tenant-isolation and role matrix, one row per endpoint under {@code /api/organizations} and
@@ -85,7 +81,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * The last test fails when a mapped endpoint has no row, so a new endpoint cannot ship without a rule here.
  * Pattern: table-driven test (a declarative row per endpoint driving one generic check).
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -93,7 +88,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @AutoConfigureMockMvc
 @Import({TestClock.class, StubChannelClients.class})
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class TenantAccessMatrixIntegrationTests {
+class TenantAccessMatrixIntegrationTests extends SharedPostgres {
 
     /** Who may call an endpoint. GLOBAL is signed-in only and not tied to one organization. */
     enum Access { MEMBER, ADMIN, GLOBAL, OWNER }
@@ -198,16 +193,6 @@ class TenantAccessMatrixIntegrationTests {
 
     static Stream<Row> rows() {
         return ROWS.stream();
-    }
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
 
     @Autowired

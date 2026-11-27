@@ -54,6 +54,38 @@ describe("proxy refresh", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  describe("an access cookie that is still there", () => {
+    const jwt = (secondsLeft: number) =>
+      `h.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + secondsLeft }))}.s`;
+
+    it("rotates it before it can expire on the way to the backend", async () => {
+      refresh.mockResolvedValue(TOKENS);
+
+      const response = await run(
+        "/inbox",
+        `access_token=${jwt(1)}; refresh_token=r${++counter}`,
+      );
+
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(response.cookies.get("access_token")?.value).toBe("new-access");
+    });
+
+    it("leaves it alone while it has plenty of life", async () => {
+      await run("/inbox", `access_token=${jwt(60)}; refresh_token=r`);
+
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("shares one backend call between requests that carry the same refresh token", async () => {
+      refresh.mockResolvedValue(TOKENS);
+      const cookie = `access_token=${jwt(1)}; refresh_token=r${++counter}`;
+
+      await Promise.all([run("/inbox", cookie), run("/team", cookie)]);
+
+      expect(refresh).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("does not refresh on the sign-in pages", async () => {
     await run("/login?reason=unavailable");
 

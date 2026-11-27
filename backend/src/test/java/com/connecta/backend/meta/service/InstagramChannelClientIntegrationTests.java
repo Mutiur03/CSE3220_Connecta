@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -42,13 +43,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Sends a reply for a conversation linked to a connected account, against real PostgreSQL. After the
@@ -56,26 +52,15 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
  * production (the Meta call runs outside a transaction). The send must not throw LazyInitializationException and
  * must use the linked account's token, not the organization's other account. Only Meta's HTTP boundary is stubbed.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.open-in-view=false"})
 @Import({TestClock.class, InstagramChannelClientIntegrationTests.MetaHttpStub.class})
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class InstagramChannelClientIntegrationTests {
+class InstagramChannelClientIntegrationTests extends SharedPostgres {
 
     private static final String SEND_URL = "https://graph.instagram.com/v27.0/me/messages";
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     /** The real Instagram adapter and factory, with Meta's HTTP endpoint replaced by a mock server. */
     @TestConfiguration(proxyBeanMethods = false)
