@@ -127,9 +127,9 @@ public class HistoryImportService {
         String token = cipher.decrypt(source.encryptedToken());
         Iterator<HistoryConversation> history = clients.forChannel(source.channel())
                 .conversations(source.externalId(), token, bounds);
-        while (!tally.truncated && history.hasNext()) {
+        while (!tally.limitReached && history.hasNext()) {
             if (tally.conversations >= bounds.maxConversations()) {
-                tally.truncated = true;
+                tally.stop();
                 break;
             }
             importConversation(source, history.next(), tally, bounds);
@@ -141,13 +141,14 @@ public class HistoryImportService {
         tally.conversations++;
         for (NormalizedMessage message : conversation.messages()) {
             if (tally.changed() + tally.unchanged >= bounds.maxMessages()) {
-                tally.truncated = true;
+                tally.stop();
                 return;
             }
             tally.count(inbox.importHistorical(source.account(), message));
         }
         names.nameIfAbsent(source.organizationId(), source.channel(), conversation.peerId(), conversation.peerName());
         if (conversation.moreMessages()) {
+            // Only this chat has more history than the per-conversation cap; the other chats are still imported.
             tally.truncated = true;
         }
     }
@@ -157,7 +158,15 @@ public class HistoryImportService {
         int inserted;
         int updated;
         int unchanged;
+        /** Something was left behind: a cap was hit, or a chat has more messages than we keep. */
         boolean truncated;
+        /** A cap that covers the whole import was hit, so no further conversation is read. */
+        boolean limitReached;
+
+        void stop() {
+            truncated = true;
+            limitReached = true;
+        }
 
         void count(HistoryMessageOutcome outcome) {
             switch (outcome) {

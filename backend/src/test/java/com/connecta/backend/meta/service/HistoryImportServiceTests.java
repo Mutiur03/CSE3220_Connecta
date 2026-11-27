@@ -219,6 +219,20 @@ class HistoryImportServiceTests {
         }
 
         @Test
+        void aLongConversationDoesNotStopTheOtherConversations() {
+            history(conversation("c1", null, true, "m1"), conversation("c2", null, false, "m2"),
+                    conversation("c3", null, false, "m3"));
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
+
+            HistoryImportResult result = service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId)
+                    .orElseThrow();
+
+            assertEquals(3, result.conversations());
+            assertEquals(3, result.messagesInserted());
+            assertTrue(result.truncated());
+        }
+
+        @Test
         void aTruncatedImportIsStillMarkedImported() {
             history(conversation("c1", null, true, "m1"));
             when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
