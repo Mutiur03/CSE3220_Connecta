@@ -120,7 +120,10 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         private boolean started;
         private URI nextUrl;
         private int fetchedMessages;
+        /** Conversation and message pages fetched; bounded by {@code max-graph-pages}. */
         private int graphRequests;
+        /** Single-message lookups (shared posts); a budget of their own so they cannot starve paging. */
+        private int lookupRequests;
         private final Set<URI> followed = new HashSet<>();
         private final HistoryBounds bounds;
 
@@ -161,12 +164,17 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         /**
-         * Guards against a paging link that repeats or never ends: a link already followed in this import, or
-         * more Graph requests than {@code max-graph-pages}, ends the paging instead of looping. Records the link.
+         * Guards against a paging link that repeats or never ends: more page requests than
+         * {@code max-graph-pages}, or a link already followed in this import, ends the paging instead of looping.
+         * Records the link.
          */
         private boolean mayFollow(URI next) {
-            if (graphRequests >= limits.maxGraphPages() || !followed.add(next)) {
-                log.warn("Meta history paging stopped: repeated link or page cap reached");
+            if (graphRequests >= limits.maxGraphPages()) {
+                log.warn("Meta history paging stopped: page cap of {} reached", limits.maxGraphPages());
+                return false;
+            }
+            if (!followed.add(next)) {
+                log.warn("Meta history paging stopped: Meta repeated a paging link");
                 return false;
             }
             return true;
@@ -199,12 +207,12 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private JsonNode read(String uriTemplate, Object... variables) {
-            return fetch(graph.get().uri(uriTemplate, variables));
+            return fetch(graph.get().uri(uriTemplate, variables), true);
         }
 
-        /** The links of a label-only message, or none when the request cap is reached or the lookup fails. */
+        /** The links of a label-only message, or none when the lookup budget is spent or the lookup fails. */
         private List<NormalizedAttachment> lookUpLinks(String messageId) {
-            if (graphRequests >= limits.maxGraphPages()) {
+            if (lookupRequests >= limits.maxGraphPages()) {
                 return List.of();
             }
             try {
@@ -220,8 +228,12 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private JsonNode fetch(RestClient.RequestHeadersSpec<?> request) {
+            return fetch(request, false);
+        }
+
+        private JsonNode fetch(RestClient.RequestHeadersSpec<?> request, boolean lookup) {
             try {
-                return send(request);
+                return send(request, lookup);
             } catch (RestClientResponseException e) {
                 throw mapError(e);
             }
@@ -229,7 +241,15 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
 
         /** One Graph request. A refusal by Meta is left to the caller; any other failure is a fetch failure. */
         private JsonNode send(RestClient.RequestHeadersSpec<?> request) {
-            graphRequests++;
+            return send(request, false);
+        }
+
+        private JsonNode send(RestClient.RequestHeadersSpec<?> request, boolean lookup) {
+            if (lookup) {
+                lookupRequests++;
+            } else {
+                graphRequests++;
+            }
             try {
                 JsonNode body = request.headers(GraphAuth.bearer(token)).accept(MediaType.APPLICATION_JSON)
                         .retrieve().body(JsonNode.class);

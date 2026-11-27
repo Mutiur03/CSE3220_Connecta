@@ -15,7 +15,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param requestTimeout connect and read timeout of each Meta request
  * @param workerThreads imports that may run at once on this server
  * @param queueCapacity imports that may wait; one more is dropped and retried at the next start
- * @param maxGraphPages most Graph requests (conversation and message pages) in one import; a loop guard
+ * @param maxGraphPages most Graph requests (conversation and message pages) in one import; a loop guard. Single
+ *        message lookups (shared posts) have a budget of the same size, counted apart so they cannot starve paging
  */
 @ConfigurationProperties(prefix = "app.meta.history-import")
 public record HistoryImportProperties(Boolean enabled, int maxConversations, int messagesPerConversation,
