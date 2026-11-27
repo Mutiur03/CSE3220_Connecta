@@ -1,5 +1,5 @@
 # Optional monitoring stack: Prometheus, Grafana and node-exporter, on the same internal network as the app.
-# Used NEXT TO the main file; deploy-remote.sh adds it by itself when MONITORING_ENABLED=true is set in .env:
+# Optional. Used NEXT TO the main file, started by hand on the server (see docs/operations.md):
 #   docker compose --env-file .env -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d
 # Nothing here is published to the internet. Grafana listens on 127.0.0.1:3001 of the server only (SSH tunnel:
 # ssh -L 3001:127.0.0.1:3001 deploy@<host>, then open http://localhost:3001). The deploy workflow copies the config

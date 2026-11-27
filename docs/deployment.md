@@ -12,16 +12,16 @@ app -> postgres :5432, minio :9000   (compose network "connecta"; only Caddy pub
 ```
 
 Files: `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.production.example`,
-`scripts/deploy-remote.sh`, `.github/workflows/deploy.yml`, plus `deploy/docker-compose.monitoring.yml`,
-`scripts/backup-postgres.sh` and `scripts/restore-postgres.sh`. Running the server afterwards (logs, monitoring, backups, restore
-drill, secrets, disk, runbook): [operations.md](operations.md).
+`.github/workflows/deploy.yml` and the optional `deploy/docker-compose.monitoring.yml`.
+Running the server afterwards (logs, monitoring, secrets, disk, runbook): [operations.md](operations.md).
 
 ## What is manual (nothing here is done by CI)
 - Renting the VPS, the domain and DNS records.
 - Preparing the server (prerequisites below) and writing the `.env` file on it.
 - Adding the GitHub secrets and variables below.
 - Registering the Meta webhook and OAuth redirect URLs with the production hostnames.
-- Optional monitoring (`MONITORING_ENABLED=true`) and an off-server copy of the backups, see [operations.md](operations.md).
+- Putting `docker-compose.prod.yml`, `Caddyfile` and `.env` on the server. The workflow never copies or changes anything there.
+- Optional monitoring, see [operations.md](operations.md). Database backups are not part of this setup.
 
 Not verified yet: the whole chain was written without a real VPS. Expect to fix small things on the first real deploy.
 
@@ -46,8 +46,9 @@ DNS must resolve before the first start, otherwise Caddy cannot get certificates
 - `/opt/connecta` (or your `VPS_DIR`) exists and is writable by the deploy user.
 - Confirm `ssh -i connecta-deploy deploy@<host>` works.
 
-Then create the env file as the deploy user:
+Then put the files on the server as the deploy user (the workflow does not do this, and you repeat it only when they change):
    ```bash
+   scp deploy/docker-compose.prod.yml deploy/Caddyfile deploy@<host>:/opt/connecta/
    scp deploy/.env.production.example deploy@<host>:/opt/connecta/.env
    ssh deploy@<host> "chmod 600 /opt/connecta/.env && nano /opt/connecta/.env"
    ```
@@ -79,9 +80,10 @@ Merge to `main` (the release PR). `deploy.yml` then:
 1. runs the backend and frontend tests;
 2. builds `connecta-backend` and `connecta-frontend`, tags them with the commit SHA and `latest`, and pushes to
    `ghcr.io/<owner>/` (Docker layer cache in the Actions cache);
-3. copies `docker-compose.prod.yml`, `Caddyfile` and `deploy-remote.sh` to `/opt/connecta`;
-4. runs `deploy-remote.sh <sha>` on the server: pull, `up -d`, wait up to 240 s for the backend container to be healthy
-   (Flyway migrations run on start), then remember the tag in `.last-good-tag`.
+3. over SSH, in `/opt/connecta` on the server: `docker compose pull` and `docker compose up -d` for that commit's tag. Nothing
+   else is changed on the server. Flyway migrations run when the backend starts; check with `docker compose ps` and the logs.
+
+The server must be able to pull the images: make the two GHCR packages public, or run `docker login ghcr.io` once on the server.
 
 First deploy: the database starts empty. Open `https://<APP_DOMAIN>/setup` to create the owner account.
 
@@ -94,14 +96,12 @@ It runs the same tests, builds images tagged with that commit's SHA and deploys 
 A deploy of a branch replaces what `main` deployed; deploy `main` again to go back.
 
 ## 5. Roll back
-Automatic: if the backend is not healthy in time, `deploy-remote.sh` starts the previous tag again and the job fails.
-The first deploy has no previous tag. Flyway migrations are not reverted: write migrations so the previous image still works
+There is no automatic rollback. Flyway migrations are not reverted: write migrations so the previous image still works
 with the new schema (additive changes first).
 
-By hand, to any tag that exists in GHCR:
+To any older commit whose images exist in GHCR, run the workflow on it:
 ```bash
-ssh deploy@<host>
-cd /opt/connecta && ./deploy-remote.sh <older-sha>
+gh workflow run deploy.yml --ref <older-branch-or-tag>
 ```
 
 ## 6. Logs and status
@@ -117,6 +117,3 @@ Logs rotate (3 files of 10 MB per container). `/actuator/*` is not reachable fro
 - Webhook callback URL: `https://<API_DOMAIN>/api/meta/webhooks`, verify token = `META_WEBHOOK_VERIFY_TOKEN`.
 - OAuth redirect URI: `https://<API_DOMAIN>/api/meta/oauth/callback`.
 - Behind Caddy the backend trusts `X-Forwarded-*` (`forward-headers-strategy: framework`), so sessions record the client IP.
-
-## Backups
-Not scheduled by the setup. Install the daily job yourself, see "Backups and restore drill" in [operations.md](operations.md).
