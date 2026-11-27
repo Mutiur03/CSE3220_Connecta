@@ -222,6 +222,18 @@ class ProductCategoryServiceTests {
         }
 
         @Test
+        void aConcurrentRenameToATakenNameSurfacesAsNameTaken() {
+            callerHolds(Roles.ADMIN);
+            ProductCategory shoes = category("Shoes");
+            when(categories.findByIdAndOrganizationId(shoes.getId(), organizationId)).thenReturn(Optional.of(shoes));
+            when(categories.existsByOrganizationIdAndName(organizationId, "Bags")).thenReturn(false);
+            when(categories.saveAndFlush(shoes)).thenThrow(new DataIntegrityViolationException("unique"));
+
+            assertThrows(ProductCategoryNameTakenException.class,
+                    () -> service.update(subject, organizationId, shoes.getId(), request("Bags")));
+        }
+
+        @Test
         void aNameUsedByAnotherCategoryIsRejected() {
             callerHolds(Roles.ADMIN);
             ProductCategory shoes = category("Shoes");
