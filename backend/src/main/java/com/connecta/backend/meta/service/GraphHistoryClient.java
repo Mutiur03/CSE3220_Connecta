@@ -54,6 +54,8 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
             + "created_time,attachments{mime_type,name,file_url,image_data{url},video_data{url}}}";
     private static final String FIELDS_WITHOUT_ATTACHMENTS =
             "participants,messages.limit(%d){id,message,from,created_time}";
+    /** Messages asked for inside each conversation of the list; the rest follow by paging (a bigger page makes Graph fail). */
+    private static final int EMBEDDED_MESSAGES = 50;
     private static final int INVALID_FIELD_CODE = 100;
     private static final String URL = "url";
     private static final DateTimeFormatter GRAPH_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
@@ -201,7 +203,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         }
 
         private RestClient.RequestHeadersSpec<?> firstRequest(String fieldList) {
-            String fields = fieldList.formatted(bounds.messagesPerConversation());
+            String fields = fieldList.formatted(Math.min(bounds.messagesPerConversation(), EMBEDDED_MESSAGES));
             return graph.get().uri("/{id}/conversations?platform={platform}&fields={fields}&limit={limit}",
                     accountId, platform(), fields, limits.pageSize());
         }
