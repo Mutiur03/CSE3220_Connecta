@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -34,21 +35,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * The history import and its startup catch-up on real PostgreSQL (Flyway runs, including the history_imported_at
  * column). The Meta boundary is stubbed, so nothing leaves the test. Each test uses its own organization.
  * Skipped without Docker.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -57,17 +52,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
 @RecordApplicationEvents
-class HistoryImportIntegrationTests {
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
+class HistoryImportIntegrationTests extends SharedPostgres {
 
     @MockitoBean
     ConversationHistoryClientFactory clients;

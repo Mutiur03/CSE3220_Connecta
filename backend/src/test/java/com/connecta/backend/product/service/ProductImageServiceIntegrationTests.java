@@ -1,5 +1,6 @@
 package com.connecta.backend.product.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -35,18 +36,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Two uploads racing for the last image slot of one product, on real PostgreSQL. The first upload holds the product
  * row lock while its object is being stored; the second must wait for that lock, then see the committed image.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -54,20 +49,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         "app.product-images.max-per-product=1"})
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class ProductImageServiceIntegrationTests {
+class ProductImageServiceIntegrationTests extends SharedPostgres {
 
     private static final long TIMEOUT_SECONDS = 10;
     private static final long PARKED_WINDOW_SECONDS = 2;
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @MockitoBean
     ProductImageStorage storage;

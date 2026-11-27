@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.connecta.backend.meta.domain.MetaConnectedAccount;
@@ -18,18 +19,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * View-once photos end to end on real PostgreSQL with the switch on (Flyway creates meta_view_once_marks): the echo
  * before the photo, and the photo before the echo. In both orders the stored message is the note and no attachment
  * row remains. Skipped without Docker.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -37,17 +32,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         "app.meta.view-once.hide=true"})
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class ViewOnceIntegrationTests {
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
+class ViewOnceIntegrationTests extends SharedPostgres {
 
     @Autowired
     WebhookEventProcessor processor;

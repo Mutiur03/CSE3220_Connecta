@@ -1,5 +1,6 @@
 package com.connecta.backend.inbox.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -38,18 +39,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Real PostgreSQL and the real proxies: the file is kept in stored_files (bytea), Meta is called with its public
  * URL outside a transaction, and the message is stored with its attachment row. A second organization cannot
  * delete the file. Skipped when Docker is absent.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -57,19 +52,9 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
         "app.public-base-url=https://api.example.com/"})
 @Import({TestClock.class, StubChannelClients.class})
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class OutgoingAttachmentServiceIntegrationTests {
+class OutgoingAttachmentServiceIntegrationTests extends SharedPostgres {
 
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 7, 7};
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @Autowired
     OutgoingAttachmentService service;

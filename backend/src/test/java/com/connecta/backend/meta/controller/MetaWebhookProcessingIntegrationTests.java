@@ -1,5 +1,6 @@
 package com.connecta.backend.meta.controller;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -33,21 +34,15 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * A signed webhook delivery, end to end on real PostgreSQL: routed to the organization that connected the Page,
  * recorded so a redelivery adds nothing, and ignored when no organization connected the Page. Each test uses its
  * own Page id, so the shared database does not couple them. Skipped without Docker.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -56,20 +51,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
 @RecordApplicationEvents
-class MetaWebhookProcessingIntegrationTests {
+class MetaWebhookProcessingIntegrationTests extends SharedPostgres {
 
     private static final String PATH = "/api/meta/webhooks";
     private static final String APP_SECRET = "test-app-secret";
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
 
     @Autowired
     MockMvc mvc;
