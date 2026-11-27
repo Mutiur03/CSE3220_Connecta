@@ -1,5 +1,6 @@
 package com.connecta.backend.inbox.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,36 +31,20 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.EventListener;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * The real Spring proxies around {@link OutgoingMessageService}: the Meta call must run with no database
  * transaction, while the recorder step must run inside one. A mock-based test cannot prove this, because
  * {@code @Transactional} only takes effect through the proxy.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.open-in-view=false"})
 @Import({TestClock.class, StubChannelClients.class, OutgoingMessageServiceIntegrationTests.RecorderProbe.class})
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class OutgoingMessageServiceIntegrationTests {
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
+class OutgoingMessageServiceIntegrationTests extends SharedPostgres {
 
     /** Observes the event the recorder publishes while its own transaction is open. */
     @TestConfiguration(proxyBeanMethods = false)

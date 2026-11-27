@@ -1,5 +1,6 @@
 package com.connecta.backend.auth.service;
 
+import com.connecta.backend.support.SharedPostgres;
 import org.springframework.data.domain.PageRequest;
 import com.connecta.backend.auth.dto.ClientInfo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,34 +23,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * Real PostgreSQL: Flyway applies every migration, Hibernate validates the schema against it
  * (ddl-auto=validate), and refresh-token rotation is persisted. Skipped when Docker is absent.
  */
-@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.open-in-view=false"})
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class RefreshTokenServiceIntegrationTests {
-
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
-
-    @DynamicPropertySource
-    static void database(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
+class RefreshTokenServiceIntegrationTests extends SharedPostgres {
 
     @Autowired
     AuthService auth;
