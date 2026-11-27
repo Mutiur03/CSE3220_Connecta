@@ -62,6 +62,24 @@ class InstagramHistoryClientTests {
         server.verify();
     }
 
+    @Test
+    void theFirstRequestKeepsASmallMessagePageEvenWhenNoCapIsConfigured() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        InstagramHistoryClient client = new InstagramHistoryClient(META, HistoryImportProperties.defaults(), builder);
+        server.expect(requestTo(org.hamcrest.Matchers.startsWith("https://graph.instagram.com/v27.0/ig-1/conversations")))
+                .andExpect(request -> {
+                    String query = java.net.URLDecoder.decode(request.getURI().getRawQuery(),
+                            java.nio.charset.StandardCharsets.UTF_8);
+                    assertTrue(query.contains("messages.limit(50)"), query);
+                })
+                .andRespond(withSuccess("{\"data\":[]}", MediaType.APPLICATION_JSON));
+
+        client.conversations("ig-1", "ig-token").forEachRemaining(conversation -> { });
+
+        server.verify();
+    }
+
     @Nested
     class SharedPosts {
 

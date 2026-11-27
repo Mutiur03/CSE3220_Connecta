@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
@@ -216,6 +217,21 @@ class HistoryImportServiceTests {
 
             assertTrue(service(limits(50, 1000)).importHistory(Channel.MESSENGER, pageRowId)
                     .orElseThrow().truncated());
+        }
+
+        @Test
+        void withNoCapsConfiguredEveryConversationIsImportedAndNothingIsTruncated() {
+            history(IntStream.range(0, 120)
+                    .mapToObj(i -> conversation("c" + i, null, false, "m" + i))
+                    .toArray(HistoryConversation[]::new));
+            when(inbox.importHistorical(any(), any())).thenReturn(HistoryMessageOutcome.INSERTED);
+
+            HistoryImportResult result = service(HistoryImportProperties.defaults())
+                    .importHistory(Channel.MESSENGER, pageRowId).orElseThrow();
+
+            assertEquals(120, result.conversations());
+            assertEquals(120, result.messagesInserted());
+            assertFalse(result.truncated());
         }
 
         @Test
