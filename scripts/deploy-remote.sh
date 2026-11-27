@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploys one image tag on the VPS. The GitHub workflow runs it over SSH; you can run it by hand too:
 #   cd /opt/connecta && ./deploy-remote.sh <tag>        (tag = commit SHA from GHCR, or "latest")
-# Expects next to it: docker-compose.prod.yml, Caddyfile, .env (see deploy/.env.production.example), and a
+# Expects next to it: docker-compose.prod.yml, Caddyfile, .env (+ docker-compose.monitoring.yml when MONITORING_ENABLED=true) (see deploy/.env.production.example), and a
 # docker login to ghcr.io when the images are private.
 # Flow: pull -> up -d -> wait for the backend to be healthy -> remember the tag. On a failed health check it
 # starts the previous tag again and exits 1. The first deploy has no previous tag, so it only reports failure.
@@ -13,6 +13,10 @@ cd "$(dirname "$0")"
 
 STATE_FILE=.last-good-tag
 COMPOSE=(docker compose --env-file .env -f docker-compose.prod.yml)
+# Monitoring (Prometheus, Grafana, node-exporter) is an optional second compose file, switched on in .env.
+if [ -f docker-compose.monitoring.yml ] && grep -qx 'MONITORING_ENABLED=true' .env; then
+  COMPOSE+=(-f docker-compose.monitoring.yml)
+fi
 
 PREVIOUS=""
 [ -f "$STATE_FILE" ] && PREVIOUS="$(cat "$STATE_FILE")"

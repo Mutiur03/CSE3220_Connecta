@@ -11,16 +11,17 @@ Internet -> Caddy (80/443, automatic HTTPS) -> frontend :3000   (APP_DOMAIN)
 app -> postgres :5432, minio :9000   (compose network "connecta"; only Caddy publishes ports)
 ```
 
-Files: `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.production.example`, `scripts/vps-bootstrap.sh`,
-`scripts/deploy-remote.sh`, `.github/workflows/deploy.yml`.
+Files: `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`, `deploy/.env.production.example`,
+`scripts/deploy-remote.sh`, `.github/workflows/deploy.yml`, plus `deploy/docker-compose.monitoring.yml`,
+`scripts/backup-postgres.sh` and `scripts/restore-postgres.sh`. Running the server afterwards (logs, monitoring, backups, restore
+drill, secrets, disk, runbook): [operations.md](operations.md).
 
 ## What is manual (nothing here is done by CI)
 - Renting the VPS, the domain and DNS records.
-- Running the bootstrap script once and writing the `.env` file on the server.
+- Preparing the server (prerequisites below) and writing the `.env` file on it.
 - Adding the GitHub secrets and variables below.
 - Registering the Meta webhook and OAuth redirect URLs with the production hostnames.
-- Backups of PostgreSQL and MinIO (not automated yet, see "Backups").
-- Prometheus and Grafana come later (DEVOPS-02).
+- Optional monitoring (`MONITORING_ENABLED=true`) and an off-server copy of the backups, see [operations.md](operations.md).
 
 Not verified yet: the whole chain was written without a real VPS. Expect to fix small things on the first real deploy.
 
@@ -31,21 +32,21 @@ Three records (A, plus AAAA if the VPS has IPv6) to the VPS address. Names are y
 |---|---|
 | `app.example.com` | web app (`APP_DOMAIN`) |
 | `api.example.com` | backend API, WebSocket and Meta webhook (`API_DOMAIN`) |
-| `files.example.com` | product images from MinIO (`FILES_DOMAIN`) |
+| `cdn.example.com` | product images from MinIO (`FILES_DOMAIN`; the name is only a convention) |
+
+Cloudflare proxying (orange cloud) in front of `cdn.<domain>` is an optional later step for caching; start with plain DNS so Caddy can get its certificate.
 
 DNS must resolve before the first start, otherwise Caddy cannot get certificates (it retries, so it recovers once DNS is right).
 
-## 2. Prepare the server
-1. Create the VPS, log in as root over SSH.
-2. Make a key pair for GitHub Actions on your own machine (no passphrase): `ssh-keygen -t ed25519 -f connecta-deploy -C github-actions`.
-3. Copy `scripts/vps-bootstrap.sh` to the server and run it:
-   ```bash
-   sudo DEPLOY_USER=deploy DEPLOY_PUBKEY="$(cat connecta-deploy.pub)" bash vps-bootstrap.sh
-   ```
-   It installs Docker and the compose plugin, creates the `deploy` user, opens only ports 22, 80 and 443 in ufw, enables unattended
-   security upgrades and fail2ban, and creates `/opt/connecta`. It is safe to run again.
-4. In a second terminal confirm `ssh -i connecta-deploy deploy@<host>` works before closing the root session.
-5. Create the env file as the deploy user:
+## 2. Server prerequisites (done by you)
+- Ubuntu 22.04 or 24.04 with Docker and the compose plugin (`docker compose version` works).
+- A non-root deploy user in the `docker` group (root-equivalent: treat its key like a root key), with the GitHub Actions public key in
+  `~/.ssh/authorized_keys`. Make the key pair on your machine: `ssh-keygen -t ed25519 -f connecta-deploy -C github-actions`.
+- Ports 22, 80 and 443 (tcp, and 443 udp for HTTP/3) open in the firewall. Nothing else needs to be public.
+- `/opt/connecta` (or your `VPS_DIR`) exists and is writable by the deploy user.
+- Confirm `ssh -i connecta-deploy deploy@<host>` works.
+
+Then create the env file as the deploy user:
    ```bash
    scp deploy/.env.production.example deploy@<host>:/opt/connecta/.env
    ssh deploy@<host> "chmod 600 /opt/connecta/.env && nano /opt/connecta/.env"
@@ -84,6 +85,14 @@ Merge to `main` (the release PR). `deploy.yml` then:
 
 First deploy: the database starts empty. Open `https://<APP_DOMAIN>/setup` to create the owner account.
 
+## Deploy on request
+`deploy.yml` also has `workflow_dispatch`, so any branch can be deployed without merging:
+```bash
+gh workflow run deploy.yml --ref <branch>
+```
+It runs the same tests, builds images tagged with that commit's SHA and deploys that tag (the `latest` tag is only moved on `main`).
+A deploy of a branch replaces what `main` deployed; deploy `main` again to go back.
+
 ## 5. Roll back
 Automatic: if the backend is not healthy in time, `deploy-remote.sh` starts the previous tag again and the job fails.
 The first deploy has no previous tag. Flyway migrations are not reverted: write migrations so the previous image still works
@@ -110,8 +119,4 @@ Logs rotate (3 files of 10 MB per container). `/actuator/*` is not reachable fro
 - Behind Caddy the backend trusts `X-Forwarded-*` (`forward-headers-strategy: framework`), so sessions record the client IP.
 
 ## Backups
-Not automated. Minimum until then, run from cron on the server and copy the file off the machine:
-```bash
-docker exec connecta-postgres pg_dump -U connecta connecta | gzip > /opt/connecta/backup-$(date +%F).sql.gz
-```
-The MinIO volume `minio-data` holds product images; the Caddy volume `caddy-data` holds the certificates.
+Not scheduled by the setup. Install the daily job yourself, see "Backups and restore drill" in [operations.md](operations.md).

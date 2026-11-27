@@ -2,6 +2,7 @@ name: deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch: # deploy on request from any ref: gh workflow run deploy.yml --ref <branch>
 # One deploy at a time; a newer push waits instead of cancelling a running deploy.
 concurrency:
   group: deploy
@@ -88,7 +89,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/connecta-backend:${{ github.sha }}
-            ghcr.io/${{ steps.owner.outputs.owner }}/connecta-backend:latest
+            ${{ github.ref == 'refs/heads/main' && format('ghcr.io/{0}/connecta-backend:latest', steps.owner.outputs.owner) || '' }}
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
       - name: Build and push frontend
@@ -101,7 +102,7 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/connecta-frontend:${{ github.sha }}
-            ghcr.io/${{ steps.owner.outputs.owner }}/connecta-frontend:latest
+            ${{ github.ref == 'refs/heads/main' && format('ghcr.io/{0}/connecta-frontend:latest', steps.owner.outputs.owner) || '' }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
 
@@ -139,8 +140,11 @@ jobs:
           } > ~/.ssh/config
       - name: Copy deploy files
         run: |
-          scp deploy/docker-compose.prod.yml deploy/Caddyfile scripts/deploy-remote.sh "vps:$VPS_DIR/"
-          ssh vps "chmod +x '$VPS_DIR/deploy-remote.sh'"
+          scp deploy/docker-compose.prod.yml deploy/docker-compose.monitoring.yml deploy/Caddyfile             scripts/deploy-remote.sh scripts/backup-postgres.sh scripts/restore-postgres.sh "vps:$VPS_DIR/"
+          ssh vps "mkdir -p '$VPS_DIR/prometheus' '$VPS_DIR/grafana/provisioning' && chmod +x '$VPS_DIR'/*.sh"
+          scp ops/prometheus/prometheus.prod.yml ops/prometheus/alerts.yml "vps:$VPS_DIR/prometheus/"
+          scp ops/grafana/connecta-dashboard.json "vps:$VPS_DIR/grafana/"
+          scp -r ops/grafana/provisioning/. "vps:$VPS_DIR/grafana/provisioning/"
       - name: Log the server in to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

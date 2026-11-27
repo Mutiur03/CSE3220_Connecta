@@ -100,6 +100,8 @@ services:
       META_HIDE_VIEW_ONCE: ${META_HIDE_VIEW_ONCE:-false}
       PRESENCE_GRACE_PERIOD: ${PRESENCE_GRACE_PERIOD:-60s}
       PRESENCE_HEARTBEAT_INTERVAL: ${PRESENCE_HEARTBEAT_INTERVAL:-30s}
+      # One JSON object per log line (filter with jq); LOG_FORMAT=ecs switches the JSON dialect.
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ${LOG_FORMAT:-logstash}
     depends_on:
       postgres:
         condition: service_healthy
