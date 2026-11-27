@@ -8,5 +8,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/**/*.fakes.ts", "src/components/form-test-harness.tsx"],
+      reporter: ["text-summary", "html"],
+    },
   },
 });
