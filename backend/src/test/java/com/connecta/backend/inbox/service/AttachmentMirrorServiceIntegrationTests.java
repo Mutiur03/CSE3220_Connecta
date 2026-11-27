@@ -1,6 +1,5 @@
 package com.connecta.backend.inbox.service;
 
-import com.connecta.backend.support.SharedPostgres;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -43,8 +42,13 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
  * The whole copy on real PostgreSQL with a fake downloader and a same-thread mirror executor: a received message is
@@ -53,6 +57,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * the Meta URL and waits for the retry window, and a history import is copied in its own batch. Skipped without
  * Docker. Nothing touches the network.
  */
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude=",
         "spring.jpa.hibernate.ddl-auto=validate",
@@ -60,10 +65,20 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
         "app.public-base-url=https://api.example.com"})
 @Import(TestClock.class)
 @ContextConfiguration(initializers = RandomJwtSecret.class)
-class AttachmentMirrorServiceIntegrationTests extends SharedPostgres {
+class AttachmentMirrorServiceIntegrationTests {
 
     private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 7, 7};
     private static final String PUBLIC_FILES = "https://api.example.com/api/files/";
+
+    @Container
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
 
     @MockitoBean
     MediaDownloader downloader;
@@ -244,8 +259,7 @@ class AttachmentMirrorServiceIntegrationTests extends SharedPostgres {
         assertEquals(0, mirror.mirrorPending(acme.getId()));
         assertEquals(0, mirror.mirrorPending());
         assertTrue(store.pendingOfMessage(acme.getId(), link.getMessage().getId()).isEmpty());
-        // Only this post: the global sweep above also copies pending images of other tests in the shared database.
-        verify(downloader, never()).download(post);
+        verify(downloader, never()).download(anyString());
     }
 
     @Test
