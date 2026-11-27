@@ -3,7 +3,7 @@ import type {
   MemberAvailability,
 } from "@/lib/assignment-api";
 import type { Page } from "@/lib/org-api";
-import { formatDateTime } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import { historyLine } from "@/lib/assignment-view";
 import type { OrgActionState } from "@/lib/org-actions";
 import AssignConversationForm from "./assign-conversation-form";
@@ -58,12 +58,11 @@ export default function AssignmentPanel({
                   className="flex flex-wrap justify-between gap-x-4 py-2"
                 >
                   <span>{historyLine(record)}</span>
-                  <time
-                    dateTime={record.createdAt}
+                  <LocalTime
+                    iso={record.createdAt}
+                    kind="dateTime"
                     className="figure text-caption text-secondary"
-                  >
-                    {formatDateTime(record.createdAt)}
-                  </time>
+                  />
                 </li>
               ))}
             </ul>

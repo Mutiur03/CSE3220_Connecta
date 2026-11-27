@@ -1,5 +1,12 @@
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en", { dateStyle: "medium" });
+/**
+ * The three clock-aware formatters take a time zone. Left out, they use the one of the machine they run on, which
+ * is the reader's in the browser and the server's (UTC) on the server; see LocalTime for how a page gets the first.
+ */
+export function formatDate(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleDateString("en", {
+    dateStyle: "medium",
+    timeZone,
+  });
 }
 
 /** A PENDING invitation whose expiry has passed can no longer be accepted, so it reads as expired. */
@@ -19,16 +26,20 @@ export function formatPrice(value: number): string {
 }
 
 /** A movement's time for a history table: date and clock time in the reader's locale. */
-export function formatDateTime(iso: string): string {
+export function formatDateTime(iso: string, timeZone?: string): string {
   return new Date(iso).toLocaleString("en", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone,
   });
 }
 
 /** Clock time only, for a message whose day is already shown above it. */
-export function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en", { timeStyle: "short" });
+export function formatTime(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleTimeString("en", {
+    timeStyle: "short",
+    timeZone,
+  });
 }
 
 const MINUTE_MS = 60_000;

@@ -5,7 +5,7 @@ import CategoryForm from "@/components/category-form";
 import { updateCategory } from "@/lib/category-actions";
 import { getCategory } from "@/lib/category-api";
 import { canManageCategories } from "@/lib/category-permissions";
-import { formatDate } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { isUuid } from "@/lib/org-validation";
 import {
   loadOrganization,
@@ -46,8 +46,8 @@ export default async function EditCategoryPage({
           Edit {category.name}
         </h1>
         <p className="figure text-caption text-secondary">
-          Created {formatDate(category.createdAt)}, updated{" "}
-          {formatDate(category.updatedAt)}
+          Created <LocalTime iso={category.createdAt} kind="date" />, updated{" "}
+          <LocalTime iso={category.updatedAt} kind="date" />
         </p>
       </header>
       <CategoryForm

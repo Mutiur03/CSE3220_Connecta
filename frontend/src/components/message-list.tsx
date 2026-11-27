@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { Attachment, Message } from "@/lib/inbox-api";
-import { formatDateTime, formatTime } from "@/lib/format";
 import { groupThread, readingOrder } from "@/lib/inbox-view";
 import { FileIcon, InstagramIcon } from "./icons";
+import { LocalTime, LocalTitled } from "./local-time";
 import MessageMedia from "./message-media";
 
 type Props = {
@@ -212,9 +212,9 @@ export default function MessageList({
                   }`}
                 >
                   {group.messages.map((message) => (
-                    <div
+                    <LocalTitled
                       key={message.id}
-                      title={formatDateTime(message.sentAt)}
+                      iso={message.sentAt}
                       className={bubbleClass(group.outbound, message === last)}
                     >
                       {message.attachments.map((attachment) => (
@@ -228,15 +228,17 @@ export default function MessageList({
                         />
                       ))}
                       {caption(message, appName)}
-                    </div>
+                    </LocalTitled>
                   ))}
                   <p className="mt-1 flex gap-2 text-caption text-secondary">
                     {group.outbound && group.senderName && (
                       <span>{group.senderName}</span>
                     )}
-                    <time dateTime={last.sentAt} className="figure">
-                      {formatTime(last.sentAt)}
-                    </time>
+                    <LocalTime
+                      iso={last.sentAt}
+                      kind="time"
+                      className="figure"
+                    />
                   </p>
                 </li>
               );

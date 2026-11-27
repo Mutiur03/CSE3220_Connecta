@@ -1,6 +1,6 @@
 import { changeMemberRole, removeMember } from "@/lib/org-actions";
 import type { Member } from "@/lib/org-api";
-import { formatDate } from "@/lib/format";
+import { LocalTime } from "./local-time";
 import {
   assignableRoles,
   canManageMember,
@@ -130,7 +130,7 @@ function MemberRow(props: RowProps) {
       {/* Fixed columns from sm up, so date, role and action line up from row to row. */}
       <div className={ROW_COLUMNS}>
         <span className="figure text-caption text-secondary sm:justify-self-end">
-          Joined {formatDate(member.joinedAt)}
+          Joined <LocalTime iso={member.joinedAt} kind="date" />
         </span>
         <div className="flex justify-center">
           <RoleControl {...props} />
