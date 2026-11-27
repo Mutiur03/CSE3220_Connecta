@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
+  type ComponentProps,
   type DragEvent,
   type KeyboardEvent,
 } from "react";
@@ -20,6 +21,7 @@ import EmojiPicker from "./emoji-picker";
 import { Alert } from "./ui/alert";
 import { MicrophoneIcon, PaperclipIcon, SendIcon } from "./icons";
 import { Button, PendingLabel } from "./ui/button";
+import ProductShareDialog from "./product-share-dialog";
 import { useVoiceRecorder } from "./use-voice-recorder";
 
 type Action = (
@@ -34,6 +36,11 @@ type Props = {
   attachAction: Action;
   /** Who the reply goes to and where, e.g. "Nadia Rahman on Messenger"; shown as the placeholder. */
   recipient?: string;
+  /** The product picker's three server actions. Without it the composer has no share button. */
+  productShare?: Pick<
+    ComponentProps<typeof ProductShareDialog>,
+    "search" | "preview" | "send"
+  >;
 };
 
 /** Show the remaining characters only when the limit is near. */
@@ -70,6 +77,7 @@ export default function ReplyComposer({
   action,
   attachAction,
   recipient,
+  productShare,
 }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
@@ -346,6 +354,7 @@ export default function ReplyComposer({
                 onPick={insertEmoji}
                 onDismiss={() => boxRef.current?.focus()}
               />
+              {productShare && <ProductShareDialog {...productShare} />}
             </fieldset>
             {voice.supported && (
               <button

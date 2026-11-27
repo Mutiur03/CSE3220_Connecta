@@ -12,6 +12,11 @@ import MessageList from "@/components/message-list";
 import OrgActionButton from "@/components/org-action-button";
 import RealtimeInboxRefresher from "@/components/realtime-inbox-refresher";
 import ReplyComposer from "@/components/reply-composer";
+import {
+  previewProductShareAction,
+  searchShareProductsAction,
+  sendProductShareAction,
+} from "@/lib/product-share-actions";
 import { Badge } from "@/components/ui/badge";
 import { assignConversationAction } from "@/lib/assignment-actions";
 import { assigneeBadgeLabel } from "@/lib/assignment-view";
@@ -213,6 +218,11 @@ export default async function ConversationPage({
           <ReplyComposer
             action={sendMessageAction.bind(null, id, conversationId)}
             attachAction={sendAttachmentAction.bind(null, id, conversationId)}
+            productShare={{
+              search: searchShareProductsAction.bind(null, id, conversationId),
+              preview: previewProductShareAction.bind(null, id, conversationId),
+              send: sendProductShareAction.bind(null, id, conversationId),
+            }}
             recipient={`${participantsLabel(conversation.participants)} on ${INBOX_CHANNEL_LABELS[conversation.channel]}`}
           />
         </div>
