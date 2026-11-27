@@ -91,3 +91,26 @@ or above 90% line coverage in their service packages. Every exception handler ha
 - Network adapters (`GraphHistoryClient`, `GraphMessagingClient`, `HttpMediaDownloader`, `MaxMindIpLocator`)
   are tested against stubs; their raw transport code is not.
 - Entity `equals`/`hashCode` branches in domain packages, which explains their lower branch figures.
+
+## Tenant isolation matrix
+
+`org.service.TenantAccessMatrixIntegrationTests` (Testcontainers PostgreSQL, Meta stubbed) proves the access
+rules for every endpoint under `/api/organizations/**` and `/api/admin/**`: one table row per endpoint (56 rows).
+
+| Caller | Expected |
+|---|---|
+| No token | 401 |
+| Member of another organization (ADMIN or AGENT) | 404 under the other organization's id, and 404 under their own id with this organization's resource ids. Never 403, never data |
+| AGENT on an ADMIN row | 403 (tried as a global AGENT and as a global ADMIN with an AGENT membership); the organization's ADMIN succeeds |
+| AGENT on a MEMBER row | succeeds |
+| ADMIN or AGENT on an OWNER-only `/api/admin/**` row | 403; the OWNER succeeds |
+
+A guard test reads `RequestMappingHandlerMapping` and fails, listing them, when a mapped endpoint has no row (or a
+row has no endpoint). A new endpoint therefore cannot ship without a rule: add a row to `ROWS` (method, path with
+`{org} {conv} {product} {category} {member} {invitation} {image} {movement} {user}`, access
+MEMBER/ADMIN/GLOBAL/OWNER, success status, body).
+
+Notes: an AGENT may delete their own membership (leave the organization), so member rows act on a separate
+colleague's membership. Rows that need Meta only assert the request gets past the auth checks, because Meta is
+not configured in tests. WebSocket tickets are issued only to members (matrix row
+`POST .../realtime/tickets`), and `InboxWebSocketIntegrationTests` shows events reach only their own organization.
