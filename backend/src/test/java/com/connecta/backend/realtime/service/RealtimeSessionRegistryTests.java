@@ -280,5 +280,31 @@ class RealtimeSessionRegistryTests {
 
             verify(a).sendMessage(new TextMessage("pong"));
         }
+
+        @Test
+        void sendToAnUnknownSessionDoesNothing() {
+            registry.sendTo("ghost", "pong");
+
+            verify(events, never()).publishEvent(any(Object.class));
+        }
+
+        @Test
+        void touchOfAnUnknownSessionIsIgnored() {
+            registry.touch("ghost");
+
+            assertThat(registry.count(orgA)).isZero();
+        }
+
+        @Test
+        void aSessionThatFailsToCloseWhileBeingDroppedIsStillForgotten() throws IOException {
+            WebSocketSession a = session("a");
+            doThrow(new IOException("send failed")).when(a).sendMessage(any(TextMessage.class));
+            doThrow(new IOException("already closed")).when(a).close(any(CloseStatus.class));
+            registry.register(a, orgA, UUID.randomUUID());
+
+            registry.broadcast(orgA, "x");
+
+            assertThat(registry.count(orgA)).isZero();
+        }
     }
 }

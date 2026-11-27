@@ -171,6 +171,26 @@ class MemberServiceTests {
         }
 
         @Test
+        void anAdminCannotPromoteAnyoneAboveTheirOwnRole() {
+            callerIs(Roles.ADMIN);
+            Membership target = memberWith(Roles.AGENT);
+
+            assertThrows(InsufficientOrganizationRoleException.class,
+                    () -> service.changeRole(subject, organizationId, target.getId(), Roles.OWNER));
+            assertEquals(Roles.AGENT, target.getRole().getName());
+        }
+
+        @Test
+        void anAdminCannotChangeTheRoleOfSomeoneAboveThem() {
+            callerIs(Roles.ADMIN);
+            Membership target = memberWith(Roles.OWNER);
+
+            assertThrows(InsufficientOrganizationRoleException.class,
+                    () -> service.changeRole(subject, organizationId, target.getId(), Roles.AGENT));
+            assertEquals(Roles.OWNER, target.getRole().getName());
+        }
+
+        @Test
         void anAgentCannotChangeRolesAndTheMemberIsNotLoaded() {
             callerIs(Roles.AGENT);
 
@@ -260,6 +280,16 @@ class MemberServiceTests {
             service.remove(subject, organizationId, target.getId());
 
             verify(memberships).delete(target);
+        }
+
+        @Test
+        void anAdminCannotRemoveSomeoneAboveThem() {
+            callerIs(Roles.ADMIN);
+            Membership target = memberWith(Roles.OWNER);
+
+            assertThrows(InsufficientOrganizationRoleException.class,
+                    () -> service.remove(subject, organizationId, target.getId()));
+            verify(memberships, never()).delete(any(Membership.class));
         }
 
         @Test
