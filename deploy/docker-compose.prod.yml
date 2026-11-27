@@ -1,0 +1,174 @@
+# Production stack for the VPS. Images come from GHCR (built by .github/workflows/deploy.yml); the server only pulls.
+# Every setting comes from the env file next to this file (copy .env.production.example to .env, never commit it).
+# Run by hand:  docker compose --env-file .env -f docker-compose.prod.yml up -d
+# Only Caddy publishes ports (80, 443). Every other service is reachable only on the "connecta" network.
+# Local dev uses the compose file at the repo root instead; this one is not meant for a laptop.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: connecta-caddy
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN}
+      FILES_DOMAIN: ${FILES_DOMAIN:?set FILES_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+      S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    depends_on:
+      frontend:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [connecta]
+    logging: *logging
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/connecta-frontend:${IMAGE_TAG:?set IMAGE_TAG}
+    container_name: connecta-frontend
+    restart: unless-stopped
+    environment:
+      # Server-side calls reach the backend over the compose network; the browser uses NEXT_PUBLIC_API_URL, which
+      # is baked into the image at build time (CI build arg, see deploy.yml), not read from here.
+      API_URL: http://app:8080
+    depends_on:
+      app:
+        condition: service_healthy
+    networks: [connecta]
+    logging: *logging
+
+  app:
+    image: ghcr.io/${GHCR_OWNER}/connecta-backend:${IMAGE_TAG}
+    container_name: connecta-app
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?set POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      SPRING_FLYWAY_ENABLED: "true"
+      SWAGGER_ENABLED: "false"
+      S3_REQUIRED: "true"
+      GEOIP_DB_PATH: /opt/geoip/GeoLite2-City.mmdb
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      META_TOKEN_KEY: ${META_TOKEN_KEY:?set META_TOKEN_KEY}
+      # Derived from the three domains so they cannot drift apart.
+      CORS_ALLOWED_ORIGINS: https://${APP_DOMAIN}
+      FRONTEND_URL: https://${APP_DOMAIN}
+      APP_BASE_URL: https://${API_DOMAIN}
+      PUBLIC_BASE_URL: https://${API_DOMAIN}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+      S3_PATH_STYLE_ACCESS: "true"
+      S3_PUBLIC_BASE_URL: https://${FILES_DOMAIN}
+      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      META_APP_ID: ${META_APP_ID:-}
+      META_APP_SECRET: ${META_APP_SECRET:-}
+      META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-}
+      META_MESSENGER_CONFIG_ID: ${META_MESSENGER_CONFIG_ID:-}
+      META_INSTAGRAM_APP_ID: ${META_INSTAGRAM_APP_ID:-}
+      META_INSTAGRAM_APP_SECRET: ${META_INSTAGRAM_APP_SECRET:-}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
+      META_HIDE_VIEW_ONCE: ${META_HIDE_VIEW_ONCE:-false}
+      PRESENCE_GRACE_PERIOD: ${PRESENCE_GRACE_PERIOD:-60s}
+      PRESENCE_HEARTBEAT_INTERVAL: ${PRESENCE_HEARTBEAT_INTERVAL:-30s}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks: [connecta]
+    logging: *logging
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: connecta-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [connecta]
+    logging: *logging
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: connecta-minio
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [connecta]
+    logging: *logging
+
+  # One-shot: creates the bucket and makes its objects publicly readable (product images are served by URL).
+  minio-init:
+    image: minio/mc:RELEASE.2024-11-21T17-21-54Z
+    container_name: connecta-minio-init
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET}
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$S3_BUCKET &&
+      mc anonymous set download local/$$S3_BUCKET"
+    networks: [connecta]
+    logging: *logging
+
+networks:
+  connecta:
+
+volumes:
+  postgres-data:
+  minio-data:
+  caddy-data:
+  caddy-config:
