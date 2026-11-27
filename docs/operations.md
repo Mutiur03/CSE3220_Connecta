@@ -8,7 +8,7 @@ All commands run on the server in `/opt/connecta` as the `deploy` user. Shorthan
 ```bash
 cd /opt/connecta
 DC="docker compose --env-file .env -f docker-compose.prod.yml"
-# with monitoring enabled add:  -f docker-compose.monitoring.yml
+# with monitoring running add:  -f docker-compose.monitoring.yml
 ```
 
 ## Health and status
@@ -39,9 +39,11 @@ correlate by time and logger name. Logs must carry no personal data or secrets; 
 Optional stack in `deploy/docker-compose.monitoring.yml`: Prometheus (15 days or 2 GB of data), Grafana and node-exporter,
 all on the internal network, data on the named volumes `prometheus-data` and `grafana-data`.
 
-Turn it on: in `.env` set `MONITORING_ENABLED=true`, `METRICS_SCRAPE_TOKEN` (`openssl rand -base64 32`) and
-`GRAFANA_ADMIN_PASSWORD`, then run `./deploy-remote.sh <tag>` (or push to `main`). `deploy-remote.sh` adds the second compose
-file only when that flag is `true`. Turn it off by setting it to `false` and removing the containers:
+It is set up by hand on the server; the deploy workflow does not touch it. Copy `deploy/docker-compose.monitoring.yml` next to the
+main compose file, and `ops/prometheus/prometheus.prod.yml`, `ops/prometheus/alerts.yml` and `ops/grafana/` to the matching
+`prometheus/` and `grafana/` folders. In `.env` set `METRICS_SCRAPE_TOKEN` (`openssl rand -base64 32`) and
+`GRAFANA_ADMIN_PASSWORD`, then start it with
+`docker compose --env-file .env -f docker-compose.prod.yml -f docker-compose.monitoring.yml up -d`. Stop it with
 `docker rm -f connecta-prometheus connecta-grafana connecta-node-exporter` (data volumes stay).
 
 How the backend is scraped: Prometheus calls `app:8080/actuator/prometheus` over the compose network with the header
@@ -92,14 +94,14 @@ Host metrics come from node-exporter (CPU, memory, disk). It runs on the compose
 container's, not the host's.
 
 ## Deploy and roll back
-Deploy: merge to `main` (see deployment.md section 4) or by hand `./deploy-remote.sh <sha>`.
-Roll back: `./deploy-remote.sh <older-sha>` (tags in GHCR; `cat .last-good-tag` is the last healthy one). Automatic rollback happens
-when the new backend is not healthy within 240 s.
+Deploy: merge to `main` (see deployment.md section 4) or on request with `gh workflow run deploy.yml --ref <branch>`.
+Roll back: run the workflow on an older commit whose images are in GHCR. There is no automatic rollback; check
+`docker compose ps` and the logs after a deploy.
 
 Flyway caveat: migrations only go forward. A rollback starts the old image against the already migrated database. That works only if
 the new migration was additive (new nullable column, new table). A migration that dropped or renamed something cannot be rolled back
-by swapping images: fix forward with a new migration, or restore the database from a backup taken before the deploy (below), which
-loses data written since. Take a manual backup (`./backup-postgres.sh`) before deploying a risky migration.
+by swapping images: fix forward with a new migration. There is no automated database backup in this setup, so review risky
+migrations before deploying them.
 
 ## Restart one service
 ```bash
@@ -131,37 +133,19 @@ docker builder prune -af
 journalctl --vacuum-size=200M
 du -sh /var/lib/docker/volumes/* | sort -h | tail
 ```
-Container logs are capped (30 MB per container). Backups in `BACKUP_DIR` are the usual culprit after the databases; lower
-`BACKUP_RETENTION_DAYS`. Never `docker volume prune` while a service is stopped: it deletes that service's data.
+Container logs are capped (30 MB per container). Never `docker volume prune` while a service is stopped: it deletes that service's data.
 
 ## Backend unhealthy
 1. `$DC ps` and `$DC logs --tail 200 app`.
 2. Database down or still starting: `docker inspect -f '{{.State.Health.Status}}' connecta-postgres`.
 3. Flyway failure on start shows as a migration error in the log. Do not edit the failed migration; roll back the image
-   (`./deploy-remote.sh <older-sha>`) if the schema is unchanged, otherwise fix forward.
+   (deploy an older commit with the workflow) if the schema is unchanged, otherwise fix forward.
 4. Out of memory: `docker stats --no-stream`, `dmesg | grep -i oom`.
 5. `$DC restart app` as a last step, not the first.
 
-## Backups and restore drill
-Database: `scripts/backup-postgres.sh` runs `pg_dump -Fc` inside `connecta-postgres`, writes
-`$BACKUP_DIR/<db>-<UTC timestamp>.dump` (mode 700 directory), deletes dumps older than `BACKUP_RETENTION_DAYS` (default 14) and exits
-non-zero on any failure. Install the schedule yourself (the deploy workflow only copies the script), as the deploy user with `crontab -e`:
-```
-30 2 * * * /bin/bash /opt/connecta/backup-postgres.sh >> /opt/connecta/backup.log 2>&1
-```
-A systemd timer works equally well. Off-server copy (a backup on the same disk is not a backup): set `BACKUP_RSYNC_TARGET`
-(`user@host:/dir`) or `BACKUP_MC_TARGET` (an `mc` alias path such as `offsite/connecta-backups`; install the `mc` client and run
-`mc alias set offsite ...` as the deploy user first). If the off-server copy fails the script exits non-zero after the local dump exists.
-
-Restore drill (do it once now and after big changes), into a scratch database, production untouched:
-```bash
-./restore-postgres.sh backups/connecta-<timestamp>.dump        # creates connecta_restore_test
-docker exec connecta-postgres psql -U "$POSTGRES_USER" -d connecta_restore_test -c 'select count(*) from organizations'
-docker exec connecta-postgres psql -U "$POSTGRES_USER" -d postgres -c 'DROP DATABASE connecta_restore_test'
-```
-Real recovery over the live database: stop `app` and `frontend`, run
-`./restore-postgres.sh backups/<file> "$POSTGRES_DB" --force-production`, start them again. Without `--force-production` the script
-refuses to touch the production database name.
+## Data safety
+There is no automated PostgreSQL backup or restore tooling in this setup (a deliberate decision). Snapshot the VPS with your
+provider if you need recovery.
 
 MinIO (product images, volume `minio-data`) is not covered by `pg_dump`. Copy it with the mc client, for example
 `docker run --rm --network connecta_connecta -v /opt/connecta/backups/minio:/out --entrypoint sh minio/mc:RELEASE.2024-11-21T17-21-54Z -c 'mc alias set l http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" && mc mirror l/$S3_BUCKET /out'`

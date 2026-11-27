@@ -115,7 +115,6 @@ jobs:
       VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
       VPS_DIR: ${{ vars.VPS_DIR || '/opt/connecta' }}
     steps:
-      - uses: actions/checkout@v4
       - name: Set up SSH
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
@@ -138,17 +137,9 @@ jobs:
             echo "  IdentityFile ~/.ssh/id_deploy"
             echo "  IdentitiesOnly yes"
           } > ~/.ssh/config
-      - name: Copy deploy files
-        run: |
-          scp deploy/docker-compose.prod.yml deploy/docker-compose.monitoring.yml deploy/Caddyfile             scripts/deploy-remote.sh scripts/backup-postgres.sh scripts/restore-postgres.sh "vps:$VPS_DIR/"
-          ssh vps "mkdir -p '$VPS_DIR/prometheus' '$VPS_DIR/grafana/provisioning' && chmod +x '$VPS_DIR'/*.sh"
-          scp ops/prometheus/prometheus.prod.yml ops/prometheus/alerts.yml "vps:$VPS_DIR/prometheus/"
-          scp ops/grafana/connecta-dashboard.json "vps:$VPS_DIR/grafana/"
-          scp -r ops/grafana/provisioning/. "vps:$VPS_DIR/grafana/provisioning/"
-      - name: Log the server in to GHCR
+      # The server already has docker-compose.prod.yml and .env (set up by hand). This only pulls the new tag and restarts.
+      - name: Deploy
         env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USER: ${{ github.actor }}
-        run: printf '%s' "$GHCR_TOKEN" | ssh vps "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
-      - name: Deploy (rolls back to the previous tag when unhealthy)
-        run: ssh vps "cd '$VPS_DIR' && ./deploy-remote.sh '${{ github.sha }}'"
+          TAG: ${{ github.sha }}
+        run: |
+          ssh vps "cd '$VPS_DIR' && export IMAGE_TAG='$TAG' && docker compose --env-file .env -f docker-compose.prod.yml pull && docker compose --env-file .env -f docker-compose.prod.yml up -d --remove-orphans"
