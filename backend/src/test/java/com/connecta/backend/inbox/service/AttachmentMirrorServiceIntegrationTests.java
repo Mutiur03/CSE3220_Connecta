@@ -244,7 +244,8 @@ class AttachmentMirrorServiceIntegrationTests extends SharedPostgres {
         assertEquals(0, mirror.mirrorPending(acme.getId()));
         assertEquals(0, mirror.mirrorPending());
         assertTrue(store.pendingOfMessage(acme.getId(), link.getMessage().getId()).isEmpty());
-        verify(downloader, never()).download(anyString());
+        // Only this post: the global sweep above also copies pending images of other tests in the shared database.
+        verify(downloader, never()).download(post);
     }
 
     @Test
