@@ -138,6 +138,18 @@ describe("ProductShareDialog", () => {
     expect(textarea().value).toBe("Runner shoe, 59.90");
   });
 
+  it("drops an old send failure after Back and choosing again", async () => {
+    await mount(async () => ({ message: "The reply window is closed." }));
+    await click(rowButton());
+    await submit();
+    expect(alertBox()).not.toBeNull();
+    await click(
+      [...dialog().querySelectorAll("button")].find((b) => b.textContent === "Back")!,
+    );
+    await click(rowButton());
+    expect(alertBox()).toBeNull();
+  });
+
   it("shows a search failure as an alert", async () => {
     await mount(async () => ({}), async () => ({ message: "Cannot reach the server." }));
     expect(alertBox()?.textContent).toContain("Cannot reach");

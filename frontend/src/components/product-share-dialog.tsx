@@ -43,6 +43,78 @@ const TRIGGER =
 type Chosen = { candidate: ShareCandidate; preview: ShareProductPreview };
 
 /**
+ * The edit-and-send step. It owns the send action state and is remounted (by key) per chosen product and
+ * per dialog open, so an old failure never shows on a new attempt.
+ */
+function SendStep({
+  chosen,
+  send,
+  onBack,
+  onSent,
+  idPrefix,
+}: {
+  chosen: Chosen;
+  send: Props["send"];
+  onBack: () => void;
+  onSent: () => void;
+  idPrefix: string;
+}) {
+  const [text, setText] = useState(chosen.preview.text);
+  const [state, formAction, sending] = useActionState(
+    async (previous: OrgActionState, formData: FormData) => {
+      const next = await send(previous, formData);
+      if (!next.message && !next.errors) onSent();
+      return next;
+    },
+    {},
+  );
+  return (
+    <form action={formAction} className="flex min-h-0 flex-col gap-3">
+      <input type="hidden" name="productId" value={chosen.candidate.id} />
+      <div className="flex items-center gap-3">
+        {chosen.preview.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin proxy route
+          <img
+            src={chosen.preview.imageUrl}
+            alt={chosen.candidate.name}
+            className="size-16 shrink-0 rounded-control border border-line object-cover"
+          />
+        ) : (
+          <ProductImagePlaceholder size="lg" />
+        )}
+        <p className="min-w-0 text-sm text-secondary">
+          <span className="block truncate font-medium text-primary">
+            {chosen.candidate.name}
+          </span>
+          {chosen.preview.imageUrl
+            ? "The photo is sent first, then this message."
+            : "This product has no photo; only the message is sent."}
+        </p>
+      </div>
+      <TextareaField
+        id={`${idPrefix}-text`}
+        name="text"
+        label="Message"
+        rows={7}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        error={state.errors?.text}
+        disabled={sending}
+      />
+      {alertText(state) && <Alert tone="danger">{alertText(state)}</Alert>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" disabled={sending} onClick={onBack}>
+          Back
+        </Button>
+        <Button type="submit" variant="primary" disabled={sending}>
+          <PendingLabel pending={sending} busy="Sending…" idle="Send" />
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
  * The product picker behind the composer's package button. A native modal dialog (focus trap, Escape,
  * focus back to the button) holds two steps: search and pick a product, then edit the composed message
  * and send it. It renders in a portal because the composer is itself a form.
@@ -59,18 +131,9 @@ export default function ProductShareDialog({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ShareSearchResult>();
   const [chosen, setChosen] = useState<Chosen>();
-  const [text, setText] = useState("");
+  const [openCount, setOpenCount] = useState(0);
   const [lookupError, setLookupError] = useState<string>();
   const [busy, startTransition] = useTransition();
-
-  const [state, formAction, sending] = useActionState(
-    async (previous: OrgActionState, formData: FormData) => {
-      const next = await send(previous, formData);
-      if (!next.message && !next.errors) dialogRef.current?.close();
-      return next;
-    },
-    {},
-  );
 
   const runSearch = (term: string) => {
     const mine = ++requestId.current;
@@ -84,6 +147,7 @@ export default function ProductShareDialog({
   };
 
   const open = () => {
+    setOpenCount((count) => count + 1);
     setQuery("");
     setChosen(undefined);
     setResults(undefined);
@@ -96,7 +160,6 @@ export default function ProductShareDialog({
     startTransition(async () => {
       const found = await preview(candidate.id);
       if (!found.data) return setLookupError(found.message);
-      setText(found.data.text);
       setChosen({ candidate, preview: found.data });
     });
   };
@@ -106,7 +169,7 @@ export default function ProductShareDialog({
     runSearch(query);
   };
 
-  const alert = lookupError ?? alertText(state);
+  const alert = lookupError;
 
   const dialog = (
     <dialog
@@ -122,52 +185,14 @@ export default function ProductShareDialog({
       </h2>
 
       {chosen ? (
-        <form action={formAction} className="flex min-h-0 flex-col gap-3">
-          <input type="hidden" name="productId" value={chosen.candidate.id} />
-          <div className="flex items-center gap-3">
-            {chosen.preview.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin proxy route
-              <img
-                src={chosen.preview.imageUrl}
-                alt={chosen.candidate.name}
-                className="size-16 shrink-0 rounded-control border border-line object-cover"
-              />
-            ) : (
-              <ProductImagePlaceholder size="lg" />
-            )}
-            <p className="min-w-0 text-sm text-secondary">
-              <span className="block truncate font-medium text-primary">
-                {chosen.candidate.name}
-              </span>
-              {chosen.preview.imageUrl
-                ? "The photo is sent first, then this message."
-                : "This product has no photo; only the message is sent."}
-            </p>
-          </div>
-          <TextareaField
-            id={`${id}-text`}
-            name="text"
-            label="Message"
-            rows={7}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            error={state.errors?.text}
-            disabled={sending}
-          />
-          {alert && <Alert tone="danger">{alert}</Alert>}
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              disabled={sending}
-              onClick={() => setChosen(undefined)}
-            >
-              Back
-            </Button>
-            <Button type="submit" variant="primary" disabled={sending}>
-              <PendingLabel pending={sending} busy="Sending…" idle="Send" />
-            </Button>
-          </div>
-        </form>
+        <SendStep
+          key={`${openCount}-${chosen.candidate.id}`}
+          chosen={chosen}
+          send={send}
+          onBack={() => setChosen(undefined)}
+          onSent={() => dialogRef.current?.close()}
+          idPrefix={id}
+        />
       ) : (
         <>
           <form role="search" onSubmit={submitSearch} className="flex gap-2">
@@ -213,7 +238,8 @@ export default function ProductShareDialog({
                       {product.name}
                     </span>
                     <span className="figure block truncate text-caption text-secondary">
-                      {product.sku ?? "No SKU"} · {formatPrice(product.unitPrice)}
+                      {product.sku ?? "No SKU"} ·{" "}
+                      {formatPrice(product.unitPrice)}
                     </span>
                   </span>
                   <StockStatusBadge status={product.stockStatus} />
