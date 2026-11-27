@@ -36,4 +36,12 @@ describe("InboxFilterBar", () => {
     expect(markup).toContain(`href="${LIST}?status=CLOSED"`);
     expect(html({})).not.toContain('name="status"');
   });
+
+  it("keeps the assignee when applied or reset, and counts it as a filter", () => {
+    const markup = html({ assignee: "none", tab: "CLOSED" });
+    expect(markup).toMatch(/type="hidden" name="assignee" value="none"/);
+    expect(markup).toContain("Reset filters");
+    expect(markup).toContain(`href="${LIST}?assignee=none&amp;status=CLOSED"`);
+    expect(html({})).not.toContain('name="assignee"');
+  });
 });

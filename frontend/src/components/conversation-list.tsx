@@ -3,6 +3,7 @@ import type { Conversation } from "@/lib/inbox-api";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import {
   INBOX_CHANNEL_LABELS,
+  heldByOffline,
   participantLabel,
   threadHref,
   type InboxChannel,
@@ -111,6 +112,17 @@ export default function ConversationList({
                   >
                     {conversation.lastMessagePreview ?? NO_MESSAGES}
                   </span>
+                  {conversation.assignee && (
+                    <span className="flex max-w-[40%] shrink-0 items-baseline text-caption text-secondary">
+                      <span className="sr-only">Assigned to </span>
+                      <span className="truncate">
+                        {conversation.assignee.name}
+                      </span>
+                      {heldByOffline(conversation) && (
+                        <span className="shrink-0">{" · offline"}</span>
+                      )}
+                    </span>
+                  )}
                   {filters.tab === "ALL" &&
                     conversation.status === "CLOSED" && (
                       <span className="shrink-0 text-caption text-secondary">

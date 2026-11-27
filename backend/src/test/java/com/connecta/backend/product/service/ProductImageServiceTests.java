@@ -30,6 +30,7 @@ import com.connecta.backend.user.domain.Roles;
 import com.connecta.backend.user.domain.User;
 import com.connecta.backend.user.service.UserService;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -233,6 +234,41 @@ class ProductImageServiceTests {
                     .thenReturn(Optional.empty());
 
             assertThrows(NotAMemberException.class, () -> upload("image/png", ProductImageSamples.PNG));
+        }
+    }
+
+    @Nested
+    class FirstImagePaths {
+
+        @Test
+        void keepsTheFirstImageOfEachProductFromOneQuery() {
+            callerIs(Roles.AGENT);
+            ProductImage first = image("a", "image/png", 0);
+            ProductImage second = image("b", "image/png", 1);
+            when(images.findByProductIdInAndOrganizationIdOrderByPositionAscIdAsc(List.of(product.getId()),
+                    organizationId)).thenReturn(List.of(first, second));
+
+            Map<UUID, String> paths = service.firstImagePaths(subject, organizationId, List.of(product.getId()));
+
+            assertEquals(Map.of(product.getId(), "/api/organizations/" + organizationId + "/products/"
+                    + product.getId() + "/images/" + first.getId() + "/content"), paths);
+        }
+
+        @Test
+        void noProductsMeansNoQuery() {
+            callerIs(Roles.AGENT);
+
+            assertEquals(Map.of(), service.firstImagePaths(subject, organizationId, List.of()));
+            verify(images, never()).findByProductIdInAndOrganizationIdOrderByPositionAscIdAsc(any(), any());
+        }
+
+        @Test
+        void aNonMemberGetsNotAMember() {
+            when(memberships.findByOrganizationIdAndUserId(organizationId, caller.getId()))
+                    .thenReturn(Optional.empty());
+
+            assertThrows(NotAMemberException.class,
+                    () -> service.firstImagePaths(subject, organizationId, List.of(product.getId())));
         }
     }
 

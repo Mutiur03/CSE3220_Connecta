@@ -3,13 +3,20 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { INBOX_CHANNEL_LABELS, participantLabel } from "@/lib/inbox-view";
 import Avatar from "./avatar";
 
-type Props = { conversation: ConversationDetail };
+type Props = {
+  conversation: ConversationDetail;
+  /** Admin only: replaces the plain assignee name with the control that changes it. */
+  assignmentControl?: React.ReactNode;
+};
 
 /**
  * The right pane from 1280px: who the customer is and where the conversation stands. Rows and a definition
  * list, no cards. Hidden below that width; the thread header already carries the name, channel and status.
  */
-export default function ContactDetailsPane({ conversation }: Props) {
+export default function ContactDetailsPane({
+  conversation,
+  assignmentControl,
+}: Props) {
   const [customer, ...others] = conversation.participants;
   const name = customer?.displayName ?? null;
   const facts: { term: string; value: React.ReactNode }[] = [
@@ -17,6 +24,10 @@ export default function ContactDetailsPane({ conversation }: Props) {
     {
       term: "Status",
       value: conversation.status === "CLOSED" ? "Closed" : "Open",
+    },
+    {
+      term: "Assignee",
+      value: assignmentControl ?? conversation.assignee?.name ?? "Unassigned",
     },
     {
       term: "First contact",

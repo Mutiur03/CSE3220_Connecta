@@ -1,0 +1,23 @@
+# Production Prometheus (deploy/docker-compose.monitoring.yml). Targets are compose service names on the internal network.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+# No Alertmanager is wired: alerts are evaluated and visible in the Prometheus UI and in Grafana, nothing is sent.
+scrape_configs:
+  - job_name: connecta-backend
+    metrics_path: /actuator/prometheus
+    # The backend accepts this shared secret (METRICS_SCRAPE_TOKEN) on /actuator/prometheus. The monitoring compose
+    # file writes it to this file from the environment at start, so it is never committed.
+    http_headers:
+      X-Scrape-Token:
+        files: [/tmp/scrape-token]
+    static_configs:
+      - targets: ["app:8080"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]

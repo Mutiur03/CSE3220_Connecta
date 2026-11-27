@@ -1,0 +1,33 @@
+# Alert rules. Nothing sends them yet (no Alertmanager): read them in the Prometheus UI or Grafana.
+groups:
+  - name: connecta
+    rules:
+      - alert: BackendDown
+        expr: up{job="connecta-backend"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: Backend is not scrapeable for 2 minutes (down, restarting or the scrape token is wrong).
+
+      - alert: HighServerErrorRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            / sum(rate(http_server_requests_seconds_count[5m])) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: More than 5 percent of requests answered with 5xx for 5 minutes.
+
+      - alert: DbPoolSaturated
+        expr: hikaricp_connections_active / hikaricp_connections_max > 0.9
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: Over 90 percent of the database connection pool in use for 5 minutes.
+
+      - alert: DiskAlmostFull
+        expr: 1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} > 0.85
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: Root disk over 85 percent full (Docker images, logs, database and MinIO data all live on it).

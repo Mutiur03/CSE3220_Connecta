@@ -21,4 +21,11 @@ describe("InboxStatusTabs", () => {
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
     expect(markup).toMatch(/<a aria-current="page"[^>]*status=CLOSED"/);
   });
+
+  it("keeps the assignee when the tab changes", () => {
+    const markup = renderToStaticMarkup(
+      <InboxStatusTabs listPath={LIST} filters={{ assignee: "me" }} />,
+    );
+    expect(markup).toContain(`href="${LIST}?assignee=me&amp;status=CLOSED"`);
+  });
 });

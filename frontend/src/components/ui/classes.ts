@@ -50,7 +50,7 @@ const BADGE_TONES: Record<BadgeTone, string> = {
 };
 
 export const badgeClasses = (tone: BadgeTone = "neutral") =>
-  `inline-flex items-center rounded-full px-2 py-0.5 text-caption font-medium ${BADGE_TONES[tone]}`;
+  `inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-caption font-medium ${BADGE_TONES[tone]}`;
 
 const ALERT_TONES: Record<AlertTone, string> = {
   info: "border-line-strong text-primary",

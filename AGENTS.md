@@ -64,7 +64,7 @@ Commits made before this change use `<id>+<login>@users.noreply.github.com` (Mut
 - The check is local-only by design; there is no CI substitute, so skipping hooks means the rule is broken.
 
 ## Branch model
-- `main`: protected, always deployable, receives releases only. Render deploys from it.
+- `main`: protected, always deployable, receives releases only. The VPS deploy runs from it.
 - `develop`: protected staging branch. All feature PRs target it. `main` stays the default branch, so `Closes #<n>` does not fire on a merge into `develop`: close the issue by hand once the PR is merged (comment the PR link), or let the release PR close it.
 - Feature branches: `<type>/<issue#>-<slug>` from `develop`, one PR each.
 - Release: when `develop` is green and demo-ready, open a PR `develop` -> `main` titled `chore: release <date or version>`, 1 approval, merged with a **merge commit** (not squash), so `main` keeps each feature commit from `develop` and shows every release as one merge point. Nobody pushes to either branch directly.
@@ -84,7 +84,7 @@ Source: CSE 3220 lab guidelines. These are marks, and the starred items are auto
 - Role-based access*: every endpoint states its role rule (`SecurityConfig` or `@PreAuthorize`), with one allowed-role and one denied-role test. Roles are `OWNER > ADMIN > AGENT` (see "Roles and onboarding").
 - Tests*: at least 20 service-layer unit tests (JUnit, Mockito) and 10 controller-layer integration tests (`@SpringBootTest`, MockMvc). Every PR with logic ships tests. They must pass in CI.
 - Docker*: `docker compose up --build` must keep working (app + PostgreSQL, configuration from environment variables only, no hardcoded credentials, `.env.example` current).
-- Deployment*: the app stays deployable to Render from `main`, with CI/CD deploying automatically.
+- Deployment*: the app stays deployable from `main` to the team's VPS (Docker Compose behind Caddy, see `docs/deployment.md`), with CI/CD deploying automatically. The course text says Render; the team deploys to a VPS instead, by decision.
 - No direct push to `main`* (enforced by the ruleset).
 - REST: correct HTTP methods and status codes, one global exception handler (problem-detail JSON, no stack traces), at least 5 controllers and CRUD on at least 3 entities.
 - Database: at least 6 tables with 1:M, M:1 and M:M relationships through JPA, all created by Flyway migrations.
@@ -93,15 +93,15 @@ Source: CSE 3220 lab guidelines. These are marks, and the starred items are auto
 - Bonus: Actuator (done), Prometheus metrics, Grafana dashboard, a second deployment platform.
 
 ### Objective and team
-- Goal: a small but complete web app showing a professional workflow (Spring Boot, PostgreSQL, Spring Security, Docker, GitHub CI/CD, Render). Feature richness is not the goal.
+- Goal: a small but complete web app showing a professional workflow (Spring Boot, PostgreSQL, Spring Security, Docker, GitHub CI/CD, a VPS). Feature richness is not the goal.
 - Team: exactly three members, the three collaborators in Accounts. Every member must have visible commits and merged PRs.
 
 ### Detail the guidelines require
 - Auth: registration, login/logout, BCrypt, role-based authorization by method-level or URL rules. The guidelines name ADMIN, SELLER, BUYER; we use `OWNER`, `ADMIN`, `AGENT`. The README states this mapping so graders see three-tier role-based access.
 - Docker: a `Dockerfile` and a `docker-compose.yml` with the application and PostgreSQL containers. Credentials only through environment variables. The app must start with `docker compose up --build`.
 - Git: `main` (protected), `develop`, feature branches, no direct push to `main`, PR with at least one review approval. Branch protection must be configured (5 marks).
-- CI/CD: a GitHub Actions workflow builds the project, runs the tests, and deploys to Render automatically from `main` (5 marks for the workflow, 5 for working auto-deploy).
-- Deployment: public Render URL, app runs without errors. Submit the live URL and the repository link.
+- CI/CD: a GitHub Actions workflow builds the project, runs the tests, and deploys to the VPS automatically from `main` (images to GHCR, SSH, health check, rollback) (5 marks for the workflow, 5 for working auto-deploy).
+- Deployment: public URL of the VPS deployment (the guidelines say Render; we use a VPS), app runs without errors. Submit the live URL and the repository link.
 
 ### Deliverables
 - GitHub repository.
@@ -120,7 +120,7 @@ Source: CSE 3220 lab guidelines. These are marks, and the starred items are auto
 | Database design | 10 | proper entity relationships |
 | Deployment and demo | 10 | app runs without error 5, demonstration 5 |
 | Documentation | 5 | clear README on GitHub |
-- Bonus (up to 20): Monitoring (10): Actuator 2, Prometheus application metrics 4, working Grafana dashboard 4. Additional deployment (10): a platform other than Render 5, deployment documentation in the README 5.
+- Bonus (up to 20): Monitoring (10): Actuator 2, Prometheus application metrics 4, working Grafana dashboard 4. Additional deployment (10): a platform other than Render 5 (the VPS satisfies this line, since the team does not use Render), deployment documentation in the README 5.
 
 ### Automatic failure (any one fails the project)
 No design patterns, no role-based access control, direct push to `main`, no Dockerization, tests not implemented, app not deployed.
@@ -219,7 +219,7 @@ When you add a pattern: put it in clearly named classes (`...Strategy`, `...Adap
 - `backend/Dockerfile` is multi-stage: build with Maven, run on a slim JRE image as a non-root user, with a `HEALTHCHECK` on `/actuator/health`. A frontend Dockerfile follows the same idea.
 - `docker-compose.yml` runs the app, PostgreSQL and the frontend (plus Mailpit under the `dev` profile) with named volumes and a `depends_on` healthcheck, and takes every credential from `.env` (documented in `.env.example`). `docker compose up --build` from a clean clone must work.
 - Configuration: one `backend/src/main/resources/application.yml`, no Spring profiles. Per-environment values come only from environment variables (`backend/.env` locally, see `.env.example`). Secrets have no default in the file; Swagger is off unless `SWAGGER_ENABLED=true`.
-- Workflows in `.github/workflows`: build and test on every PR; on push to `main` build, test and deploy to Render automatically. Maven and pnpm caches are enabled. A red build blocks the merge.
+- Workflows in `.github/workflows`: build and test on every PR; on push to `main` build, test and deploy to the VPS automatically. Maven and pnpm caches are enabled. A red build blocks the merge.
 - Observability (bonus): Actuator health, info and metrics, a Micrometer Prometheus endpoint, and a Grafana dashboard JSON committed under `ops/`.
 
 ### Frontend design and quality (every UI change)
@@ -259,7 +259,7 @@ Follow in order. Stop and ask the human at any "stop" line.
 9. **Review.** A different collaborator approves with their own account. Never approve your own work or act as another account on its work. Wait for every required check to be green; do not merge on pending.
 10. **Merge.** Squash-merge into `develop` (merge commits are not allowed there), done by the author or `Mutiur03`. Then `git fetch --prune && git switch develop && git pull --ff-only && git branch -d <branch>`.
 11. **Close the issue by hand** after the merge: tick its "Done when" boxes and comment the PR link. When all tasks of a story are done, close the story with a short summary comment.
-12. **Release to `main`.** Only on a human's request. Open a PR `develop` -> `main` titled `chore: release <date>`, with the list of merged PRs and a pass of the Course requirements checklist. After it merges, Render deploys; check the live URL and `/actuator/health`.
+12. **Release to `main`.** Only on a human's request. Open a PR `develop` -> `main` titled `chore: release <date>`, with the list of merged PRs and a pass of the Course requirements checklist. After it merges, the deploy workflow ships it to the VPS; check the live URL and `/actuator/health`.
 
 **Stop and ask** when: the issue is blocked, unassigned, or `human`; a rule here conflicts with the issue; a step needs a secret, a paid service, a Meta account, a database migration run, or a repo-settings change; CI is red for a reason outside the change; or the change would break a graded requirement.
 

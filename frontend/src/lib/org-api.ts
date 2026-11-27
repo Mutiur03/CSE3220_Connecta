@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { request } from "./api";
 import type { OrgRole } from "./org-permissions";
 
@@ -57,6 +58,14 @@ export const listOrganizations = (
   request<Page<Organization>>(`/api/organizations${pageQuery(page, size)}`, {
     accessToken,
   });
+
+/**
+ * The caller's organizations as the sidebar lists them. cache() runs it once per request, so a page
+ * that also needs the list (the home page count) shares the sidebar's request.
+ */
+export const listMemberOrganizations = cache((accessToken: string) =>
+  listOrganizations(accessToken, 0, MAX_PAGE_SIZE),
+);
 
 /** One row of the system owner's view of every organization. */
 export type OrganizationSummary = {

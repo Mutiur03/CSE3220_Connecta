@@ -213,6 +213,17 @@ class SecurityConfigIntegrationTests {
             mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
             mvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());
         }
+
+        @Test
+        void prometheusAcceptsTheScrapeTokenButMetricsDoNot() throws Exception {
+            // Tests have no Prometheus registry, so an allowed request ends in 404, not in the 401/403 of security.
+            mvc.perform(get("/actuator/prometheus").header("X-Scrape-Token", "test-scrape-token"))
+                    .andExpect(status().isNotFound());
+            mvc.perform(get("/actuator/prometheus").header("X-Scrape-Token", "wrong"))
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(get("/actuator/metrics").header("X-Scrape-Token", "test-scrape-token"))
+                    .andExpect(status().isUnauthorized());
+        }
     }
 
     @Nested

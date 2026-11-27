@@ -9,7 +9,10 @@ import com.connecta.backend.product.dto.ProductImageResponse;
 import com.connecta.backend.product.repository.ProductImageRepository;
 import com.connecta.backend.product.repository.ProductRepository;
 import com.connecta.backend.user.domain.Roles;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +65,21 @@ public class ProductImageService {
         return images.findByProductIdAndOrganizationIdOrderByPositionAscIdAsc(productId, organizationId).stream()
                 .map(ProductImageResponse::from)
                 .toList();
+    }
+
+    /** Any member. The content path of each product's first image, in one query; products without one are absent. */
+    @Transactional(readOnly = true)
+    public Map<UUID, String> firstImagePaths(String subject, UUID organizationId, Collection<UUID> productIds) {
+        tenants.requireMembership(organizationId, callerId(subject));
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> firstPaths = new HashMap<>();
+        for (ProductImage image : images.findByProductIdInAndOrganizationIdOrderByPositionAscIdAsc(productIds,
+                organizationId)) {
+            firstPaths.putIfAbsent(image.getProduct().getId(), ProductImageResponse.from(image).contentPath());
+        }
+        return firstPaths;
     }
 
     /** Any member. A row whose object is missing from the store is also not found. */

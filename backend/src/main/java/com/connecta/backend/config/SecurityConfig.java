@@ -64,10 +64,16 @@ class SecurityConfig {
     /** Connecting Meta (start, status) is an organization admin's job: ADMIN, the service checks the membership. */
     private static final String[] META_CONNECTION_PATHS = {"/api/organizations/*/meta/**"};
 
+    /** Manual assignment and its history: ADMIN of the organization (OWNER inherits). */
+    private static final String[] ASSIGNMENT_PATHS = {
+        "/api/organizations/*/conversations/*/assignment", "/api/organizations/*/conversations/*/assignments"
+    };
+
     private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
 
     @Bean
-    SecurityFilterChain filterChain(HttpSecurity http, SessionService sessions) throws Exception {
+    SecurityFilterChain filterChain(HttpSecurity http, SessionService sessions, RoleHierarchy roleHierarchy,
+            @Value("${app.metrics.scrape-token:}") String scrapeToken) throws Exception {
         ProblemDetailAccessHandlers errors = new ProblemDetailAccessHandlers();
         return http
                 .cors(Customizer.withDefaults())
@@ -83,8 +89,10 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
                         .requestMatchers(HttpMethod.PUT, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
                         .requestMatchers(HttpMethod.DELETE, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
+                        .requestMatchers(ASSIGNMENT_PATHS).hasRole(Roles.ADMIN)
                         .requestMatchers(META_CONNECTION_PATHS).hasRole(Roles.ADMIN)
-                        // Health is public; metrics, info and the Prometheus scrape need ADMIN.
+                        // Health is public; metrics and info need ADMIN. The Prometheus scrape also accepts its shared token.
+                        .requestMatchers("/actuator/prometheus").access(new MetricsScrapeAccess(scrapeToken, roleHierarchy))
                         .requestMatchers("/actuator/**").hasRole(Roles.ADMIN)
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o

@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -42,6 +43,7 @@ public class RealtimeSessionRegistry {
 
     private final RealtimeProperties properties;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
 
     private final Map<String, Entry> entries = new ConcurrentHashMap<>();
 
@@ -55,10 +57,19 @@ public class RealtimeSessionRegistry {
             drop(own.get(i), REPLACED);
         }
         entries.put(session.getId(), new Entry(session, organizationId, userId, now, new AtomicReference<>(now)));
+        events.publishEvent(new RealtimeConnectionOpened(userId, organizationId));
     }
 
     public void remove(String sessionId) {
-        entries.remove(sessionId);
+        forget(sessionId);
+    }
+
+    /** Removes the session and announces it once, however many paths (drop, close callback, sweep) race. */
+    private void forget(String sessionId) {
+        Entry gone = entries.remove(sessionId);
+        if (gone != null) {
+            events.publishEvent(new RealtimeConnectionClosed(gone.userId(), gone.organizationId()));
+        }
     }
 
     public void touch(String sessionId) {
@@ -111,7 +122,7 @@ public class RealtimeSessionRegistry {
         Instant cutoff = clock.instant().minus(properties.idleTimeout());
         for (Entry entry : List.copyOf(entries.values())) {
             if (!entry.session().isOpen()) {
-                entries.remove(entry.session().getId());
+                forget(entry.session().getId());
             } else if (entry.lastSeen().get().isBefore(cutoff)) {
                 drop(entry, IDLE_TIMEOUT);
             }
@@ -121,7 +132,7 @@ public class RealtimeSessionRegistry {
     private void send(Entry entry, String json) {
         try {
             if (!entry.session().isOpen()) {
-                entries.remove(entry.session().getId());
+                forget(entry.session().getId());
                 return;
             }
             entry.session().sendMessage(new TextMessage(json));
@@ -133,7 +144,7 @@ public class RealtimeSessionRegistry {
     }
 
     private void drop(Entry entry, CloseStatus status) {
-        entries.remove(entry.session().getId());
+        forget(entry.session().getId());
         try {
             entry.session().close(status);
         } catch (IOException | RuntimeException e) {

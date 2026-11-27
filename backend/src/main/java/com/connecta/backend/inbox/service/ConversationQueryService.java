@@ -9,7 +9,9 @@ import com.connecta.backend.inbox.dto.ConversationSummaryResponse;
 import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
 import com.connecta.backend.inbox.repository.ConversationRepository;
 import com.connecta.backend.inbox.repository.ConversationSpecifications;
+import com.connecta.backend.org.domain.Membership;
 import com.connecta.backend.org.service.ActiveCaller;
+import com.connecta.backend.org.service.PresenceService;
 import com.connecta.backend.org.service.TenantAccessService;
 import java.util.HashMap;
 import java.util.List;
@@ -40,12 +42,13 @@ public class ConversationQueryService {
     private final ConversationParticipantRepository links;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
+    private final PresenceService presence;
 
     @Transactional(readOnly = true)
     public PageResponse<ConversationSummaryResponse> list(String subject, UUID organizationId,
             ConversationFilter filter, int page, int size) {
-        tenants.requireMembership(organizationId, activeCaller.load(subject).getId());
-        Page<Conversation> found = conversations.findAll(toSpecification(organizationId, filter),
+        Membership caller = tenants.requireMembership(organizationId, activeCaller.load(subject).getId());
+        Page<Conversation> found = conversations.findAll(toSpecification(organizationId, filter, caller.getId()),
                 PageRequest.of(page, Math.min(size, PageResponse.MAX_SIZE), NEWEST_FIRST));
         List<UUID> ids = found.getContent().stream().map(Conversation::getId).toList();
         if (ids.isEmpty()) {
@@ -54,7 +57,13 @@ public class ConversationQueryService {
         Map<UUID, Participant> customers = firstCustomers(ids);
         Map<UUID, Message> lastMessages = lastMessages(ids);
         return PageResponse.from(found, c -> ConversationSummaryResponse.from(c, customers.get(c.getId()),
-                lastMessages.get(c.getId())));
+                lastMessages.get(c.getId()), isAssigneeOnline(organizationId, c)));
+    }
+
+    /** Presence is an in-memory lookup, so this costs no query per row. */
+    private boolean isAssigneeOnline(UUID organizationId, Conversation conversation) {
+        Membership assignee = conversation.getAssignee();
+        return assignee != null && presence.isOnline(organizationId, assignee.getUser().getId());
     }
 
     private Map<UUID, Participant> firstCustomers(List<UUID> ids) {
@@ -73,8 +82,15 @@ public class ConversationQueryService {
         return byConversation;
     }
 
-    private static Specification<Conversation> toSpecification(UUID organizationId, ConversationFilter filter) {
-        Specification<Conversation> spec = ConversationSpecifications.inOrganization(organizationId);
+    private static Specification<Conversation> toSpecification(UUID organizationId, ConversationFilter filter,
+            UUID callerMembershipId) {
+        Specification<Conversation> spec = ConversationSpecifications.inOrganization(organizationId)
+                .and(ConversationSpecifications.fetchingAssignee());
+        if (filter.assignee() == AssigneeScope.ME) {
+            spec = spec.and(ConversationSpecifications.assignedTo(callerMembershipId));
+        } else if (filter.assignee() == AssigneeScope.NONE) {
+            spec = spec.and(ConversationSpecifications.unassigned());
+        }
         if (filter.channel() != null) {
             spec = spec.and(ConversationSpecifications.onChannel(filter.channel()));
         }

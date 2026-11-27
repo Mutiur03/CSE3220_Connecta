@@ -1,4 +1,5 @@
 import { request } from "./api";
+import type { Assignee } from "./assignment-api";
 import type { Page } from "./org-api";
 import {
   apiStatus,
@@ -19,7 +20,17 @@ export type Conversation = {
   lastMessagePreview: string | null;
   /** ISO instant of the newest message. */
   lastMessageAt: string | null;
+  /** The member holding it, or null when unassigned. */
+  assignee: ListAssignee | null;
 };
+
+export type ListAssignee = Assignee & { online: boolean };
+
+/** An older backend sends no `assignee`; read that as unassigned. */
+const withAssignee = (conversation: Conversation): Conversation => ({
+  ...conversation,
+  assignee: conversation.assignee ?? null,
+});
 
 /** One page of the list. The tab becomes the API's status filter (Open by default, none for All). */
 export function listConversations(
@@ -37,8 +48,25 @@ export function listConversations(
   return request<Page<Conversation>>(
     `/api/organizations/${encodeURIComponent(orgId)}/conversations?${query}`,
     { accessToken },
-  );
+  ).then((result) => ({
+    ...result,
+    content: result.content.map(withAssignee),
+  }));
 }
+
+/** How many conversations nobody holds, under the other filters. */
+export const countUnassigned = (
+  accessToken: string,
+  orgId: string,
+  filters: InboxFilters,
+) =>
+  listConversations(
+    accessToken,
+    orgId,
+    { ...filters, assignee: "none" },
+    0,
+    1,
+  ).then((result) => result.totalElements);
 
 export const CONVERSATION_STATUSES = ["OPEN", "CLOSED"] as const;
 export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
@@ -58,6 +86,8 @@ export type ConversationDetail = {
   status: ConversationStatus;
   unread: boolean;
   participants: Participant[];
+  /** The member handling it, or null when unassigned. */
+  assignee: Assignee | null;
   lastMessageAt: string | null;
   createdAt: string;
   updatedAt: string;

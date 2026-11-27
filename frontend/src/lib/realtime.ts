@@ -2,10 +2,14 @@
 // is testable with a fake socket and fake timers.
 
 export type RealtimeEvent = {
-  type: "message.created" | "participant.updated" | "inbox.refresh";
+  type:
+    | "message.created"
+    | "participant.updated"
+    | "conversation.assigned"
+    | "inbox.refresh";
   /** Empty for inbox.refresh (many conversations changed: a history import). */
   conversationId: string;
-  /** Empty for participant.updated (a customer name was stored) and inbox.refresh. */
+  /** Empty for participant.updated (a customer name was stored), conversation.assigned and inbox.refresh. */
   messageId: string;
   channel: string;
   direction: string;
@@ -76,7 +80,7 @@ export function parseRealtimeEvent(raw: unknown): RealtimeEvent | null {
     };
   }
   if (typeof e.conversationId !== "string") return null;
-  if (e.type === "participant.updated") {
+  if (e.type === "participant.updated" || e.type === "conversation.assigned") {
     return {
       type: e.type,
       conversationId: e.conversationId,
@@ -125,6 +129,16 @@ export function coalesce(fn: () => void, ms: number) {
 
 /** Thrown by `fetchTicket` when the ticket route answered 401 (an expired session). */
 export class TicketUnauthorizedError extends Error {}
+
+/** A single-use socket ticket for the signed-in member; the Next route proxies the backend call. */
+export async function fetchRealtimeTicket(orgId: string): Promise<string> {
+  const res = await fetch(`/api/organizations/${orgId}/realtime/tickets`, {
+    method: "POST",
+  });
+  if (res.status === 401) throw new TicketUnauthorizedError();
+  if (!res.ok) throw new Error(`ticket ${res.status}`);
+  return (await res.json()).ticket as string;
+}
 
 /** Calls `onShown` each time the tab becomes visible; returns the unsubscribe. */
 function onTabShown(onShown: () => void): () => void {

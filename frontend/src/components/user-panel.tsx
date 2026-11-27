@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getAccessToken, getCurrentUser } from "@/lib/session";
-import { listOrganizations } from "@/lib/org-api";
+import { listMemberOrganizations } from "@/lib/org-api";
 import { roleLabel } from "@/lib/org-permissions";
 import { buttonClasses, panelClasses } from "@/components/ui/classes";
 
@@ -10,7 +10,7 @@ const LABEL = "w-20 shrink-0 text-secondary";
 
 export default async function UserPanel() {
   const user = await getCurrentUser();
-  const organizations = await listOrganizations(await getAccessToken(), 0, 1);
+  const organizations = await listMemberOrganizations(await getAccessToken());
   const roles = user.roles.map(roleLabel);
 
   return (
