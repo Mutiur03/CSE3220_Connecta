@@ -357,6 +357,7 @@ erDiagram
 | GET | `/api/organizations/{id}/stock-movements` | any member | 200 | The organization's movements, newest first. Optional `productId` narrows to one product (must be this organization's, else `404`). |
 | GET | `/api/organizations/{id}/stock-movements/{movementId}` | any member | 200 | One movement. Another organization's id gets `404`. |
 | GET | `/api/organizations/{id}/inventory/summary` | any member | 200 | `productCount`, `totalUnits`, `stockValue` (stock times unit price, 2 decimals), `lowStockCount` and `outOfStockCount`. |
+| GET | `/api/organizations/{id}/conversations/{conversationId}/product-search` | any member of it | 200 | Search the organization's products to share in a conversation. `q` (name or SKU contains), `page`, `size` max 100 (else `400`). Each candidate has `id`, `name`, `sku`, `unitPrice`, `stockStatus` and `imageUrl` (the first image's content path, or `null`). Another organization's conversation gets `404`. |
 | GET | `/api/organizations/{id}/product-categories` | any member of it | 200 | List its product categories, by name (`page`, `size` max 100). |
 | POST | `/api/organizations/{id}/product-categories` | `ADMIN` of it | 201 | Create a category. `409` if the name is already used in the organization. |
 | GET | `/api/organizations/{id}/product-categories/{categoryId}` | any member of it | 200 | One category. Another organization's id gets `404`. |
