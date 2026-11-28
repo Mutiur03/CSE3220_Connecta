@@ -39,18 +39,19 @@ export function lastDays(today: Date, days: number): DateRange {
 }
 
 /**
- * The range from the URL. Anything malformed or reversed gives the default week, and a range over the
- * limit keeps its end date and trims the start, so a hand-typed URL never produces a 400 page.
+ * The range from the URL. Anything malformed or reversed gives the default (a week unless the caller
+ * names its own), and a range over the limit keeps its end date and trims the start, so a hand-typed URL never produces a 400 page.
  */
 export function parseRange(
   rawFrom: string | string[] | undefined,
   rawTo: string | string[] | undefined,
   today: Date,
+  { defaultDays = DEFAULT_RANGE_DAYS, maxDays = MAX_RANGE_DAYS } = {},
 ): DateRange {
   const from = parseDate(rawFrom);
   const to = parseDate(rawTo);
-  if (!from || !to || from > to) return lastDays(today, DEFAULT_RANGE_DAYS);
-  const earliest = shift(to, 1 - MAX_RANGE_DAYS);
+  if (!from || !to || from > to) return lastDays(today, defaultDays);
+  const earliest = shift(to, 1 - maxDays);
   return { from: from < earliest ? earliest : from, to };
 }
 
