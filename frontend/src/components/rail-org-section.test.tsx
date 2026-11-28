@@ -9,8 +9,8 @@ import RailOrgSection from "./rail-org-section";
 const FIRST_ID = "11111111-2222-3333-4444-555555555555";
 const SECOND_ID = "66666666-7777-8888-9999-000000000000";
 const organizations = [
-  { id: FIRST_ID, name: "Northwind Coffee" },
-  { id: SECOND_ID, name: "Contoso Books" },
+  { id: FIRST_ID, name: "Northwind Coffee", callerRole: "ADMIN" as const },
+  { id: SECOND_ID, name: "Contoso Books", callerRole: "AGENT" as const },
 ];
 
 const render = (remembered?: string, orgs = organizations) =>
@@ -44,6 +44,14 @@ describe("RailOrgSection", () => {
     pathname.current = `/organizations/${FIRST_ID}`;
     const markup = render(SECOND_ID);
     expect(markup).toContain(`href="/organizations/${FIRST_ID}/products"`);
+  });
+
+  it("shows Analytics to an admin of the current organization", () => {
+    expect(render()).toContain(`href="/organizations/${FIRST_ID}/analytics"`);
+  });
+
+  it("hides Analytics from an agent", () => {
+    expect(render(SECOND_ID)).not.toContain("/analytics");
   });
 
   it("renders nothing when the person belongs to no organization", () => {

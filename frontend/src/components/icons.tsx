@@ -108,6 +108,15 @@ export const CheckIcon = () => (
   </svg>
 );
 
+export const ChartIcon = () => (
+  <Icon>
+    <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+    <path d="M18 17V9" />
+    <path d="M13 17V5" />
+    <path d="M8 17v-3" />
+  </Icon>
+);
+
 export const InboxIcon = () => (
   <Icon>
     <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
