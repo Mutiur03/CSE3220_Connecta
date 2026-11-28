@@ -2,8 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import { selectCurrentOrganization } from "@/lib/current-org";
+import type { OrgRole } from "@/lib/org-permissions";
 import {
   ArchiveIcon,
+  ChartIcon,
   InboxIcon,
   PackageIcon,
   PlugIcon,
@@ -12,7 +14,7 @@ import {
 } from "./icons";
 import RailLink from "./rail-link";
 
-type RailOrganization = { id: string; name: string };
+type RailOrganization = { id: string; name: string; callerRole: OrgRole };
 
 /**
  * The selected organization's section in the sidebar, on every signed-in page. The selection is
@@ -62,6 +64,14 @@ export default function RailOrgSection({
       <RailLink href={`/organizations/${current.id}/team`} label="Team">
         <UsersIcon />
       </RailLink>
+      {current.callerRole === "ADMIN" && (
+        <RailLink
+          href={`/organizations/${current.id}/analytics`}
+          label="Analytics"
+        >
+          <ChartIcon />
+        </RailLink>
+      )}
       <RailLink
         href={`/organizations/${current.id}/integrations`}
         label="Integrations"
