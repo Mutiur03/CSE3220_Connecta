@@ -69,6 +69,9 @@ class SecurityConfig {
         "/api/organizations/*/conversations/*/assignment", "/api/organizations/*/conversations/*/assignments"
     };
 
+    /** Reports on an organization: ADMIN of it (OWNER inherits), the service checks the membership. */
+    private static final String[] ANALYTICS_PATHS = {"/api/organizations/*/analytics/**"};
+
     private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
 
     @Bean
@@ -91,6 +94,7 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, PRODUCT_CATEGORY_PATHS).hasRole(Roles.ADMIN)
                         .requestMatchers(ASSIGNMENT_PATHS).hasRole(Roles.ADMIN)
                         .requestMatchers(META_CONNECTION_PATHS).hasRole(Roles.ADMIN)
+                        .requestMatchers(ANALYTICS_PATHS).hasRole(Roles.ADMIN)
                         // Health is public; metrics and info need ADMIN. The Prometheus scrape also accepts its shared token.
                         .requestMatchers("/actuator/prometheus").access(new MetricsScrapeAccess(scrapeToken, roleHierarchy))
                         .requestMatchers("/actuator/**").hasRole(Roles.ADMIN)
