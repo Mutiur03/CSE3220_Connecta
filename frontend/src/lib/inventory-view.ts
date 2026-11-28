@@ -34,12 +34,6 @@ export function stockLine(quantity: number, reorderLevel: number): string {
   return `${left}, reorder at ${formatCount(reorderLevel)}`;
 }
 
-export const formatMovementTime = (iso: string): string =>
-  new Date(iso).toLocaleString("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-
 /** Where each inventory link goes. The product list is the organization's catalog page. */
 export function inventoryLinks(orgId: string) {
   const products = `/organizations/${orgId}/products`;

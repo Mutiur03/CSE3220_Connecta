@@ -1,7 +1,14 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { StockMovement } from "@/lib/inventory-api";
 import { StockMovementTable } from "./stock-movement-table";
+
+// The server renders in UTC; only LocalTime swaps in the reader's zone in the browser, so the table must use it.
+vi.mock("./local-time", () => ({
+  LocalTime: ({ iso, kind }: { iso: string; kind: string }) => (
+    <time data-local={kind}>{iso}</time>
+  ),
+}));
 
 const movement: StockMovement = {
   id: "m-1",
@@ -39,6 +46,15 @@ describe("StockMovementTable", () => {
     expect(markup).toContain(">9<");
     expect(markup).toContain("Ana Rahman");
     expect(markup).toContain('href="/organizations/org-1/products/p-1"');
+  });
+
+  it("shows when it happened in the reader's local time", () => {
+    const markup = renderToStaticMarkup(
+      <StockMovementTable movements={[movement]} {...props} />,
+    );
+    expect(markup).toContain(
+      '<time data-local="dateTime">2026-11-20T09:30:00Z</time>',
+    );
   });
 
   it("shows a dash when the person who made the movement is gone", () => {
