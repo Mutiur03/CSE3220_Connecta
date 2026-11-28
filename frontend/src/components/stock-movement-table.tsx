@@ -1,11 +1,8 @@
 import Link from "next/link";
 import type { StockMovement } from "@/lib/inventory-api";
-import {
-  formatMovementTime,
-  formatQuantityDelta,
-  movementTypeLabel,
-} from "@/lib/inventory-view";
+import { formatQuantityDelta, movementTypeLabel } from "@/lib/inventory-view";
 import { ArrowLeftRightIcon } from "./icons";
+import { LocalTime } from "./local-time";
 import { tableClass } from "./org-styles";
 import { buttonClasses } from "./ui/classes";
 import { TableScroll } from "./ui/table-scroll";
@@ -112,9 +109,7 @@ export function StockMovementTable({
               <td
                 className={`figure ${CELL} whitespace-nowrap text-right text-secondary`}
               >
-                <time dateTime={movement.createdAt}>
-                  {formatMovementTime(movement.createdAt)}
-                </time>
+                <LocalTime iso={movement.createdAt} kind="dateTime" />
               </td>
             </tr>
           ))}
