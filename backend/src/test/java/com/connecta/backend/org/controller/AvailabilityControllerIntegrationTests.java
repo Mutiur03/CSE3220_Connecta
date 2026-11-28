@@ -257,7 +257,7 @@ class AvailabilityControllerIntegrationTests extends SharedPostgres {
         private void assignedConversation(Organization org, Membership member, String thread,
                 ConversationStatus status) {
             Conversation conversation = new Conversation(org, Channel.MESSENGER, thread);
-            conversation.changeStatus(status);
+            conversation.changeStatus(status, null, TestClock.NOW);
             conversation.assignTo(member, null, AssignmentSource.MANUAL);
             conversations.saveAndFlush(conversation);
         }

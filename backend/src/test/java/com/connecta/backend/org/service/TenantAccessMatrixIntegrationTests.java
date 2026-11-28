@@ -141,6 +141,8 @@ class TenantAccessMatrixIntegrationTests extends SharedPostgres {
             row(HttpMethod.GET, ORG + "/availability", Access.ADMIN, 200),
             row(HttpMethod.PUT, ORG + "/members/{member}/assignable", Access.ADMIN, 200, "{\"assignable\":true}"),
             row(HttpMethod.GET, ORG + "/availability/report?from=2026-11-01&to=2026-11-07", Access.ADMIN, 200),
+            row(HttpMethod.GET, ORG + "/analytics/conversations?from=2026-11-01&to=2026-11-07", Access.ADMIN, 200),
+            row(HttpMethod.GET, ORG + "/analytics/agents?from=2026-11-01&to=2026-11-07", Access.ADMIN, 200),
             // Realtime
             row(HttpMethod.POST, ORG + "/realtime/tickets", Access.MEMBER, 201),
             // Conversations

@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.ResponseCreator;
@@ -334,6 +337,70 @@ class InstagramHistoryClientTests {
             assertEquals(List.of("m2"), all.get(0).messages().stream().map(NormalizedMessage::text).toList());
             assertEquals(false, all.get(0).moreMessages());
             server.verify();
+        }
+    }
+
+    @Nested
+    @ExtendWith(OutputCaptureExtension.class)
+    class ProgressLog {
+
+        private static final String GRAPH = "https://graph.instagram.com/v27.0/";
+        private static final String NEXT_PAGE = GRAPH + "ig-1/conversations?after=p2";
+
+        private MockRestServiceServer server;
+        private InstagramHistoryClient client;
+
+        private void connect() {
+            RestClient.Builder builder = RestClient.builder();
+            server = MockRestServiceServer.bindTo(builder).build();
+            client = new InstagramHistoryClient(META, HistoryImportProperties.defaults(), builder);
+        }
+
+        private void page(String body) {
+            server.expect(requestTo(org.hamcrest.Matchers.startsWith(GRAPH + "ig-1/conversations")))
+                    .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
+        }
+
+        private static String conversation(String id) {
+            return "{\"id\":\"" + id + "\",\"participants\":{\"data\":[{\"id\":\"ig-1\",\"username\":\"shop\"},"
+                    + "{\"id\":\"igsid-" + id + "\",\"username\":\"user-" + id + "\"}]},\"messages\":{\"data\":["
+                    + "{\"id\":\"m-" + id + "\",\"message\":\"hi\",\"from\":{\"id\":\"igsid-" + id
+                    + "\"},\"created_time\":\"2026-11-20T10:00:00+0000\"}]}}";
+        }
+
+        private static String list(String next, String... conversations) {
+            String paging = next == null ? "" : ",\"paging\":{\"next\":\"" + next + "\"}";
+            return "{\"data\":[" + String.join(",", conversations) + "]" + paging + "}";
+        }
+
+        private void readAll() {
+            client.conversations("ig-1", "ig-token").forEachRemaining(conversation -> { });
+        }
+
+        @Test
+        void eachConversationPageAndTheEndOfTheListAreLogged(CapturedOutput output) {
+            connect();
+            page(list(NEXT_PAGE, conversation("c1"), conversation("c2")));
+            page(list(null, conversation("c3")));
+
+            readAll();
+
+            assertTrue(output.getOut().contains("conversation page 1: 2 conversations, 2 so far"), output.getOut());
+            assertTrue(output.getOut().contains("conversation page 2: 1 conversations, 3 so far"), output.getOut());
+            assertTrue(output.getOut().contains("end of the conversation list after 2 pages, 3 conversations"),
+                    output.getOut());
+        }
+
+        @Test
+        void aRepeatedLinkIsLoggedWithTheListItStopped(CapturedOutput output) {
+            connect();
+            page(list(NEXT_PAGE, conversation("c1")));
+            page(list(NEXT_PAGE, conversation("c2")));
+
+            readAll();
+
+            assertTrue(output.getOut().contains("paging stopped in the conversation list: Meta repeated a paging link"),
+                    output.getOut());
         }
     }
 }

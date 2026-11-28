@@ -2,6 +2,7 @@ package com.connecta.backend.inbox.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,6 +26,7 @@ import com.connecta.backend.org.repository.MembershipRepository;
 import com.connecta.backend.org.service.ActiveCaller;
 import com.connecta.backend.org.service.NotAMemberException;
 import com.connecta.backend.org.service.TenantAccessService;
+import com.connecta.backend.support.TestClock;
 import com.connecta.backend.support.TestUsers;
 import com.connecta.backend.user.domain.Role;
 import com.connecta.backend.user.domain.Roles;
@@ -70,7 +72,8 @@ class ConversationDetailServiceTests {
         TestUsers.set(thread, "id", UUID.randomUUID());
         TenantAccessService tenants = new TenantAccessService(memberships, RoleHierarchyImpl.fromHierarchy(
                 "ROLE_OWNER > ROLE_ADMIN\nROLE_ADMIN > ROLE_AGENT"));
-        service = new ConversationDetailService(conversations, participants, tenants, new ActiveCaller(users));
+        service = new ConversationDetailService(conversations, participants, tenants, new ActiveCaller(users),
+                TestClock.FIXED);
         lenient().when(users.findEnabledById(caller.getId())).thenReturn(Optional.of(caller));
     }
 
@@ -158,14 +161,42 @@ class ConversationDetailServiceTests {
         }
 
         @Test
-        void reopensAClosedConversation() {
+        void closingRecordsTheCallerAndTheTime() {
+            callerHolds(Roles.AGENT);
+            threadExists();
+            when(conversations.saveAndFlush(thread)).thenReturn(thread);
+
+            service.updateStatus(subject, organizationId, thread.getId(), ConversationStatus.CLOSED);
+
+            assertSame(caller, thread.getClosedBy());
+            assertEquals(TestClock.NOW, thread.getClosedAt());
+        }
+
+        @Test
+        void closingAgainKeepsTheFirstClose() {
+            callerHolds(Roles.AGENT);
+            threadExists();
+            User first = TestUsers.user("first@example.com", Roles.AGENT);
+            thread.changeStatus(ConversationStatus.CLOSED, first, TestClock.NOW.minusSeconds(60));
+            when(conversations.saveAndFlush(thread)).thenReturn(thread);
+
+            service.updateStatus(subject, organizationId, thread.getId(), ConversationStatus.CLOSED);
+
+            assertSame(first, thread.getClosedBy());
+            assertEquals(TestClock.NOW.minusSeconds(60), thread.getClosedAt());
+        }
+
+        @Test
+        void reopensAClosedConversationAndClearsTheClose() {
             callerHolds(Roles.ADMIN);
             threadExists();
-            thread.changeStatus(ConversationStatus.CLOSED);
+            thread.changeStatus(ConversationStatus.CLOSED, caller, TestClock.NOW);
             when(conversations.saveAndFlush(thread)).thenReturn(thread);
 
             assertEquals(ConversationStatus.OPEN,
                     service.updateStatus(subject, organizationId, thread.getId(), ConversationStatus.OPEN).status());
+            assertNull(thread.getClosedAt());
+            assertNull(thread.getClosedBy());
         }
 
         @Test

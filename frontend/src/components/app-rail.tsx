@@ -83,7 +83,11 @@ async function RailAccount() {
         )}
       </div>
       <RailOrgSection
-        organizations={organizations.map(({ id, name }) => ({ id, name }))}
+        organizations={organizations.map(({ id, name, callerRole }) => ({
+          id,
+          name,
+          callerRole,
+        }))}
         remembered={remembered}
       />
       <div className="mt-auto flex flex-col gap-0.5">

@@ -72,6 +72,15 @@ public class Conversation {
     @Column(nullable = false)
     private boolean unread;
 
+    /** When the conversation was last closed. Null while open, and on rows closed before it was recorded. */
+    @Column(name = "closed_at")
+    private Instant closedAt;
+
+    /** Who last closed the conversation. Null while open or once that user is deleted. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "closed_by_user_id")
+    private User closedBy;
+
     @Column(name = "last_message_at")
     private Instant lastMessageAt;
 
@@ -112,7 +121,18 @@ public class Conversation {
         return record;
     }
 
-    public void changeStatus(ConversationStatus newStatus) {
+    /**
+     * Moves to {@code newStatus}. Closing an open conversation records when and by whom; closing it again
+     * keeps the first close. Reopening clears both, so a reopened conversation does not count as resolved.
+     */
+    public void changeStatus(ConversationStatus newStatus, User changedBy, Instant changedAt) {
+        if (newStatus == ConversationStatus.CLOSED && status != ConversationStatus.CLOSED) {
+            closedAt = changedAt;
+            closedBy = changedBy;
+        } else if (newStatus != ConversationStatus.CLOSED) {
+            closedAt = null;
+            closedBy = null;
+        }
         this.status = newStatus;
     }
 
