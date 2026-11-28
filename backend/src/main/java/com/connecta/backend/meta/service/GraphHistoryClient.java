@@ -123,6 +123,8 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         /** Set when a conversation older than {@code bounds.since()} is met: the list is newest first, so no more. */
         private boolean caughtUp;
         private URI nextUrl;
+        private int conversationPages;
+        private int conversationsSeen;
         private int fetchedMessages;
         /** Conversation and message pages fetched; bounded by {@code max-graph-pages}. */
         private int graphRequests;
@@ -156,6 +158,10 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
         private void loadPage() {
             JsonNode page = started ? fetch(nextRequest()) : fetchFirstPage();
             started = true;
+            conversationPages++;
+            conversationsSeen += page.path("data").size();
+            log.info("Meta history ({}): conversation page {}: {} conversations, {} so far", platform(),
+                    conversationPages, page.path("data").size(), conversationsSeen);
             for (JsonNode conversation : page.path("data")) {
                 if (olderThanSince(conversation)) {
                     caughtUp = true;
@@ -164,7 +170,11 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                 parse(conversation, accountId, this).ifPresent(buffer::add);
             }
             URI next = caughtUp ? null : nextLink(page);
-            if (next != null && !mayFollow(next)) {
+            if (next == null) {
+                log.info("Meta history ({}): end of the conversation list after {} pages, {} conversations",
+                        platform(), conversationPages, conversationsSeen);
+            }
+            if (next != null && !mayFollow(next, "the conversation list")) {
                 markLastTruncated();
                 next = null;
             }
@@ -176,13 +186,13 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
          * {@code max-graph-pages}, or a link already followed in this import, ends the paging instead of looping.
          * Records the link.
          */
-        private boolean mayFollow(URI next) {
+        private boolean mayFollow(URI next, String list) {
             if (graphRequests >= limits.maxGraphPages()) {
-                log.warn("Meta history paging stopped: page cap of {} reached", limits.maxGraphPages());
+                log.warn("Meta history paging stopped in {}: page cap of {} reached", list, limits.maxGraphPages());
                 return false;
             }
             if (!followed.add(next)) {
-                log.warn("Meta history paging stopped: Meta repeated a paging link");
+                log.warn("Meta history paging stopped in {}: Meta repeated a paging link", list);
                 return false;
             }
             return true;
@@ -289,7 +299,7 @@ abstract class GraphHistoryClient implements ConversationHistoryClient {
                     next = null;
                     break;
                 }
-                if (next != null && (!withinLimits(messages.size()) || !mayFollow(next))) {
+                if (next != null && (!withinLimits(messages.size()) || !mayFollow(next, "the messages of a conversation"))) {
                     break;
                 }
                 page = next == null ? page : fetch(graph.get().uri(next));

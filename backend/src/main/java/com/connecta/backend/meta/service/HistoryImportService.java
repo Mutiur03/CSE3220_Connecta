@@ -37,6 +37,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class HistoryImportService {
 
+    /** A progress line is logged after this many conversations, so a long import is never silent. */
+    private static final int PROGRESS_EVERY = 10;
+
     private final HistoryAccountStore store;
     private final ConversationHistoryClientFactory clients;
     private final TokenCipher cipher;
@@ -139,6 +142,10 @@ public class HistoryImportService {
                 break;
             }
             importConversation(source, history.next(), tally, bounds);
+            if (tally.conversations % PROGRESS_EVERY == 0) {
+                log.info("History import of {} account {}: {} conversations read so far", source.channel(),
+                        source.accountId(), tally.conversations);
+            }
         }
     }
 
