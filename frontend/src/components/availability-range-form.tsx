@@ -24,6 +24,9 @@ export default function AvailabilityRangeForm({
 }: Props) {
   return (
     <form
+      // Remount on a new range: a quick-range link is a client navigation that keeps the inputs, and their
+      // defaultValue would still show the old dates.
+      key={`${range.from}/${range.to}`}
       method="get"
       action={action}
       className="flex flex-wrap items-end gap-x-4 gap-y-3"
