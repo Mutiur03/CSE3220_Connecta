@@ -7,6 +7,8 @@ import com.connecta.backend.inbox.repository.ConversationParticipantRepository;
 import com.connecta.backend.inbox.repository.ConversationRepository;
 import com.connecta.backend.org.service.ActiveCaller;
 import com.connecta.backend.org.service.TenantAccessService;
+import com.connecta.backend.user.domain.User;
+import java.time.Clock;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,18 +26,23 @@ public class ConversationDetailService {
     private final ConversationParticipantRepository participants;
     private final TenantAccessService tenants;
     private final ActiveCaller activeCaller;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public ConversationDetailResponse get(String subject, UUID organizationId, UUID conversationId) {
         return detail(find(subject, organizationId, conversationId));
     }
 
-    /** Any status may move to any other, so a closed conversation can be reopened. */
+    /**
+     * Any status may move to any other, so a closed conversation can be reopened. Closing records the caller
+     * and the time for the agent reports.
+     */
     @Transactional
     public ConversationDetailResponse updateStatus(String subject, UUID organizationId, UUID conversationId,
             ConversationStatus status) {
-        Conversation conversation = find(subject, organizationId, conversationId);
-        conversation.changeStatus(status);
+        User caller = activeCaller.load(subject);
+        Conversation conversation = find(caller, organizationId, conversationId);
+        conversation.changeStatus(status, caller, clock.instant());
         return detail(conversations.saveAndFlush(conversation));
     }
 
@@ -53,7 +60,11 @@ public class ConversationDetailService {
      */
     @Transactional(readOnly = true)
     public Conversation find(String subject, UUID organizationId, UUID conversationId) {
-        tenants.requireMembership(organizationId, activeCaller.load(subject).getId());
+        return find(activeCaller.load(subject), organizationId, conversationId);
+    }
+
+    private Conversation find(User caller, UUID organizationId, UUID conversationId) {
+        tenants.requireMembership(organizationId, caller.getId());
         return conversations.findByIdAndOrganizationId(conversationId, organizationId)
                 .orElseThrow(ConversationNotFoundException::new);
     }

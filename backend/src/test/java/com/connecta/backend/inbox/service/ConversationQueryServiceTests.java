@@ -231,7 +231,7 @@ class ConversationQueryServiceTests {
         void aClosedConversationReportsItsStatus() {
             callerIs(Roles.AGENT);
             Conversation closed = conversation(Channel.MESSENGER);
-            closed.changeStatus(ConversationStatus.CLOSED);
+            closed.changeStatus(ConversationStatus.CLOSED, null, TestClock.NOW);
             pageOf(closed);
             when(links.findWithParticipantByConversationIdIn(anyCollection())).thenReturn(List.of());
             when(conversations.findLastMessages(anyCollection())).thenReturn(List.of());
