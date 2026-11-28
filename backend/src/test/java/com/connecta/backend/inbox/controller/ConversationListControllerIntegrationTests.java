@@ -203,7 +203,7 @@ class ConversationListControllerIntegrationTests extends SharedPostgres {
             join(acme, agent, Roles.AGENT);
             conversation(acme, Channel.INSTAGRAM, "Ann", "Hi", TestClock.NOW);
             Conversation done = conversation(acme, Channel.MESSENGER, "Bob", "Thanks", TestClock.NOW);
-            done.changeStatus(ConversationStatus.CLOSED);
+            done.changeStatus(ConversationStatus.CLOSED, null, TestClock.NOW);
             conversations.saveAndFlush(done);
 
             mvc.perform(get(path(acme)).param("status", "CLOSED")
