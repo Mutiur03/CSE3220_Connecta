@@ -31,7 +31,7 @@ export default function ProductTable({
   return (
     <TableScroll label="Products">
       <table className={tableClass}>
-        <thead className="border-b border-line text-secondary">
+        <thead className="border-b border-line whitespace-nowrap text-secondary">
           <tr>
             <th scope="col" className="w-14 px-4 py-2 font-medium">
               <span className="sr-only">Image</span>
@@ -82,15 +82,18 @@ export default function ProductTable({
                   <ProductImagePlaceholder />
                 )}
               </td>
-              <td className="min-w-44 px-4 py-2 align-middle">
+              {/* w-full + max-w-0: the name column takes only the width the other columns leave, so a long
+                  description truncates instead of pushing status and actions out of view. min-w-44 wins over
+                  max-w-0 and keeps the name readable on narrow screens, where TableScroll scrolls. */}
+              <td className="w-full max-w-0 min-w-44 px-4 py-2 align-middle">
                 <Link
                   href={`/organizations/${orgId}/products/${product.id}`}
-                  className="font-medium underline-offset-4 hover:underline focus-visible:underline"
+                  className="block truncate font-medium underline-offset-4 hover:underline focus-visible:underline"
                 >
                   {product.name}
                 </Link>
                 {product.description && (
-                  <p className="max-w-md truncate text-caption text-secondary">
+                  <p className="truncate text-caption text-secondary">
                     {product.description}
                   </p>
                 )}
@@ -107,7 +110,7 @@ export default function ProductTable({
               <td className="figure px-4 py-2 text-right align-middle">
                 {product.stockQuantity}
               </td>
-              <td className="px-4 py-2 align-middle">
+              <td className="px-4 py-2 align-middle whitespace-nowrap">
                 <StockStatusBadge status={product.stockStatus} />
               </td>
               <td className="px-4 py-2 align-middle">
