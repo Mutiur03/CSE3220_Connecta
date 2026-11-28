@@ -1,5 +1,6 @@
 package com.connecta.backend.analytics.repository;
 
+import com.connecta.backend.analytics.service.ReportRange;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Repository;
 
 /**
  * Per-member metrics for the agent report, read straight from the inbox and availability tables in two
- * queries (one page of rows, one count). Every table is filtered by organization_id. A range is
+ * queries (one page of rows, one count). Every table is filtered by organization_id. The range is
  * {@code [start, end)}; {@code now} closes a still-open availability interval.
  */
 @Repository
@@ -22,9 +23,10 @@ import org.springframework.stereotype.Repository;
 public class AgentMetricsRepository {
 
     /*
-     * One row per member on the page, sorted by name then id so paging is stable. first_replies holds,
-     * for every conversation whose first message is in range, the first outbound message after its
-     * first inbound one; the median is taken over the rows sent by the member.
+     * One row per member on the page, sorted by name then id so paging is stable. "Started" matches the
+     * conversation report: a message in range and none before it. first_replies holds, per started
+     * conversation, the first outbound message after its first inbound one; the median is taken over
+     * the rows sent by the member.
      */
     private static final String PAGE_SQL = """
             WITH members AS (
@@ -37,25 +39,36 @@ public class AgentMetricsRepository {
                 LIMIT :limit OFFSET :offset
             ),
             started AS (
-                SELECT conversation_id, min(sent_at) FILTER (WHERE direction = 'INBOUND') AS first_inbound
-                FROM messages
-                WHERE organization_id = :organizationId AND sent_at < :end
-                GROUP BY conversation_id
-                HAVING min(sent_at) >= :start
+                SELECT m.conversation_id
+                FROM messages m
+                WHERE m.organization_id = :organizationId AND m.sent_at >= :start AND m.sent_at < :end
+                GROUP BY m.conversation_id
+                HAVING NOT EXISTS (
+                    SELECT 1 FROM messages e
+                    WHERE e.organization_id = :organizationId AND e.conversation_id = m.conversation_id
+                      AND e.sent_at < :start)
+            ),
+            first_inbound AS (
+                SELECT s.conversation_id,
+                       (SELECT MIN(i.sent_at) FROM messages i
+                        WHERE i.organization_id = :organizationId AND i.conversation_id = s.conversation_id
+                          AND i.direction = 'INBOUND') AS inbound_at
+                FROM started s
             ),
             first_replies AS (
-                SELECT reply.sent_by_user_id, EXTRACT(EPOCH FROM reply.sent_at - s.first_inbound) AS seconds
-                FROM started s
+                SELECT reply.sent_by_user_id, EXTRACT(EPOCH FROM reply.sent_at - f.inbound_at) AS seconds
+                FROM first_inbound f
                 CROSS JOIN LATERAL (
                     SELECT o.sent_at, o.sent_by_user_id
                     FROM messages o
                     WHERE o.organization_id = :organizationId
-                      AND o.conversation_id = s.conversation_id
+                      AND o.conversation_id = f.conversation_id
                       AND o.direction = 'OUTBOUND'
-                      AND o.sent_at > s.first_inbound
+                      AND o.sent_at > f.inbound_at
                     ORDER BY o.sent_at, o.id
                     LIMIT 1
                 ) reply
+                WHERE f.inbound_at IS NOT NULL
             )
             SELECT mb.id AS membership_id,
                    mb.full_name AS name,
@@ -90,13 +103,13 @@ public class AgentMetricsRepository {
 
     private final JdbcClient jdbc;
 
-    /** One page of the organization's members with their metrics for {@code [start, end)}. */
-    public Page<AgentMetricsRow> findAgentMetrics(UUID organizationId, Instant start, Instant end, Instant now,
+    /** One page of the organization's members with their metrics for the range. */
+    public Page<AgentMetricsRow> findAgentMetrics(UUID organizationId, ReportRange range, Instant now,
             Pageable pageable) {
         List<AgentMetricsRow> rows = jdbc.sql(PAGE_SQL)
                 .param("organizationId", organizationId)
-                .param("start", utc(start))
-                .param("end", utc(end))
+                .param("start", utc(range.start()))
+                .param("end", utc(range.end()))
                 .param("now", utc(now))
                 .param("limit", pageable.getPageSize())
                 .param("offset", pageable.getOffset())

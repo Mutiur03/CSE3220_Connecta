@@ -3,11 +3,13 @@ package com.connecta.backend.analytics.repository;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.connecta.backend.analytics.service.ReportRange;
 import com.connecta.backend.support.RandomJwtSecret;
 import com.connecta.backend.support.SharedPostgres;
 import com.connecta.backend.support.TestClock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -38,6 +40,8 @@ class AgentMetricsRepositoryIntegrationTests extends SharedPostgres {
     private static final Instant START = Instant.parse("2026-11-01T00:00:00Z");
     private static final Instant END = Instant.parse("2026-11-08T00:00:00Z");
     private static final Instant NOW = Instant.parse("2026-11-10T00:00:00Z");
+    private static final ReportRange RANGE =
+            new ReportRange(LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-07"), ZoneOffset.UTC);
 
     @Autowired
     AgentMetricsRepository repository;
@@ -66,11 +70,11 @@ class AgentMetricsRepositoryIntegrationTests extends SharedPostgres {
     }
 
     private AgentMetricsRow row(UUID membershipId) {
-        return rows(END, NOW).stream().filter(r -> r.membershipId().equals(membershipId)).findFirst().orElseThrow();
+        return rows(NOW).stream().filter(r -> r.membershipId().equals(membershipId)).findFirst().orElseThrow();
     }
 
-    private List<AgentMetricsRow> rows(Instant end, Instant now) {
-        return repository.findAgentMetrics(org, START, end, now, PageRequest.of(0, 20)).getContent();
+    private List<AgentMetricsRow> rows(Instant now) {
+        return repository.findAgentMetrics(org, RANGE, now, PageRequest.of(0, 20)).getContent();
     }
 
     @Nested
@@ -78,7 +82,7 @@ class AgentMetricsRepositoryIntegrationTests extends SharedPostgres {
 
         @Test
         void everyMemberOfTheOrganizationHasARowSortedByName() {
-            List<AgentMetricsRow> rows = rows(END, NOW);
+            List<AgentMetricsRow> rows = rows(NOW);
 
             assertEquals(List.of(alice, bob, carl), rows.stream().map(AgentMetricsRow::membershipId).toList());
             assertEquals(List.of("Alice", "Bob", "Carl"), rows.stream().map(AgentMetricsRow::name).toList());
@@ -94,7 +98,7 @@ class AgentMetricsRepositoryIntegrationTests extends SharedPostgres {
 
         @Test
         void aPageKeepsTheNameOrderAndTheTotal() {
-            Page<AgentMetricsRow> second = repository.findAgentMetrics(org, START, END, NOW, PageRequest.of(1, 2));
+            Page<AgentMetricsRow> second = repository.findAgentMetrics(org, RANGE, NOW, PageRequest.of(1, 2));
 
             assertEquals(3, second.getTotalElements());
             assertEquals(List.of(carl), second.getContent().stream().map(AgentMetricsRow::membershipId).toList());
@@ -172,7 +176,7 @@ class AgentMetricsRepositoryIntegrationTests extends SharedPostgres {
             Instant now = END.minus(Duration.ofMinutes(10));
             interval(alice, END.minus(Duration.ofMinutes(30)), null);
 
-            assertEquals(1200, rows(END, now).get(0).availableSeconds());
+            assertEquals(1200, rows(now).get(0).availableSeconds());
         }
     }
 

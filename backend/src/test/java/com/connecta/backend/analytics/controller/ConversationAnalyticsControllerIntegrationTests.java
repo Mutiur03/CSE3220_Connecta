@@ -116,7 +116,7 @@ class ConversationAnalyticsControllerIntegrationTests extends SharedPostgres {
         thread(orgA, Channel.INSTAGRAM).inbound("2026-11-11T05:00:00Z").outbound("2026-11-11T05:30:00Z");
         // 11 Nov, never answered, closed.
         Chat c4 = thread(orgA, Channel.MESSENGER).inbound("2026-11-11T06:00:00Z");
-        c4.conversation.changeStatus(ConversationStatus.CLOSED);
+        c4.conversation.changeStatus(ConversationStatus.CLOSED, adminA, TestClock.NOW);
         conversations.saveAndFlush(c4.conversation);
         // Started before the range: its message in the range counts as received, not as started.
         thread(orgA, Channel.MESSENGER).inbound("2026-11-01T10:00:00Z").inbound("2026-11-10T10:00:00Z");
